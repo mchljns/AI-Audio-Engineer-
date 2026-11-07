@@ -529,5 +529,14 @@ dialog.connect-dialog { width: min(640px, calc(100vw - 32px)); }
 .chip-btn.on { border-color: #f5b942; background: rgba(245, 185, 66, 0.18); color: #f5b942; }
 @media (max-width: 640px) {
   .sc-row { grid-template-columns: minmax(0, 1fr); }
-  .sc-ctl { grid-template-columns: 76px 36px minmax(0, 1fr); gap: 8px; }
+  .sc-ctl { grid-template-columns: 96px 28px minmax(0, 1fr); gap: 8px; }
 }
+
+/* ProPresenter follow bar, this week's channel pickers */
+.pro-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 8px 12px; border-radius: 12px; background: var(--strip); }
+.pro-bar .chip-btn { padding: 0 14px; }
+.pro-bar .chip-btn.on { border-color: var(--ok); background: rgba(60, 207, 122, 0.15); color: var(--ok); }
+.sc-label { display: grid; gap: 4px; }
+.ch-pick { font-size: 13px; padding: 4px 6px; min-height: 36px; width: 100%; }
+.ch-pick.moved { border-color: #f5b942; color: #f5b942; }
+.gold { color: #f5b942; }

@@ -25,6 +25,7 @@ import { MusicController, toSpotifyUri } from './music.js';
 import { Updater } from './updater.js';
 import { Library } from './library.js';
 import { PlanningCenter } from './pco.js';
+import { ProPresenter } from './propresenter.js';
 import { CONNECTION_MODES, chooseMixer, hardwarePorts, kindLabel, pathTo } from './netpath.js';
 import { ROLES } from './roles.js';
 
@@ -47,7 +48,7 @@ const LIBRARY_COMMANDS = new Set([
   'saveSlot', 'deleteSlot', 'savePerson', 'deletePerson',
   'newSet', 'openSet', 'deleteSet', 'setLineup',
   'addSong', 'removeSong', 'moveSong', 'setSongLeads', 'playSong', 'nextSong', 'songMixAmounts',
-  'pcoServiceTypes', 'pcoPlans', 'pcoImport',
+  'pcoServiceTypes', 'pcoPlans', 'pcoImport', 'setSetChannel',
 ]);
 
 // PA knob positions worth writing down, so a bumped knob can be put back next week.
@@ -141,6 +142,12 @@ export class Bridge {
     this.roleStore = new RoleStore(path.join(config.dataDir, 'roles.json'));
     this.lockStore = new LockStore(path.join(config.dataDir, 'locks.json'));
     this.library = new Library(path.join(config.dataDir, 'library.json'));
+    this.pro = new ProPresenter({
+      file: path.join(config.dataDir, 'propresenter.json'),
+      ...(config.proFetch ? { fetchImpl: config.proFetch } : {}),
+      onPresentation: (name) => this.#followPresentation(name),
+    });
+    this.proMatch = null; // { name, song } for the last presentation ProPresenter put up
     this.pco = new PlanningCenter({ file: path.join(config.dataDir, 'pco.json'), ...(config.pcoBaseUrl ? { baseUrl: config.pcoBaseUrl } : {}) });
     this.settingsFile = path.join(config.dataDir, 'settings.json');
     this.settings = { walkinLevels: {}, automix: {}, playlists: [], connection: 'auto', venues: [], venue: null, checklist: { date: '', done: {} } };
@@ -184,6 +191,7 @@ export class Bridge {
       onAlert: (a) => this.alert(a),
     }).start();
     this.#startHttp();
+    this.pro.start();
     this.timers.push(setInterval(() => this.#push(), PUSH_MS));
     if (this.config.keepAwake && process.platform === 'darwin') {
       // Keep the Mac from idle-sleeping while the bridge runs.
@@ -197,6 +205,7 @@ export class Bridge {
   stop() {
     this.stopped = true;
     this.timers.forEach(clearInterval);
+    this.pro?.stop();
     this.fades?.stopAll();
     this.automix?.stop();
     this.music?.stop();
@@ -430,6 +439,7 @@ export class Bridge {
       return this.#pcoTokenCommand(cmd);
     }
     if (LIBRARY_COMMANDS.has(cmd.type)) return this.#libraryCommand(cmd);
+    if (cmd.type === 'proPresenter') return this.#proCommand(cmd);
     // Never act on a mixer we can't reach: the screen would show changes that didn't happen.
     // Commands that don't need the mixer.
     const offlineOk = new Set(['dismissAlert', 'clearAlerts', 'music', 'addPlaylist', 'removePlaylist']);
@@ -623,6 +633,27 @@ export class Bridge {
 
   // ---------- people, channels, sets, songs and Planning Center ----------
 
+  /** ProPresenter put up a presentation: if it's a song in today's set, go to that song. */
+  #followPresentation(name) {
+    const lib = this.library;
+    const i = lib.matchSong(name);
+    this.proMatch = { name, song: i >= 0 ? lib.set().songs[i].title : null };
+    if (i < 0 || i === lib.data.currentSong) return;
+    lib.playSong(i);
+    this.automix?.hintMode('worship');
+    this.automix?.setFocus(lib.focusForCurrentSong());
+  }
+
+  #proCommand(cmd) {
+    try {
+      this.pro.configure({ host: cmd.host, port: cmd.port, follow: cmd.follow });
+      this.proMatch = null;
+      if (cmd.host !== undefined) this.alert({ level: 'ok', source: 'pro', message: this.pro.settings.host ? `ProPresenter address saved (${this.pro.settings.host}:${this.pro.settings.port}).` : 'ProPresenter link removed.' });
+    } catch (e) {
+      this.alert({ level: 'warn', source: 'pro', message: e.message });
+    }
+  }
+
   #pcoTokenCommand(cmd) {
     if (cmd.type === 'pcoForget') {
       this.pco.forget();
@@ -663,6 +694,9 @@ export class Bridge {
           break;
         case 'deleteSet':
           lib.deleteSet(String(cmd.id));
+          break;
+        case 'setSetChannel':
+          lib.setSetChannel(String(cmd.slotId), cmd.left === null ? '' : String(cmd.left ?? ''), String(cmd.right ?? ''));
           break;
         case 'setLineup':
           lib.setLineup(String(cmd.slotId), cmd.personId ? String(cmd.personId) : null);
@@ -736,6 +770,7 @@ export class Bridge {
         : null,
       currentSong: d.currentSong,
       pco: this.pco.status(),
+      pro: { ...this.pro.status(), match: this.proMatch },
     };
   }
 

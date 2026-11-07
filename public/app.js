@@ -369,6 +369,7 @@ function render(s) {
   renderPa(s);
   renderSet(s);
   renderSoundcheck(s);
+  renderPro(s);
 
   for (const r of inv.rows) updateChannel(r);
   for (const d of s.dcas) updateDca(d);
@@ -464,6 +465,21 @@ try {
 // ---------- Set tab: song buttons, set editing, people, channels, Planning Center ----------
 const CHANNEL_OPTIONS = ['', ...Array.from({ length: 16 }, (_, i) => String(i + 1)), 'aux'];
 const chLabel = (c) => (c === '' ? '—' : c === 'aux' ? 'Aux 17/18' : `Ch ${c}`);
+/** A position with this set's channels (people's channels change week to week). */
+const slotThisWeek = (set, slot) => (set?.channels?.[slot.id] ? { ...slot, ...set.channels[slot.id], moved: true } : slot);
+const pairLabel = (l, r) => (l ? `${chLabel(l)}${r ? `/${r === 'aux' ? 'Aux' : r}` : ''}` : 'No ch');
+/** Pick this week's channel for a position. Stereo positions move as a pair (next channel up). */
+function weekChannelSelect(set, slot) {
+  const stereo = !!slot.right;
+  const right = (l) => (stereo && l !== 'aux' && Number(l) < 16 ? String(Number(l) + 1) : '');
+  const opts = [['', pairLabel(slot.left, slot.right)], ...CHANNEL_OPTIONS.filter((c) => c && (!stereo || c !== '16')).map((c) => [c, stereo ? pairLabel(c, right(c)) : chLabel(c)])];
+  const cur = set?.channels?.[slot.id]?.left ?? '';
+  const sel = selectEl(opts, cur, (v) => send({ type: 'setSetChannel', slotId: slot.id, left: v || null, right: v ? right(v) : '' }), `${slot.name} channel this week`);
+  sel.classList.add('ch-pick');
+  sel.title = cur ? `Moved this week (usually ${pairLabel(slot.left, slot.right)})` : 'Usual channel. Pick another if they are on a different channel this week.';
+  if (cur) sel.classList.add('moved');
+  return sel;
+}
 const keys = {};
 function changed(name, value) {
   const k = JSON.stringify(value);
@@ -509,7 +525,7 @@ function renderSet(s) {
   // Edit: lineup
   const vocalPeople = set ? L.slots.filter((x) => x.instrument === 'vocal' && set.lineup[x.id]).map((x) => people[set.lineup[x.id]]).filter(Boolean) : [];
   const instSlots = set ? L.slots.filter((x) => x.instrument !== 'vocal' && set.lineup[x.id]) : [];
-  if (changed('lineup', [set?.id, set?.lineup, L.slots, L.people])) {
+  if (changed('lineup', [set?.id, set?.lineup, set?.channels, L.slots, L.people])) {
     $('#lineup').replaceChildren(
       ...(set
         ? L.slots.map((slot) => {
@@ -517,11 +533,11 @@ function renderSet(s) {
             const pid = set.lineup[slot.id] ?? '';
             const p = people[pid];
             const inst = p?.instruments.find((i) => i.type === slot.instrument);
-            const chans = slot.left ? `${chLabel(slot.left)}${inst?.stereo && slot.right ? ` + ${slot.right === 'aux' ? 'Aux' : slot.right}` : ''}` : 'no channel set';
             return el('div', { class: 'lrow' }, [
               el('label', { text: slot.name }),
               selectEl([['', '— nobody —'], ...who.map((x) => [x.id, x.name])], pid, (v) => send({ type: 'setLineup', slotId: slot.id, personId: v || null }), `${slot.name} player`),
-              el('span', { class: 'hint', text: `${chans}${inst && L.instruments[slot.instrument]?.stereo !== 'never' ? (inst.stereo ? ' · stereo' : ' · mono') : ''}` }),
+              weekChannelSelect(set, slot),
+              el('span', { class: 'hint', text: inst && L.instruments[slot.instrument]?.stereo !== 'never' ? (inst.stereo ? 'stereo' : 'mono') : '' }),
             ]);
           })
         : [el('p', { class: 'muted', text: 'Start a set first.' })]),
@@ -703,8 +719,8 @@ function renderSoundcheck(s) {
   const song = set && idx !== null ? set.songs[idx] : null;
   const levelOf = (ch) => s.inventory.rows.find((r) => r.id === ch)?.levelDb ?? -128;
   const people = Object.fromEntries((L?.people ?? []).map((p) => [p.id, p]));
-  const singers = set ? L.slots.filter((x) => x.instrument === 'vocal' && set.lineup[x.id] && x.left).map((x) => ({ slot: x, person: people[set.lineup[x.id]] })).filter((x) => x.person) : [];
-  const players = set ? L.slots.filter((x) => x.instrument !== 'vocal' && set.lineup[x.id] && x.left).map((x) => ({ slot: x, person: people[set.lineup[x.id]] })).filter((x) => x.person) : [];
+  const singers = set ? L.slots.map((x) => slotThisWeek(set, x)).filter((x) => x.instrument === 'vocal' && set.lineup[x.id]).map((x) => ({ slot: x, person: people[set.lineup[x.id]] })).filter((x) => x.person) : [];
+  const players = set ? L.slots.map((x) => slotThisWeek(set, x)).filter((x) => x.instrument !== 'vocal' && set.lineup[x.id]).map((x) => ({ slot: x, person: people[set.lineup[x.id]] })).filter((x) => x.person) : [];
   // One row per person on stage: their vocal mic (if any) and the instruments they play.
   const rows = new Map();
   for (const { slot, person } of [...singers, ...players]) {
@@ -731,7 +747,7 @@ function renderSoundcheck(s) {
   }
 
   // Tiles: rebuilt when the song or roles change; levels update every refresh.
-  if (changed('scRows', [set.id, idx, song?.lead, song?.harmonies, song?.leadInstrument, [...rows.values()].map((r) => [r.person.id, r.vocal?.id, r.instruments.map((i) => i.id)])])) {
+  if (changed('scRows', [set.id, idx, song?.lead, song?.harmonies, song?.leadInstrument, [...rows.values()].map((r) => [r.person.id, r.vocal?.id, r.instruments.map((i) => i.id)]), set.channels])) {
     const setVocal = (pid, role) => {
       if (!song) return;
       let lead = song.lead;
@@ -746,6 +762,8 @@ function renderSoundcheck(s) {
       send({ type: 'setSongLeads', index: idx, lead, harmonies: [...harm] });
     };
     const meter = (slot) => el('div', { class: 'meter', 'data-ch': slot.left, 'data-ch2': slot.right || '' }, [el('div', { class: 'lvl' })]);
+    const base = (slot) => L.slots.find((x) => x.id === slot.id);
+    const label = (text, slot) => el('div', { class: 'sc-label' }, [el('span', { text }), weekChannelSelect(set, base(slot))]);
     $('#scPeople').replaceChildren(
       ...[...rows.values()].map(({ person, vocal, instruments }) => {
         const role = song ? roleOf(song, person.id) : 'none';
@@ -753,7 +771,7 @@ function renderSoundcheck(s) {
         const parts = [el('div', { class: 'sc-name' }, [el('b', { text: person.name }), el('span', { class: 'muted small', text: vocal ? `Mic: ${vocal.name}` : 'Plays only' })])];
         const controls = [];
         if (vocal) {
-          const seg = el('div', { class: 'sc-ctl' }, [el('span', { class: 'sc-label', text: 'Sings' }), meter(vocal)]);
+          const seg = el('div', { class: 'sc-ctl' }, [label('Sings', vocal), meter(vocal)]);
           const btns = el('div', { class: 'seg mini' });
           for (const [r, label] of [['lead', 'Lead'], ['harmony', 'Harmony'], ['none', 'Off']]) {
             const b = el('button', { class: `seg-btn${role === r ? ` active v-${r}` : ''}`, type: 'button', text: label });
@@ -770,7 +788,7 @@ function renderSoundcheck(s) {
           b.disabled = !song;
           b.setAttribute('aria-pressed', String(isLead));
           b.addEventListener('click', () => send({ type: 'setSongLeads', index: idx, leadInstrument: isLead ? null : slot.id }));
-          controls.push(el('div', { class: 'sc-ctl' }, [el('span', { class: 'sc-label', text: slot.name }), meter(slot), b]));
+          controls.push(el('div', { class: 'sc-ctl' }, [label(slot.name, slot), meter(slot), b]));
         }
         parts.push(el('div', { class: 'sc-ctls' }, controls));
         return el('div', { class: `sc-row${role !== 'none' ? ` v-${role}` : ''}${leadsInstrument ? ' i-lead' : ''}` }, parts);
@@ -788,6 +806,7 @@ function renderSoundcheck(s) {
   if (hearing.song !== key) hearing = { song: key, since: Date.now(), ch: new Map() };
   if (song) {
     for (const { slot } of singers) {
+      if (!slot.left) continue;
       const db = levelOf(slot.left);
       const h = hearing.ch.get(slot.left) ?? { n: 0, active: 0, sum: 0 };
       h.n++;
@@ -818,6 +837,36 @@ function renderSoundcheck(s) {
   }
   $('#scUseHearing').disabled = !hearingSuggestion;
 }
+// ---------- ProPresenter: follow the song that's up ----------
+function renderPro(s) {
+  const P = s.setlist?.pro;
+  if (!P) return;
+  $('#proBar').hidden = !P.host;
+  const f = $('#proFollow');
+  f.classList.toggle('on', !!P.follow);
+  f.setAttribute('aria-pressed', String(!!P.follow));
+  f.textContent = P.follow ? '● Following ProPresenter' : 'Follow ProPresenter';
+  let msg = '';
+  if (!P.follow) msg = 'Off: tap songs yourself.';
+  else if (P.error) msg = P.error;
+  else if (!P.connected) msg = 'Connecting…';
+  else if (!P.match) msg = 'Connected. Waiting for a song to go up.';
+  else if (P.match.song) msg = `Up now: ${P.match.song}`;
+  else msg = `Up now: "${P.match.name}" (not a song in this set, so nothing changed)`;
+  $('#proStatus').textContent = msg;
+  $('#proStatus').classList.toggle('music-warn', !!(P.follow && P.error));
+  if (changed('proForm', [P.host, P.port]) && document.activeElement?.closest?.('#proForm') == null) {
+    $('#proHost').value = P.host ?? '';
+    $('#proPort').value = P.port ?? '';
+  }
+}
+$('#proFollow').addEventListener('click', () => send({ type: 'proPresenter', follow: !latest?.setlist?.pro?.follow }));
+$('#proForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  send({ type: 'proPresenter', host: $('#proHost').value, port: $('#proPort').value, follow: true });
+});
+$('#proRemove').addEventListener('click', () => send({ type: 'proPresenter', host: '', port: '' }));
+
 $('#scUseHearing').addEventListener('click', () => {
   const idx = latest?.setlist?.currentSong;
   if (!hearingSuggestion || idx === null || idx === undefined) return;

@@ -170,6 +170,11 @@
         <button id="segService" class="seg-btn active" type="button" role="tab">Service: song buttons</button>
       </div>
 
+      <div class="pro-bar" id="proBar" hidden>
+        <button id="proFollow" class="chip-btn" type="button" aria-pressed="false">Follow ProPresenter</button>
+        <span id="proStatus" class="muted small"></span>
+      </div>
+
       <section class="auto-card sc-card" id="scCard" hidden>
         <div class="sc-head">
           <button id="scPrev" class="icon-btn big" type="button" aria-label="Previous song">◀</button>
@@ -179,7 +184,7 @@
           </div>
           <button id="scNext" class="icon-btn big" type="button" aria-label="Next song">▶</button>
         </div>
-        <p class="muted small">One row per person. Pick how they sing on this song, and tap <b>★ Lead</b> on the instrument that carries it. Saved straight away and remembered for next time.</p>
+        <p class="muted small">One row per person. Pick how they sing on this song, and tap <b>★ Lead</b> on the instrument that carries it. If someone is on a different channel this week, change it in their row: it turns <b class="gold">gold</b> and applies to this set only. Saved straight away; song roles are remembered for next time.</p>
         <div id="scPeople" class="sc-people"></div>
         <div class="hearing">
           <span id="scHearing" class="muted">Listening…</span>
@@ -219,6 +224,26 @@
             <button class="btn btn-ghost" type="submit">Start a new set</button>
           </form>
           <button id="deleteSetBtn" class="btn btn-ghost btn-small" type="button">Delete this set</button>
+        </div>
+      </details>
+
+      <details class="auto-card fold" id="proFold">
+        <summary><h2>ProPresenter</h2></summary>
+        <div class="fold-body">
+          <p class="muted">When the ProPresenter operator puts up a song, Mix Assistant moves to that song here, so its song mix comes in by itself. It only reads which song is up; it never controls ProPresenter.</p>
+          <ol class="steps small">
+            <li>On the ProPresenter computer: <b>ProPresenter → Settings → Network</b>, turn on <b>Enable Network</b>. It shows an IP address and a port.</li>
+            <li>Type them here once and tap Save. Needs ProPresenter 7.9 or later.</li>
+            <li>Both computers must be on the same network (see the note below).</li>
+          </ol>
+          <form id="proForm" class="inline-form">
+            <input id="proHost" placeholder="IP address, e.g. 192.168.1.20" maxlength="64" aria-label="ProPresenter IP address" inputmode="decimal" autocomplete="off" />
+            <input id="proPort" placeholder="Port" maxlength="5" aria-label="ProPresenter port" inputmode="numeric" class="narrow" />
+            <button class="btn" type="submit">Save</button>
+            <button id="proRemove" class="btn btn-ghost btn-small" type="button">Remove</button>
+          </form>
+          <p class="muted small">Song names are matched loosely: "Holy Forever (Live) - Chris Tomlin" in ProPresenter finds "Holy Forever" in the set. Announcements, sermon slides and anything that isn't a song in today's set are ignored, and you can still tap songs yourself.</p>
+          <p class="muted small"><b>Network:</b> this Mac reaches ProPresenter over its Wi-Fi. If both are on the school's open Wi-Fi it usually works, but some guest networks block computers from talking to each other. If it says it can't reach ProPresenter, join the ProPresenter computer to the same network as this Mac's Wi-Fi.</p>
         </div>
       </details>
 

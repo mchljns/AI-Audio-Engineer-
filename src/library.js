@@ -3,7 +3,8 @@
 //   slots    a stage position and its XR18 channel(s): "Vox 1" → ch 3, "Keys" → ch 7 + 8
 //   people   who plays or sings what (acoustic can be mono or stereo per person)
 //   sets     a service: who's on which position, the songs in order, and per song the
-//            lead singer, harmonies and lead instrument
+//            lead singer, harmonies and lead instrument. A set can also move a position
+//            to different channels for that week (packs and inputs change week to week).
 //   songs    remembered per song, so the next time it's played the leads are filled in
 //
 // The song mix only ever turns channels down from the level a person set (see automix.js).
@@ -121,7 +122,7 @@ export class Library {
   // ---------- sets ----------
 
   newSet({ title, date, pco = null } = {}) {
-    const set = { id: newId(), title: clean(title, 80) || 'Sunday', date: clean(date, 20), pco, lineup: {}, songs: [] };
+    const set = { id: newId(), title: clean(title, 80) || 'Sunday', date: clean(date, 20), pco, lineup: {}, channels: {}, songs: [] };
     this.data.sets.unshift(set);
     this.data.sets = this.data.sets.slice(0, 30);
     this.data.currentSet = set.id;
@@ -148,6 +149,42 @@ export class Library {
       this.data.currentSong = null;
     }
     this.save();
+  }
+
+  /** A position with this set's channels: the week's channel if one was picked, else the usual one. */
+  slotIn(set, slot) {
+    const o = set?.channels?.[slot?.id];
+    return o ? { ...slot, left: o.left, right: o.right, usual: { left: slot.left, right: slot.right } } : slot;
+  }
+
+  /** This week only: move a position to other channels. left '' clears it back to the usual channels. */
+  setSetChannel(slotId, left, right = '') {
+    const set = this.set();
+    const slot = this.slot(slotId);
+    if (!set || !slot) return;
+    set.channels ??= {};
+    const l = validCh(left ?? '');
+    if (!l) delete set.channels[slotId];
+    else set.channels[slotId] = { left: l, right: INSTRUMENTS[slot.instrument]?.stereo === 'never' ? '' : validCh(right ?? '') };
+    this.save();
+  }
+
+  /** The song in this set whose title matches a ProPresenter presentation name, or -1. */
+  matchSong(name) {
+    const set = this.set();
+    const norm = (t) =>
+      String(t ?? '')
+        .toLowerCase()
+        .replace(/\(.*?\)|\[.*?\]/g, ' ') // "(Live)", "[A]"
+        .split(/\s[-–|:]\s/)[0] // "Holy Forever - Chris Tomlin"
+        .replace(/&/g, 'and')
+        .replace(/[^a-z0-9]+/g, '');
+    const want = norm(name);
+    if (!set || want.length < 3) return -1;
+    const titles = set.songs.map((s) => norm(s.title));
+    let i = titles.indexOf(want);
+    if (i < 0) i = titles.findIndex((t) => t.length >= 4 && (want.startsWith(t) || t.startsWith(want)));
+    return i;
   }
 
   setLineup(slotId, personId) {
@@ -232,6 +269,7 @@ export class Library {
 
   /** Channels a person uses on a stage position (stereo pairs only when that person plays stereo). */
   channelsFor(slot, personId) {
+    slot = this.slotIn(this.set(), slot);
     if (!slot?.left) return [];
     const mode = INSTRUMENTS[slot.instrument]?.stereo;
     let stereo = mode === 'always';
