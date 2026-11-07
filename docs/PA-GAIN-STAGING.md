@@ -79,17 +79,20 @@ Your PTU-7000 routine is the right one: scan each channel by itself with everyth
 - XLR out to the XR18 with **phantom power off** on that channel.
 - If you hear a hum that stops when the cable is unplugged from the NUX, use its **ground lift**.
 
-## 8. In-ears: two mono mixes
+## 8. In-ears: four mixes, one aux each
 
-The two PTM-10s run in mono mode, so you have **two in-ear mixes**, one per transmitter. Any number of bodypacks can listen to the same transmitter, so people share a mix.
+Your two PTM-10s (in mono mode) give **four wireless in-ear mixes**, each fed by its own XR18 aux bus. A suggested starting point (rename to match who's on each pack):
 
-| XR18 bus | Name it | Feeds | Suggested contents |
-|---|---|---|---|
-| Aux 1 | **IEM Band** | PTM-10 #1 | Click and guide up front, tracks, keys and acoustic, a little of each vocal |
-| Aux 2 | **IEM Vocals** | PTM-10 #2 | Vocals up front, keys and acoustic for pitch, guide, click lower (or off for singers who don't want it) |
-| Aux 3–6 | (free) | | If you ever add a livestream or recording feed, name that bus "Stream" or "Recording" so Mix Assistant keeps the click off it |
+| XR18 bus | Name it | What's loudest in it |
+|---|---|---|
+| Aux 1 | **IEM Keys** | Click and guide, keys, tracks, then the lead vocal |
+| Aux 2 | **IEM Gtr** | Click and guide, acoustic, keys, tracks, then the lead vocal |
+| Aux 3 | **IEM Vox 1** | Their own voice, keys and acoustic for pitch, guide; click low or off |
+| Aux 4 | **IEM Vox 2** | Same as Vox 1 (shared by the other singers if there are three) |
+| Aux 5–6 | (free) | If you ever add a livestream or recording feed, name that bus "Stream" or "Recording" so Mix Assistant keeps the click off it |
 
-- **Use pre-fader sends** for both buses, so the auto-mix turning channels down for the house never changes what anyone hears in their ears.
-- Use the transmitter input the PTM-10 manual names for mono, and set the aux bus master so the transmitter's input meter is strong but not clipping.
-- **Name the buses exactly like this** (anything with "IEM" in it works). Mix Assistant then knows click and guide belong there and won't warn about them.
-- The pastor's earset and the walk-in music stay out of both in-ear mixes unless the band asks for them.
+- **Use pre-fader sends** on all four buses, so the auto-mix turning channels down for the house never changes what anyone hears in their ears.
+- Set each aux bus master so its transmitter's input meter is strong but not clipping.
+- **Name the buses with "IEM" in the name** (as above). Mix Assistant then knows click and guide belong there and won't warn about them. A bus with no name and click on it shows a warning until it's named.
+- The pastor's earset and the walk-in music stay out of the in-ear mixes unless someone asks for them.
+- Each musician's mix is a good candidate for the "profiles" step on the roadmap: once that's built, a singer's in-ear mix comes back automatically whichever pack they wear.
