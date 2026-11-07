@@ -13,24 +13,47 @@
   <body>
     <header class="topbar">
       <div class="brand">Mix Assistant</div>
-      <div id="conn" class="pill pill-warn">Connecting…</div>
-      <div id="lock" class="pill">Click &amp; guide: checking…</div>
+      <div id="conn" class="pill pill-warn" data-tech>Connecting…</div>
+      <div id="lock" class="pill" data-tech>Click &amp; guide: checking…</div>
       <button id="share" class="pill pill-info pill-btn" type="button" hidden>Connect an iPad</button>
       <div class="spacer"></div>
       <nav class="tabs" role="tablist">
-        <button id="tabAuto" class="tab active" role="tab" aria-selected="true">Auto</button>
-        <button id="tabSet" class="tab" role="tab" aria-selected="false">Set</button>
-        <button id="tabMixer" class="tab" role="tab" aria-selected="false">Mixer</button>
-        <button id="tabPa" class="tab" role="tab" aria-selected="false">PA setup</button>
+        <button id="tabReady" class="tab" role="tab" aria-selected="false">Get ready</button>
+        <button id="tabAuto" class="tab active" role="tab" aria-selected="true">Live</button>
+        <button id="tabSet" class="tab" role="tab" aria-selected="false">Songs &amp; people</button>
+        <button id="tabMixer" class="tab" role="tab" aria-selected="false" data-tech>Mixer</button>
+        <button id="tabPa" class="tab" role="tab" aria-selected="false" data-tech>PA setup</button>
       </nav>
+      <button id="techBtn" class="tech-btn" type="button" title="Tech mode: engineering settings for the tech lead">⚙︎</button>
     </header>
+    <div class="status-bar" id="statusBar">
+      <button id="lightBtn" class="light-btn" type="button" aria-label="What's going on">
+        <span id="light" class="light"></span>
+        <span id="lightText">Starting…</span>
+        <span id="lightMore" class="light-more"></span>
+      </button>
+      <button id="handsOffBtn" class="hands-btn" type="button">✋ Hands off</button>
+    </div>
+    <div id="handsBanner" class="hands-banner" hidden>
+      <span><b>Hands off.</b> Mix Assistant has put every fader and effect back where people set them and isn't changing anything. Mix in the X Air app as usual.</span>
+      <button id="handsResume" class="btn" type="button">Turn Mix Assistant back on</button>
+    </div>
+    <dialog id="lightDlg" class="light-dlg" aria-labelledby="lightDlgTitle">
+      <div class="tone-head">
+        <h2 id="lightDlgTitle">What's going on</h2>
+        <button class="icon-btn" type="button" id="lightClose" aria-label="Close">✕</button>
+      </div>
+      <ul id="lightList" class="light-list"></ul>
+      <h3>Recent messages</h3>
+      <ul id="lightAlerts" class="list"></ul>
+    </dialog>
     <div id="offlineBar" class="offline-bar" hidden>The mixer isn't connected. Controls are paused until it's back.</div>
     <div id="homeTip" class="home-tip" hidden>
       <span><b>Last step:</b> tap <b>Share</b> (the square with the arrow) → <b>Add to Home Screen</b>. From then on, just tap the Mix Assistant icon: no code, no PIN.</span>
       <button id="homeTipOk" class="btn btn-small btn-ghost" type="button">OK</button>
     </div>
 
-    <details id="checkPanel" class="panel">
+    <details id="checkPanel" class="panel" data-tech>
       <summary>
         <span class="panel-title">Pre-service check</span>
         <span id="summary" class="summary">Waiting for the mixer…</span>
@@ -60,10 +83,26 @@
       </div>
     </details>
 
+    <main class="pa ready" id="readyView" hidden>
+      <section class="auto-card tech-setup" id="techSetup" data-tech>
+        <h2>Tech lead: one-time setup</h2>
+        <ul id="techList" class="ready-tech"></ul>
+      </section>
+      <div class="ready-head">
+        <div>
+          <h2 id="readyTitle">Get ready</h2>
+          <span id="readySub" class="muted"></span>
+        </div>
+        <div class="ready-progress"><div id="readyBar"></div></div>
+      </div>
+      <ol id="readySteps" class="ready-steps"></ol>
+    </main>
+
     <main class="auto" id="autoView">
+      <div id="liveSlot"></div>
       <section class="auto-modes">
         <div class="auto-head">
-          <h2>Service</h2>
+          <h2>Part of the service</h2>
           <button id="modeAuto" class="chip-btn">Automatic</button>
         </div>
         <div class="modes" id="modes">
@@ -76,9 +115,9 @@
       </section>
 
       <section class="auto-card">
-        <h2>What the auto-mix is doing</h2>
+        <h2>What Mix Assistant is doing</h2>
         <div id="mixNow" class="mix-now" aria-live="polite"></div>
-        <ul id="doing" class="doing"></ul>
+        <ul id="doing" class="doing" data-tech></ul>
       </section>
 
       <section class="auto-card walkin-card">
@@ -114,7 +153,7 @@
         </details>
       </section>
 
-      <section class="auto-card mac-card" id="macCard" hidden>
+      <section class="auto-card mac-card" id="macCard" hidden data-tech>
         <h2>This Mac</h2>
         <p id="macVersion" class="muted"></p>
         <div class="row">
@@ -156,7 +195,7 @@
         </div>
       </section>
 
-      <section class="auto-card">
+      <section class="auto-card" data-tech>
         <h2>Auto-mix settings</h2>
         <label class="switch"><input type="checkbox" id="optSpeech" /><span><b>Balance the speech mics</b><br /><small>The mic being talked into stays up, the others come down.</small></span></label>
         <label class="switch"><input type="checkbox" id="optDuck" /><span><b>Turn the music down under talking</b><br /><small>During announcements and prayer over music.</small></span></label>
@@ -185,14 +224,21 @@
       </div>
       <div class="meter big" id="toneMeter"><div class="lvl"></div></div>
       <p id="toneSummary" class="tone-summary"></p>
-      <p id="toneNote" class="muted small"></p>
+      <p id="toneSummaryTech" class="muted small" data-tech></p>
+      <div class="ab-row" id="toneAB" hidden>
+        <span id="toneNote"></span>
+        <div class="seg mini" role="radiogroup" aria-label="Compare before and after">
+          <button class="seg-btn" type="button" data-ab="before">Before</button>
+          <button class="seg-btn" type="button" data-ab="after">After</button>
+        </div>
+      </div>
       <div class="tone-gain">
-        <div><b>Input gain</b> <span id="toneGainNow" class="muted"></span><br /><small class="muted">Set this first. Mix Assistant listens to their loudest part and sets the XR18's gain so it peaks around −15 dB. Compression and gate follow it.</small></div>
-        <button id="toneGainBtn" class="btn" type="button">Set gain</button>
+        <div><b>Level</b> <span id="toneGainNow" class="muted" data-tech></span><br /><small class="muted">Do this first: they sing or play their loudest part and Mix Assistant sets the level.</small></div>
+        <button id="toneGainBtn" class="btn" type="button">Set level</button>
       </div>
       <h3>What do you hear? Tap to fix (small steps; tap again for more)</h3>
       <div id="toneFixes" class="tone-fixes"></div>
-      <h3>Compression <small class="muted">evens out loud and quiet lines</small></h3>
+      <h3>Even out loud and quiet lines</h3>
       <div class="seg mini" id="toneComp">
         <button class="seg-btn" type="button" data-comp="off">Off</button>
         <button class="seg-btn" type="button" data-comp="light">Light</button>
@@ -207,10 +253,10 @@
           <button id="tonePopsLess" class="btn btn-small btn-ghost" type="button" hidden>Low notes dip</button>
           <button id="tonePopsOff" class="btn btn-small btn-ghost" type="button" hidden>Pop guard off</button>
         </div>
-        <p class="muted small">Uses their compressor to duck the channel for an instant on each pop, so it replaces their normal compression (Light / Medium / Firm).</p>
+        <p class="muted small">Replaces "Even out loud and quiet lines" for this person.</p>
       </div>
       <div id="toneFx">
-        <h3>Reverb on this person <small class="muted">their send to the reverb (also what they hear in their ears)</small></h3>
+        <h3>Reverb on this person</h3>
         <div class="seg mini" id="toneVerb">
           <button class="seg-btn" type="button" data-verb="dry">Dry</button>
           <button class="seg-btn" type="button" data-verb="little">A little</button>
@@ -226,10 +272,10 @@
           </div>
         </div>
       </div>
-      <h3>Hiss between lines <small class="muted">a gentle gate, set from their mic's own hiss</small></h3>
+      <h3>Hiss between lines</h3>
       <div class="row">
         <button id="toneGateOn" class="btn btn-small" type="button">Turn hiss down between lines</button>
-        <button id="toneGateOff" class="btn btn-small btn-ghost" type="button">Gate off</button>
+        <button id="toneGateOff" class="btn btn-small btn-ghost" type="button">Leave the hiss</button>
       </div>
       <p id="toneListen" class="tone-listen" hidden></p>
       <div class="tone-actions">
@@ -238,11 +284,11 @@
         <button id="toneLoad" class="btn btn-ghost" type="button">Load saved</button>
         <button id="toneSave" class="btn" type="button">Save to person</button>
       </div>
-      <p class="muted small">Changes go to the mixer straight away. EQ and compression are on the channel itself, so they also change how this person sounds in the in-ears (in-ear levels are never touched). Saved tone loads onto their channel each week when you tap "Channels are set".</p>
+      <p class="muted small">Changes are heard straight away, in the room and in their in-ears. "Save" brings it back next week.</p>
     </dialog>
 
     <main class="pa setv" id="setView" hidden>
-      <div class="seg" role="tablist" aria-label="Set view">
+      <div class="seg" role="tablist" aria-label="Set view" hidden>
         <button id="segSoundcheck" class="seg-btn" type="button" role="tab">Soundcheck: set roles</button>
         <button id="segService" class="seg-btn active" type="button" role="tab">Service: song buttons</button>
       </div>
@@ -254,6 +300,7 @@
         <span id="proStatus" class="muted small"></span>
       </div>
 
+      <div id="setCards"></div>
       <section class="auto-card ch-card" id="chCard" hidden>
         <div class="ch-head">
           <h2>This week's channels</h2>
@@ -293,7 +340,7 @@
       <section class="auto-card live-card" id="liveCard">
         <div class="set-head">
           <h2 id="setTitle">No set yet</h2>
-          <select id="setPick" aria-label="Choose a set"></select>
+          <select id="setPick" aria-label="Choose a set" data-tech></select>
         </div>
         <p id="songNow" class="muted"></p>
         <div id="songButtons" class="song-buttons"></div>
@@ -301,7 +348,7 @@
           <button id="nextSongBtn" class="btn btn-big" type="button">Next song ▶</button>
           <button id="noSongBtn" class="btn btn-big btn-ghost" type="button">No song</button>
         </div>
-        <p class="muted small">During worship, the song you tap gets its own mix: the lead singer and lead instrument stand out, harmonies sit a little back, and singers not on that song come down. House faders only; in-ears are never touched. Any fader you move still wins.</p>
+        <p class="muted small" data-tech>During worship, the song you tap gets its own mix: the lead singer and lead instrument stand out, harmonies sit a little back, and singers not on that song come down. House faders only; in-ears are never touched. Any fader you move still wins.</p>
       </section>
 
       <details class="auto-card fold" id="editSetFold">
@@ -325,7 +372,7 @@
         </div>
       </details>
 
-      <details class="auto-card fold" id="proFold">
+      <details class="auto-card fold" id="proFold" data-tech>
         <summary><h2>ProPresenter</h2></summary>
         <div class="fold-body">
           <p class="muted">When the ProPresenter operator puts up a song, Mix Assistant moves to that song here, so its song mix comes in by itself. It only reads which song is up; it never controls ProPresenter.</p>
@@ -347,16 +394,17 @@
       </details>
 
       <details class="auto-card fold" id="fxFold">
-        <summary><h2>Effects (reverb and delay)</h2></summary>
+        <summary><h2>Reverb</h2></summary>
         <div class="fold-body">
-          <p class="muted">Mix Assistant keeps speech dry, turns the effects down while people talk and during the sermon, and puts a light delay on the lead singer on songs you mark. Only the effects' level in the room moves; what the band hears in their in-ears isn't touched.</p>
-          <div class="row fx-pick">
+          <p class="muted" data-tech>Mix Assistant keeps speech dry, turns the effects down while people talk and during the sermon, and puts a light delay on the lead singer on songs you mark. Only the effects' level in the room moves; what the band hears in their in-ears isn't touched.</p>
+          <div class="row fx-pick" data-tech>
             <label>Reverb is on <select id="fxReverb" aria-label="Reverb effect slot"></select></label>
             <label>Delay is on <select id="fxDelay" aria-label="Delay effect slot"></select></label>
           </div>
-          <label class="switch"><input type="checkbox" id="fxFollow" /><span><b>Effects follow the service</b><br /><small>Down a few dB while someone talks between songs or over music; well down for the sermon and pre/post-service music; back for worship.</small></span></label>
-          <label class="switch"><input type="checkbox" id="fxSpeechDry" /><span><b>Keep announcement mics dry too</b><br /><small>The pastor is always kept dry.</small></span></label>
+          <label class="switch" data-tech><input type="checkbox" id="fxFollow" /><span><b>Effects follow the service</b><br /><small>Down a few dB while someone talks between songs or over music; well down for the sermon and pre/post-service music; back for worship.</small></span></label>
+          <label class="switch" data-tech><input type="checkbox" id="fxSpeechDry" /><span><b>Keep announcement mics dry too</b><br /><small>The pastor is always kept dry.</small></span></label>
 
+          <div data-tech>
           <h3>Let Mix Assistant run the effects</h3>
           <p class="muted small">One tap sets the effect up with good settings. You check once in X Air that it landed right; after that Mix Assistant adjusts it for you (reverb fixes, delay time from the tempo). "No" puts back exactly what was there.</p>
           <div class="fx-run" id="fxRunReverb"></div>
@@ -369,19 +417,21 @@
               <button id="fxBack" class="btn btn-ghost" type="button">Put it back</button>
             </div>
           </div>
+          </div>
 
           <h3>Reverb in the room <span id="fxReverbNow" class="muted small"></span></h3>
           <div class="row">
             <button class="btn btn-small" type="button" id="fxLess">Too much reverb</button>
             <button class="btn btn-small" type="button" id="fxMore">Can't hear the reverb</button>
           </div>
-          <p class="muted small">Each tap moves the reverb's level in the room by 1.5 dB. For one singer only, use their 🎚 Tone.</p>
+          <p class="muted small">For one singer only, use their 🎚 Tone.</p>
 
           <h3>Reverb sounds wrong? Pick what you hear</h3>
           <div id="fxTweaks" class="tone-fixes" hidden></div>
           <p id="fxTweakNote" class="muted small"></p>
           <div id="fxHelp" class="fx-help"></div>
 
+          <div data-tech>
           <h3>Delay time</h3>
           <p class="muted small">Mix Assistant hears the tempo live (from the click when tracks are running, otherwise the tracks or a steady strum) and works out the delay time for each song marked "light delay". Steady tempos are remembered for that song.</p>
           <div class="seg mini" id="fxNote" role="radiogroup" aria-label="Delay note">
@@ -397,6 +447,7 @@
           <div class="fx-start">
             <div><b>Reverb</b> (<span class="fx-slot-r">FX1</span>): Plate or Vintage Room/Hall · Decay 1.4–1.8 s · Pre-delay 25–35 ms · Low cut 200–250 Hz · High cut / damping 6–7 kHz · Return fader around −5 dB. Singers: send "Normal" in their Tone.</div>
             <div><b>Delay</b> (<span class="fx-slot-d">FX2</span>): Stereo Delay · Time from the song's tempo (shown on each song at soundcheck; a dotted eighth is the usual worship delay) · Feedback 15–25% (2–3 repeats) · Low cut 300 Hz · High cut 5 kHz · Mix 100% (wet). Mix Assistant only feeds it the lead singer on songs marked "light delay".</div>
+          </div>
           </div>
         </div>
       </details>
@@ -418,7 +469,7 @@
         </div>
       </details>
 
-      <details class="auto-card fold">
+      <details class="auto-card fold" data-tech>
         <summary><h2>Channels for each position</h2></summary>
         <div class="fold-body">
           <p class="muted small">The XR18 channel each stage position always uses. Stereo positions use two channels; an acoustic that's mono for a given player uses only the first.</p>
@@ -427,7 +478,7 @@
         </div>
       </details>
 
-      <details class="auto-card fold">
+      <details class="auto-card fold" data-tech>
         <summary><h2>Song mix amounts</h2></summary>
         <div class="fold-body" id="mixBox"></div>
       </details>

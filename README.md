@@ -6,7 +6,19 @@ It works alongside the Behringer X Air app, which stays available as a backup.
 
 ## The auto-mix
 
-The app opens on the **Auto** screen. It listens to the channel meters and mixes the service by itself:
+## For volunteers
+
+The app is built for people who aren't sound engineers.
+
+- **Get ready** (the first tab) walks through Sunday morning in order, with a progress bar: set up the gear (a short checklist, with the speaker marks from last time), this week's songs and people, who is on which channel (with *Find* by listening), levels one person at a time (*Listen*: they sing or play their loudest for 7 seconds), who sings lead on each song, and an optional "anything sound wrong?" step. Every iPad sees the same progress; a new week starts fresh.
+- **Live** has what's needed during the service: the song buttons (or *Follow ProPresenter*), the parts of the service, what Mix Assistant is doing in plain words, and the pre/post-service music.
+- **Songs & people** is for changes: the channels and roles cards, editing the set, Planning Center, people.
+- **The status light** at the top of every screen is green ("All good. Mix Assistant is mixing"), yellow (needs a look, in words) or red (act now). Tap it for the details and recent messages.
+- **✋ Hands off** at the top of every screen: one tap puts every fader and effect back where people set them and stops Mix Assistant changing anything, until someone taps *Turn Mix Assistant back on*. It stays paused even if the Mac restarts.
+- **Plain words:** results are described as outcomes ("less muddy · evened out (medium)", "band down a touch"), not numbers. In a person's Tone, **Before / After** lets you hear whether a fix helped.
+- **Tech mode** (⚙︎, top right) is for the tech lead: effects setup, the mixer console, PA setup, ProPresenter, channels for each position, network and updates, and a one-time setup checklist. Volunteers don't need it.
+
+The **Live** screen (Tech mode shows more detail). It listens to the channel meters and mixes the service by itself:
 
 - **Balances the speech mics.** Whoever is talking (pastor, announcements) stays up; the other speech mic comes down, so there's less hiss and less feedback. Between sentences the last talker stays up.
 - **Knows where the service is.** Before / after (pre- and post-service music) → Worship → Talking over music → Speaking, worked out from which channels are making sound. Big buttons let a volunteer set the mode instead.

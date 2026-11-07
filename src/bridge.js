@@ -51,12 +51,12 @@ const PIN_MAX_TRIES = 5;
 const PIN_LOCKOUT_MS = 60 * 1000;
 const UNUSED_SETTLE_MS = 15000;
 
-const TONE_COMMANDS = new Set(['tonePops', 'toneGain', 'toneRead', 'toneFix', 'toneComp', 'toneGate', 'toneFresh', 'toneUndo', 'toneSave', 'toneLoad', 'toneVerb', 'toneDelay']);
+const TONE_COMMANDS = new Set(['toneAB', 'tonePops', 'toneGain', 'toneRead', 'toneFix', 'toneComp', 'toneGate', 'toneFresh', 'toneUndo', 'toneSave', 'toneLoad', 'toneVerb', 'toneDelay']);
 const LIBRARY_COMMANDS = new Set([
   'saveSlot', 'deleteSlot', 'savePerson', 'deletePerson',
   'newSet', 'openSet', 'deleteSet', 'setLineup',
   'addSong', 'removeSong', 'moveSong', 'setSongLeads', 'playSong', 'nextSong', 'songMixAmounts',
-  'pcoServiceTypes', 'pcoPlans', 'pcoImport', 'setSetChannel', 'placePerson', 'channelsDone', 'setSongDelay',
+  'pcoServiceTypes', 'pcoPlans', 'pcoImport', 'setSetChannel', 'placePerson', 'channelsDone', 'setSongDelay', 'readyMark',
 ]);
 
 // PA knob positions worth writing down, so a bumped knob can be put back next week.
@@ -359,6 +359,10 @@ export class Bridge {
     this.state.on('meters', () => {
       if (this.automix.enabled) {
         try {
+          if (this.settings.handsOff) {
+            this.#listenForTempo(); // still listens (read-only); changes nothing
+            return;
+          }
           this.automix.tick();
           this.#listenForTempo();
           this.#watchBass();
@@ -488,6 +492,7 @@ export class Bridge {
       this.#saveSettings();
       return;
     }
+    if (cmd.type === 'handsOff') return this.#handsOff(!!cmd.on);
     if (cmd.type === 'options') {
       if (typeof cmd.nameChannels === 'boolean') this.settings.nameChannels = cmd.nameChannels;
       if (typeof cmd.catchFeedback === 'boolean') this.settings.catchFeedback = cmd.catchFeedback;
@@ -715,6 +720,11 @@ export class Bridge {
     }
     const t = await this.#toneTarget(cmd.slotId);
     if (!t) return;
+    // Listening to "Before" and making another change: the change builds on the "After".
+    if (cmd.type !== 'toneAB' && t.channels.some((ch) => this.tone.lastAB?.get(String(ch))?.hearing === 'before')) {
+      this.tone.ab(t.channels.map(String), 'after');
+      t.model = this.tone.model(t.channels[0]);
+    }
     if (!t.model) {
       this.alert({ level: 'warn', source: 'tone', message: `Couldn't read channel ${t.channels[0]}'s EQ from the mixer. Try again.` });
       return;
@@ -732,6 +742,7 @@ export class Bridge {
         break;
       case 'toneGain':
         r = applyGain(t.model, Math.max(-60, Math.min(0, Number(cmd.loudDb))));
+        this.library.markReady('gain', true, String(cmd.slotId));
         break;
       case 'toneComp':
         if (cmd.preset !== 'off' && !COMP_PRESETS[cmd.preset]) return;
@@ -745,6 +756,9 @@ export class Bridge {
         break;
       case 'toneUndo':
         this.tone.undo(t.channels.map(String));
+        return;
+      case 'toneAB':
+        this.tone.ab(t.channels.map(String), cmd.which === 'before' ? 'before' : 'after');
         return;
       case 'toneVerb': {
         const fx = this.effects?.settings.reverbFx;
@@ -942,6 +956,26 @@ export class Bridge {
     }
   }
 
+  // ---------- hands off: everything automatic stops, and everything goes back ----------
+
+  async #handsOff(on) {
+    if (on === !!this.settings.handsOff) return;
+    this.settings.handsOff = on;
+    this.#saveSettings();
+    if (on) {
+      this.automix?.releaseAll();
+      if (this.automix) this.automix.fbPull = new Map();
+      this.effects?.handsOff();
+      if (this.bass?.present && this.tone && this.status.connected) {
+        this.bass.present = false;
+        await this.#applyBass().catch(() => {});
+      }
+      this.alert({ level: 'warn', source: 'automix', message: 'Hands off: Mix Assistant has put every fader and effect back where people set them, and is changing nothing. Tap "Turn Mix Assistant back on" when you\'re ready.' });
+    } else {
+      this.alert({ level: 'ok', source: 'automix', message: 'Mix Assistant is mixing again.' });
+    }
+  }
+
   // ---------- feedback catcher ----------
 
   /** The last second of each speech and vocal mic's level, to tell which one is ringing. */
@@ -958,7 +992,7 @@ export class Bridge {
   }
 
   #onRta(values, now = Date.now()) {
-    if (this.settings.catchFeedback === false || !this.status.connected || !this.tone) return;
+    if (this.settings.catchFeedback === false || this.settings.handsOff || !this.status.connected || !this.tone) return;
     this.fbDetector ??= new FeedbackDetector();
     const hit = this.fbDetector.feed(values, now);
     if (!hit || now - (this.fbLast ?? 0) < 3000) return;
@@ -1216,6 +1250,9 @@ export class Bridge {
           if (!ok && cmd.on) this.alert({ level: 'warn', source: 'set', message: `No free ${cmd.instrument === 'vocal' ? 'vocal mic' : label.toLowerCase()} position. Free one up, or add a position under Channels for each position.` });
           break;
         }
+        case 'readyMark':
+          lib.markReady(String(cmd.step), cmd.value !== false, cmd.slotId ? String(cmd.slotId) : null);
+          break;
         case 'setSongDelay':
           lib.setSongDelay(int(cmd.index), { delay: cmd.delay, bpm: cmd.bpm });
           break;
@@ -1545,6 +1582,7 @@ export class Bridge {
       clickGuard: this.guard ? this.guard.status() : { locked: [], allSafe: true, unsure: [], protectedBuses: [], buses: [] },
       automix: this.automix ? { ...this.automix.status(), now: [...(this.fbNote && Date.now() < this.fbNote.until ? [this.fbNote.text] : []), ...this.automix.describe(), ...(this.bass?.present ? ['Bass playing: keys and acoustic low end thinned'] : []), ...(this.effects?.describe(this.library.songContext().names) ?? [])].sort((x, y) => Number(/^Song mix on/.test(x)) - Number(/^Song mix on/.test(y))) } : null,
       effects: this.effects ? { ...this.effects.status(), ask: this.fxAsk ?? null, note: this.fxNote ?? null, tweaks: Object.entries(REVERB_TWEAKS).map(([id, t]) => ({ id, label: t.label })) } : null,
+      handsOff: !!this.settings.handsOff,
       options: { nameChannels: this.settings.nameChannels !== false, catchFeedback: this.settings.catchFeedback !== false },
       tempo: this.tempo?.result ? { ...this.tempo.result, label: TEMPO_SOURCES[this.tempo.result.source] } : null,
       dcas: Object.values(this.state.dcas),

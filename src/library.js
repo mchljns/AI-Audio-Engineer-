@@ -207,6 +207,21 @@ export class Library {
     else delete set.channels[slotId];
   }
 
+  /**
+   * The "Get ready" steps done for this set (every iPad sees the same): set, roles, sound as
+   * true/false, gain per position.
+   */
+  markReady(step, value = true, slotId = null) {
+    const set = this.set();
+    if (!set || !['set', 'roles', 'sound', 'gain', 'gear'].includes(step)) return;
+    set.ready ??= { gain: {} };
+    if (step === 'gain') {
+      if (slotId === '*') for (const id of Object.keys(set.lineup)) set.ready.gain[id] = !!value;
+      else if (slotId && this.slot(slotId)) set.ready.gain[slotId] = !!value;
+    } else set.ready[step] = !!value;
+    this.save();
+  }
+
   /** Channels are checked once a week: done for this set, or not yet. */
   setChannelsDone(done) {
     const set = this.set();

@@ -5,7 +5,7 @@
   --strip-2: #242a32;
   --line: #2c333d;
   --text: #e8ecf1;
-  --muted: #8b95a3;
+  --muted: #a9b2be;
   --ok: #3ccf7a;
   --warn: #f2b33d;
   --danger: #ff4d4d;
@@ -34,7 +34,7 @@ body {
   overflow: hidden;
   background: var(--bg);
   color: var(--text);
-  font: 14px/1.35 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font: 16px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   -webkit-tap-highlight-color: transparent;
   -webkit-user-select: none;
   user-select: none;
@@ -59,7 +59,7 @@ body {
 .pill-danger { background: rgba(255, 77, 77, 0.2); color: var(--danger); }
 .pill-info { background: rgba(90, 169, 255, 0.14); color: var(--accent); user-select: text; -webkit-user-select: text; }
 .muted { color: var(--muted); }
-.small { font-size: 12px; }
+.small { font-size: 14px; }
 
 .btn {
   appearance: none;
@@ -75,7 +75,7 @@ body {
 }
 .btn:active { transform: scale(0.97); }
 .btn-ghost { background: var(--strip-2); color: var(--text); border: 1px solid var(--line); }
-.btn-small { min-height: 30px; padding: 4px 10px; font-size: 12px; }
+.btn-small { min-height: 42px; padding: 6px 14px; font-size: 15px; }
 
 /* ---------- collapsible check panel ---------- */
 .panel { border-bottom: 1px solid var(--line); background: var(--panel); }
@@ -309,7 +309,7 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.6); }
 
 /* ---------- tabs ---------- */
 .tabs { display: flex; gap: 4px; background: var(--strip); padding: 3px; border-radius: 10px; }
-.tab { appearance: none; border: 0; background: transparent; color: var(--muted); font: inherit; font-weight: 700; padding: 8px 18px; border-radius: 8px; min-height: 40px; cursor: pointer; }
+.tab { appearance: none; border: 0; background: transparent; color: var(--muted); font: inherit; font-weight: 700; padding: 8px 18px; border-radius: 8px; min-height: 46px; cursor: pointer; font-size: 16px; }
 .tab.active { background: var(--accent); color: #0b0d10; }
 .offline-bar { background: rgba(255, 77, 77, 0.15); color: var(--danger); font-weight: 600; padding: 8px 16px; border-bottom: 1px solid var(--line); }
 body.offline .strip, body.offline .auto button, body.offline .auto input { opacity: 0.45; pointer-events: none; }
@@ -604,3 +604,96 @@ dialog.connect-dialog { width: min(640px, calc(100vw - 32px)); }
 .fx-run:empty { display: none; }
 .fx-ask { margin: 10px 0; padding: 12px; border-radius: 12px; border: 2px solid #f5b942; background: rgba(245, 185, 66, 0.1); }
 .fx-ask p { margin: 0 0 10px; }
+
+
+/* ---------- Volunteer mode: engineering parts only in Tech mode ---------- */
+body:not(.tech) [data-tech] { display: none !important; }
+.tech-btn { appearance: none; border: 1px solid var(--line); background: transparent; color: var(--muted); font: inherit; font-size: 15px; min-height: 42px; min-width: 42px; padding: 0 10px; border-radius: 10px; margin-left: 8px; cursor: pointer; }
+.tech-btn.on { color: var(--warn); border-color: var(--warn); }
+
+/* ---------- status light and hands off ---------- */
+.status-bar { display: flex; align-items: center; gap: 10px; padding: 8px 16px; border-bottom: 1px solid var(--line); background: var(--panel); }
+.status-bar.red { background: rgba(255, 77, 77, 0.14); }
+.status-bar.yellow { background: rgba(242, 179, 61, 0.1); }
+.light-btn { flex: 1; display: flex; align-items: center; gap: 12px; min-height: 48px; appearance: none; border: 0; background: transparent; color: var(--text); font: inherit; font-size: 17px; font-weight: 700; text-align: left; cursor: pointer; padding: 0; }
+.light { width: 18px; height: 18px; border-radius: 50%; flex: none; background: var(--muted); }
+.light.green { background: var(--ok); box-shadow: 0 0 0 5px rgba(60, 207, 122, 0.2); }
+.light.yellow { background: var(--warn); box-shadow: 0 0 0 5px rgba(242, 179, 61, 0.22); }
+.light.red { background: var(--danger); box-shadow: 0 0 0 5px rgba(255, 77, 77, 0.25); animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 50% { box-shadow: 0 0 0 9px rgba(255, 77, 77, 0.08); } }
+.light-more { color: var(--muted); font-size: 14px; font-weight: 600; margin-left: auto; padding-right: 8px; }
+.hands-btn { appearance: none; min-height: 48px; padding: 0 18px; border-radius: 12px; border: 2px solid var(--danger); background: transparent; color: #ff8080; font: inherit; font-size: 17px; font-weight: 800; cursor: pointer; white-space: nowrap; }
+.hands-btn:active { background: rgba(255, 77, 77, 0.2); }
+.hands-banner { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 14px 16px; background: rgba(242, 179, 61, 0.18); border-bottom: 2px solid var(--warn); font-size: 17px; }
+.hands-banner span { flex: 1; min-width: 240px; }
+.hands-banner .btn { min-height: 52px; font-size: 17px; }
+.light-dlg { width: min(640px, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow: auto; border: 1px solid var(--line); border-radius: 16px; background: var(--panel); color: var(--text); padding: 18px; }
+.light-dlg::backdrop { background: rgba(0, 0, 0, 0.6); }
+.light-list { list-style: none; margin: 10px 0; padding: 0; display: grid; gap: 8px; }
+.light-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; border-radius: 12px; background: var(--strip); font-size: 17px; }
+
+/* ---------- Get ready ---------- */
+.ready { overflow: auto; }
+.ready-head { display: flex; align-items: end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin: 4px 0 14px; }
+.ready-head h2 { margin: 0 0 4px; font-size: 26px; }
+.ready-progress { flex: 1; min-width: 200px; max-width: 360px; height: 12px; border-radius: 6px; background: var(--strip-2); overflow: hidden; }
+.ready-progress > div { height: 100%; width: 0; background: var(--ok); transition: width 300ms ease; }
+.ready-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.ready-step { border: 1px solid var(--line); border-radius: 16px; background: var(--panel); overflow: hidden; }
+.ready-step.open { border-color: var(--accent); }
+.ready-step-head { width: 100%; display: flex; align-items: center; gap: 14px; min-height: 64px; padding: 10px 16px; appearance: none; border: 0; background: transparent; color: var(--text); font: inherit; font-size: 19px; text-align: left; cursor: pointer; }
+.ready-step-head b { flex: 1; }
+.ready-num { flex: none; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: var(--strip-2); font-weight: 800; }
+.ready-num.done { background: var(--ok); color: #0b0d10; }
+.ready-step.done:not(.open) .ready-step-head { color: var(--muted); }
+.ready-body { padding: 4px 16px 18px; display: grid; gap: 12px; }
+.ready-body > p { margin: 0; }
+.ready-lead { font-size: 19px; font-weight: 600; }
+.ready-next { justify-self: start; min-width: 260px; }
+.ready-checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.ready-checks li { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 6px 12px; border-radius: 10px; background: var(--strip); font-size: 17px; }
+.ready-checks li.ok { color: var(--muted); }
+.ready-checks label { display: flex; align-items: center; gap: 12px; flex: 1; cursor: pointer; }
+.ready-checks input[type='checkbox'] { width: 26px; height: 26px; flex: none; }
+.ready-checks .mark { width: 26px; text-align: center; font-weight: 800; color: var(--ok); }
+.ready-checks li.bad .mark { color: var(--warn); }
+.ready-marks { display: grid; gap: 4px; padding: 12px; border-radius: 12px; background: var(--strip); }
+.ready-two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.ready-two ol, .ready-two ul { margin: 6px 0 0; padding-left: 22px; font-size: 17px; }
+.ready-gain { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.ready-gain li { display: grid; grid-template-columns: minmax(0, 1.4fr) 90px minmax(0, 1fr) auto auto; gap: 12px; align-items: center; min-height: 60px; padding: 8px 12px; border-radius: 12px; background: var(--strip); font-size: 17px; }
+.ready-gain li.done { opacity: 0.85; }
+.ready-gain .meter { height: 10px; }
+.ready-body .auto-card { margin: 0; }
+.ready-tech { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
+.ready-tech li { display: flex; align-items: center; gap: 12px; padding: 6px 10px; border-radius: 10px; background: var(--strip); }
+.ready-tech li .mark { width: 22px; text-align: center; font-weight: 800; color: var(--muted); }
+.ready-tech li.ok .mark { color: var(--ok); }
+.ready-tech li .btn { margin-left: auto; }
+.tech-setup { border-color: var(--warn); margin-bottom: 14px; }
+
+/* ---------- Tone: plain summary, before / after ---------- */
+.tone-summary { font-size: 18px; }
+.ab-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 10px 12px; border-radius: 12px; background: rgba(90, 169, 255, 0.1); }
+.ab-row .seg { min-width: 220px; }
+.fix-btn { min-height: 64px; }
+.fix-btn b { font-size: 17px; }
+
+@media (max-width: 700px) {
+  .ready-gain li { grid-template-columns: minmax(0, 1fr) auto; }
+  .ready-gain .meter { grid-column: 1 / -1; }
+  .ready-two { grid-template-columns: 1fr; }
+  .status-bar { flex-wrap: wrap; }
+  .light-btn { font-size: 15px; }
+}
+
+/* Live: the songs (and Follow ProPresenter) across the full width, at the top */
+#liveSlot { grid-column: 1 / -1; display: grid; gap: 10px; }
+#liveSlot:empty { display: none; }
+#liveSlot .live-card .song-buttons { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+#liveSlot .song-btn, #liveSlot .song-buttons > button { min-height: 76px; font-size: 18px; }
+.auto h2 { font-size: 18px; }
+
+/* Inside Get ready the step already explains itself: no second heading or intro on the shared cards. */
+.ready-body #chCard .ch-head h2, .ready-body #chBody > p.muted, .ready-body #scCard > p.muted { display: none; }
+.ready-body #chCard, .ready-body #scCard { border: 0; padding: 0; background: transparent; }

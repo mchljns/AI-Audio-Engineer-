@@ -371,11 +371,37 @@ export class ToneDesk {
     return raw ? modelFromRaw(raw) : null;
   }
 
+  #send(ch, to, from) {
+    for (const msg of messagesFor(ch, to, from)) {
+      if (msg.type === 'i') this.client.setInt(msg.address, msg.value);
+      else this.client.setFloat(msg.address, msg.value);
+      if (!this.raw.has(ch)) this.raw.set(ch, {});
+      this.raw.get(ch)[suffixOf(msg.address)] = msg.value;
+    }
+  }
+
+  /**
+   * Before / After: hear the last change without losing it. 'before' puts the previous settings on
+   * the mixer, 'after' puts the change back. Undo history is untouched.
+   */
+  ab(chs, which) {
+    for (const ch of chs) {
+      const pair = this.lastAB?.get(ch);
+      if (!pair) continue;
+      this.#send(ch, which === 'before' ? pair.before : pair.after, this.model(ch));
+      pair.hearing = which;
+    }
+  }
+
   /** Send a new model to one or more channels (a stereo pair gets the same). Undo-able. */
   write(chs, next, note) {
+    this.lastAB ??= new Map();
     for (const ch of chs) {
       if (!toneChannelOk(ch)) continue;
+      // If someone was listening to "before", the change they're making builds on the "after".
+      if (this.lastAB.get(ch)?.hearing === 'before') this.ab([ch], 'after');
       const cur = this.model(ch);
+      if (cur) this.lastAB.set(ch, { before: cur, after: { ...cur, ...next }, hearing: 'after' });
       if (cur) {
         const h = this.history.get(ch) ?? [];
         h.push(cur);
@@ -393,8 +419,10 @@ export class ToneDesk {
   }
 
   undo(chs) {
+    for (const ch of chs) if (this.lastAB?.get(ch)?.hearing === 'before') this.ab([ch], 'after');
     const prev = this.history.get(chs[0])?.pop();
     if (!prev) return false;
+    for (const ch of chs) this.lastAB?.delete(ch);
     for (const ch of chs.slice(1)) this.history.get(ch)?.pop();
     const cur = this.model(chs[0]);
     for (const ch of chs) {
@@ -410,6 +438,7 @@ export class ToneDesk {
 
   status(ch) {
     const m = this.model(ch);
-    return m ? { model: m, summary: describeTone(m), canUndo: (this.history.get(String(ch))?.length ?? 0) > 0, note: this.notes.get(String(ch)) ?? null } : null;
+    const ab = this.lastAB?.get(String(ch));
+    return m ? { model: m, summary: describeTone(m), canUndo: (this.history.get(String(ch))?.length ?? 0) > 0, note: this.notes.get(String(ch)) ?? null, ab: ab ? ab.hearing : null } : null;
   }
 }

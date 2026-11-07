@@ -353,6 +353,23 @@ export class Effects {
     this.#save();
   }
 
+  /** Hands off: returns back where people set them, talking singers' reverb back, the app's delay sends off. */
+  handsOff() {
+    this.releaseAll();
+    const fxv = this.settings.reverbFx;
+    if (fxv && this.driedSingers?.size) {
+      for (const [id, was] of this.driedSingers) {
+        const s = this.state.strips[id];
+        if (s && (s.sends?.[fxSendBus(fxv)] ?? 0) === 0) {
+          s.sends[fxSendBus(fxv)] = was;
+          this.client.setFloat(paths.send(id, fxSendBus(fxv)), was);
+        }
+      }
+      this.driedSingers.clear();
+    }
+    this.#manageDelaySends('handsOff'); // not worship: every singer's delay send goes to zero
+  }
+
   releaseAll() {
     for (const [fx, r] of this.returns) {
       if (Math.abs(r.offsetDb) > 0.05 && r.home > 0) this.#send(fx, r.home);

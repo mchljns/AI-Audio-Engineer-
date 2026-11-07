@@ -298,7 +298,11 @@ function render(s) {
     $('#offlineBar').hidden = false;
     $('#offlineBar').textContent = 'Looking for the mixer. Make sure the XR18 is on and this Mac is on the same network.';
   } else $('#offlineBar').textContent = "The mixer isn't connected. Controls are paused until it's back.";
-  if (s.automix) renderAuto(s.automix);
+  try {
+    if (s.automix) renderAuto(s.automix);
+  } catch (err) {
+    console.error('renderAuto:', err);
+  }
   $('#conn').title = `Mix Assistant ${st.version ?? ''}`;
   const via = st.path && (st.path.kind === 'wifi' || st.path.kind === 'cable') ? ` · ${st.path.label}` : '';
   if (st.connected) setPill($('#conn'), 'ok', `Mixer: ${st.mixer?.name ?? 'connected'}${via}`);
@@ -364,18 +368,20 @@ function render(s) {
   } else {
     $('#walkinState').textContent = 'No music channel found. Name the Spotify channel "Spotify" or "Pre/Post" in the X Air app.';
   }
-  renderMusic(s);
-  renderMac(s);
-  renderPa(s);
-  renderSet(s);
-  renderChannels(s);
-  renderTone(s);
-  renderEffects(s);
-  renderSoundcheck(s);
-  renderPro(s);
-
-  for (const r of inv.rows) updateChannel(r);
-  for (const d of s.dcas) updateDca(d);
+  // Each part draws on its own: a problem in one can never freeze the rest of the screen.
+  for (const part of [renderMusic, renderMac, renderPa, renderSet, renderChannels, renderTone, renderEffects, renderSoundcheck, renderPro, renderLight, renderReady]) {
+    try {
+      part(s);
+    } catch (err) {
+      console.error(`${part.name}:`, err);
+    }
+  }
+  try {
+    for (const r of inv.rows) updateChannel(r);
+    for (const d of s.dcas) updateDca(d);
+  } catch (err) {
+    console.error('console strips:', err);
+  }
 }
 
 $('#muteUnused').addEventListener('click', () => {
@@ -414,12 +420,11 @@ function renderAuto(a) {
   // What's happening right now, in plain sentences (also shown on the Set tab).
   const now = a.now ?? [];
   if (changed('mixNow', now)) {
-    const items = now.map((t) => el('div', { class: 'mix-line', text: t }));
+    const items = now.map((t) => el('div', { class: 'mix-line', text: plain(t) }));
     $('#mixNow').replaceChildren(...items);
-    $('#setMixNow').replaceChildren(el('span', { class: 'mix-dot' }), ...now.slice(0, 3).map((t) => el('span', { text: t })));
+    $('#setMixNow').replaceChildren(el('span', { class: 'mix-dot' }), ...now.slice(0, 3).map((t) => el('span', { text: plain(t) })));
   }
-  $('#optFeedback').addEventListener('change', (e) => send({ type: 'options', catchFeedback: e.target.checked }));
-for (const b of document.querySelectorAll('#rideSeg .seg-btn')) b.classList.toggle('active', b.dataset.ride === (a.settings.ride ?? 'normal'));
+  for (const b of document.querySelectorAll('#rideSeg .seg-btn')) b.classList.toggle('active', b.dataset.ride === (a.settings.ride ?? 'normal'));
 
   const lines = [];
   for (const c of a.channels) {
@@ -445,6 +450,7 @@ for (const b of document.querySelectorAll('#rideSeg .seg-btn')) b.classList.togg
   set('#optModes', a.settings.autoModes);
   if (document.activeElement !== $('#optFeedback')) $('#optFeedback').checked = latest?.options?.catchFeedback !== false;
 }
+$('#optFeedback').addEventListener('change', (e) => send({ type: 'options', catchFeedback: e.target.checked }));
 for (const b of document.querySelectorAll('#rideSeg .seg-btn')) b.addEventListener('click', () => send({ type: 'automix', settings: { ride: b.dataset.ride } }));
 for (const b of document.querySelectorAll('.mode')) b.addEventListener('click', () => send({ type: 'setMode', mode: b.dataset.mode }));
 $('#modeAuto').addEventListener('click', () => {
@@ -456,9 +462,15 @@ for (const [sel, key] of [['#optSpeech', 'speechAutomix'], ['#optDuck', 'duckMus
 }
 
 // ---------- tabs ----------
-const TABS = { auto: ['#tabAuto', '#autoView'], set: ['#tabSet', '#setView'], mixer: ['#tabMixer', '#console'], pa: ['#tabPa', '#paView'] };
+const TABS = { ready: ['#tabReady', '#readyView'], auto: ['#tabAuto', '#autoView'], set: ['#tabSet', '#setView'], mixer: ['#tabMixer', '#console'], pa: ['#tabPa', '#paView'] };
+let currentTab = 'auto';
+const keys = {}; // what each part of the screen last drew (see changed())
 function showTab(name) {
   if (!TABS[name]) name = 'auto';
+  currentTab = name;
+  // The channels and song-roles cards live in Get ready while it's showing, else in Songs & people.
+  if (name === 'set' && typeof CH_CARD !== 'undefined') $('#setCards').append(CH_CARD, SC_CARD);
+  if (name === 'ready') keys.readySteps = null; // rebuild, which brings the cards into their steps
   for (const [k, [tab, view]] of Object.entries(TABS)) {
     $(view).hidden = k !== name;
     $(tab).classList.toggle('active', k === name);
@@ -471,10 +483,15 @@ function showTab(name) {
   }
 }
 for (const k of Object.keys(TABS)) $(TABS[k][0]).addEventListener('click', () => showTab(k));
+// The channels and song-roles cards move between Get ready and Songs & people; keep hold of them.
+const CH_CARD = $('#chCard');
+const SC_CARD = $('#scCard');
+// Song buttons and "Follow ProPresenter" are used during the service: they live on Live.
+$('#liveSlot').append($('#proBar'), $('#liveCard'));
 try {
-  showTab(localStorage.getItem('mixTab') || 'auto');
+  showTab(localStorage.getItem('mixTab') || 'ready');
 } catch {
-  showTab('auto');
+  showTab('ready');
 }
 
 // ---------- Set tab: song buttons, set editing, people, channels, Planning Center ----------
@@ -495,7 +512,6 @@ function weekChannelSelect(set, slot) {
   if (cur) sel.classList.add('moved');
   return sel;
 }
-const keys = {};
 function changed(name, value) {
   const k = JSON.stringify(value);
   if (keys[name] === k) return false;
@@ -697,25 +713,13 @@ try {
 } catch {
   /* fine */
 }
-function showSetView(v) {
-  setView = v;
-  $('#scCard').hidden = v !== 'soundcheck';
-  $('#chCard').hidden = v !== 'soundcheck';
-  $('#liveCard').hidden = v === 'soundcheck';
-  $('#segSoundcheck').classList.toggle('active', v === 'soundcheck');
-  $('#segService').classList.toggle('active', v !== 'soundcheck');
-  try {
-    localStorage.setItem('mixSetView', v);
-  } catch {
-    /* fine */
-  }
-  // Soundcheck starts on the first song, so its mix is heard while roles are set.
-  const L = latest?.setlist;
-  if (v === 'soundcheck' && L?.current?.songs.length && L.currentSong === null) send({ type: 'playSong', index: 0 });
+// Songs & people always shows the channels and roles cards (song buttons are on Live).
+function showSetView() {
+  setView = 'soundcheck';
+  $('#scCard').hidden = false;
+  $('#chCard').hidden = false;
 }
-$('#segSoundcheck').addEventListener('click', () => showSetView('soundcheck'));
-$('#segService').addEventListener('click', () => showSetView('service'));
-showSetView(setView);
+showSetView();
 
 // What the vocal mics are doing during this song, for "Use what I'm hearing".
 let hearing = { song: null, since: 0, ch: new Map() }; // channel -> { n, active, sum }
@@ -1028,10 +1032,13 @@ function openTone(slotId) {
 }
 $('#toneClose').addEventListener('click', () => $('#toneDlg').close());
 $('#toneDlg').addEventListener('close', () => {
+  const T = latest?.setlist?.tone?.[toneSlot];
+  if (T?.ab === 'before') send({ type: 'toneAB', slotId: toneSlot, which: 'after' });
   toneSlot = null;
   toneListen = null;
 });
 const toneSend = (o) => toneSlot && send({ ...o, slotId: toneSlot });
+for (const b of document.querySelectorAll('#toneAB .seg-btn')) b.addEventListener('click', () => toneSend({ type: 'toneAB', which: b.dataset.ab }));
 $('#toneUndo').addEventListener('click', () => toneSend({ type: 'toneUndo' }));
 $('#toneFresh').addEventListener('click', () => toneSend({ type: 'toneFresh' }));
 $('#toneLoad').addEventListener('click', () => toneSend({ type: 'toneLoad' }));
@@ -1068,8 +1075,12 @@ function renderTone(s) {
   const what = slot.instrument === 'vocal' ? 'Vocal' : slot.name;
   $('#toneTitle').textContent = `${person.name} · ${what}`;
   $('#toneSub').textContent = `${T.channels.length > 1 ? `Ch ${T.channels.join(' + ')}` : `Ch ${T.channels[0]}`}${T.saved ? ` · saved tone from ${new Date(T.saved.at).toLocaleDateString()}` : ' · no saved tone yet'}`;
-  $('#toneSummary').textContent = T.summary ?? 'Reading the channel from the mixer…';
-  $('#toneNote').textContent = T.note ? `Last change: ${T.note}` : '';
+  $('#toneSummary').textContent = T.model ? `${T.ab === 'before' ? 'Hearing BEFORE the last change: ' : ''}${plainTone(T.model, slot.instrument)}` : 'Reading the channel from the mixer…';
+  $('#toneSummaryTech').textContent = T.summary ?? '';
+  // Before / After: hear the last change, then decide.
+  $('#toneAB').hidden = !T.ab;
+  $('#toneNote').textContent = T.note ? `Last change: ${plainNote(T.note)}` : '';
+  for (const b of document.querySelectorAll('#toneAB .seg-btn')) b.classList.toggle('active', b.dataset.ab === T.ab);
   const g = T.model?.gainDb;
   $('#toneGainNow').textContent = Number.isFinite(g) ? `${g > 0 ? '+' : ''}${Math.round(g * 10) / 10} dB` : '';
   $('#toneUndo').disabled = !T.canUndo;
@@ -1724,5 +1735,426 @@ async function keepAwake() {
 }
 document.addEventListener('click', keepAwake, { once: true });
 document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && keepAwake());
+
+// ---------- Volunteer mode (default) and Tech mode ----------
+// Volunteers see what a Sunday needs; engineering settings, the console and network/updates
+// are in Tech mode for the tech lead. Remembered per device.
+let tech = false;
+try {
+  tech = localStorage.getItem('mixTech') === '1';
+} catch {
+  /* fine */
+}
+function setTech(on) {
+  tech = on;
+  document.body.classList.toggle('tech', on);
+  $('#techBtn').classList.toggle('on', on);
+  $('#techBtn').textContent = on ? '⚙︎ Tech mode' : '⚙︎';
+  try {
+    localStorage.setItem('mixTech', on ? '1' : '0');
+  } catch {
+    /* fine */
+  }
+  if (!on && (currentTab === 'mixer' || currentTab === 'pa')) showTab('auto');
+  keys.mixNow = null;
+  keys.readySteps = null;
+}
+$('#techBtn').addEventListener('click', () => {
+  if (tech) return setTech(false);
+  if (confirm('Tech mode shows the engineering settings (effects setup, mixer console, network, updates). It is meant for the tech lead.\n\nSwitch to Tech mode?')) setTech(true);
+});
+setTech(tech);
+
+// ---------- plain words (Volunteer mode) ----------
+const amount = (db) => (db < 2 ? 'a touch' : db < 4 ? 'a little' : db < 7 ? 'noticeably' : 'a lot');
+/** Turns engineer phrasing ("band −1.5 dB") into plain words ("band down a touch"). Tech mode: unchanged. */
+function plain(t) {
+  if (tech || !t) return t;
+  return String(t)
+    .replace(/pulled down 3 dB and added a [^ ]+ dB narrow cut at [\d.]+ ?k?Hz/, 'turned it down a little and cut the ringing tone')
+    .replace(/feedback at [\d.]+ ?k?Hz/, 'feedback')
+    .replace(/Gain (up|down) [\d.]+ dB to [+−-]?[\d.]+ dB/, 'Level set')
+    .replace(/\s*\([^)]*(?:ms|BPM|dB)[^)]*\)/g, '')
+    .replace(/([+−-])\s?(\d+(?:\.\d+)?) ?dB/g, (m, sign, n) => `${sign === '+' ? 'up' : 'down'} ${amount(Number(n))}`)
+    .replace(/(\d+(?:\.\d+)?) ?dB/g, (m, n) => amount(Number(n)));
+}
+/** "Muddy: −4 dB at 300 Hz" → "Muddy" (Volunteer mode). */
+function plainNote(note) {
+  if (tech || !note) return note;
+  const head = String(note).split(':')[0];
+  return plain(head);
+}
+/** What's been done to a channel's sound, as outcomes: "rumble cut · less muddy · evened out (medium)". */
+function plainTone(m, instrument) {
+  if (!m) return '';
+  const parts = [];
+  if (m.hpOn && m.hpHz >= 85) parts.push(instrument === 'vocal' ? 'rumble and pops cut' : 'low rumble cut');
+  if (m.eqOn !== false) {
+    for (const k of ['b1', 'b2', 'b3', 'b4']) {
+      const b = m[k];
+      if (!b || !Number.isFinite(b.db) || Math.abs(b.db) < 0.5 || b.type === 0 || b.type === 5) continue;
+      const cut = b.db < 0;
+      const hz = b.hz;
+      let w;
+      if (cut && b.q >= 6) w = 'a ringing tone tamed';
+      else if (b.type === 4) w = cut ? 'darker' : 'more air';
+      else if (hz < 170) w = cut ? 'less boom' : 'more body';
+      else if (hz < 420) w = cut ? 'less muddy' : 'warmer';
+      else if (hz < 800) w = cut ? 'less boxy' : 'fuller';
+      else if (hz < 1700) w = cut ? (instrument === 'acoustic' ? 'less quacky' : 'less nasal') : 'cuts through more';
+      else if (hz < 5000) w = cut ? 'less harsh' : instrument === 'vocal' ? 'clearer words' : 'cuts through more';
+      else if (hz < 9500) w = cut ? (instrument === 'vocal' ? "softer S's" : 'less fizzy') : 'brighter';
+      else w = cut ? 'darker' : 'more air';
+      parts.push(`${w}${Math.abs(b.db) >= 5 ? ' (a lot)' : ''}`);
+    }
+  }
+  const c = m.comp;
+  if (c?.on && c.keyOn && c.keyType === 3) parts.push('pop guard on');
+  else if (c?.on) {
+    const r = [1.1, 1.3, 1.5, 2, 2.5, 3, 4, 5, 7, 10, 20, 100][c.ratio];
+    parts.push(`loud and quiet lines evened out (${r <= 2 ? 'light' : r <= 3 ? 'medium' : 'firm'})`);
+  }
+  if (m.gate?.on) parts.push('hiss turned down between lines');
+  return parts.length ? parts.join(' · ') : 'Nothing changed yet: it sounds the way it comes in.';
+}
+
+// ---------- status light and hands off ----------
+let lightItems = [];
+function renderLight(s) {
+  const st = s.status;
+  const items = []; // [level, text, action?]
+  if (!st.connected) items.push(['red', st.searching ? 'Looking for the mixer. Check the XR18 is on.' : "The mixer isn't connected.", null]);
+  const g = s.clickGuard;
+  if (st.connected && g && !g.allSafe) items.push(['red', 'The click or guide was reaching the room. Mix Assistant is fixing it.', null]);
+  if (s.handsOff) items.push(['yellow', 'Hands off: Mix Assistant is paused and changing nothing.', null]);
+  const now = s.automix?.now ?? [];
+  const fb = now.find((t) => /^Caught feedback/.test(t));
+  if (fb) items.push(['yellow', plain(fb), null]);
+  const P = s.setlist?.pro;
+  if (P?.follow && P.error) items.push(['yellow', "Can't reach ProPresenter, so songs won't change by themselves. Tap songs on Live.", () => showTab('auto')]);
+  const left = readyLeft(s);
+  if (st.connected && left > 0 && s.automix?.mode !== 'worship' && s.automix?.mode !== 'speaking') items.push(['yellow', `Getting ready: ${left} step${left > 1 ? 's' : ''} left.`, () => showTab('ready')]);
+  // A dead mic only matters when someone should be on it: this song's lead singer, during worship.
+  const L = s.setlist;
+  const song = L?.current && L.currentSong !== null ? L.current.songs[L.currentSong] : null;
+  if (song?.lead && s.automix?.mode === 'worship') {
+    const pos = weekPositions(s).find((p) => p.person.id === song.lead && p.base.instrument === 'vocal');
+    const row = pos && s.inventory.rows.find((r) => r.id === pos.slot.left);
+    if (row && row.status === 'silent') items.push(['yellow', `${pos.person.name.split(' ')[0]}'s mic has no sound. Check the battery or that it's switched on.`, null]);
+  }
+  lightItems = items;
+  const worst = items.some((i) => i[0] === 'red') ? 'red' : items.length ? 'yellow' : 'green';
+  $('#light').className = `light ${worst}`;
+  $('#statusBar').className = `status-bar ${worst}`;
+  const mode = MODE_LABEL[s.automix?.mode] ?? '';
+  $('#lightText').textContent = worst === 'green' ? `All good. Mix Assistant is mixing${mode && s.automix?.mode !== 'idle' ? ` · ${mode}` : ''}.` : items[0][1];
+  $('#lightMore').textContent = items.length > 1 ? `+${items.length - 1} more` : worst === 'green' ? '' : 'Tap for more';
+  $('#handsOffBtn').hidden = !!s.handsOff;
+  $('#handsBanner').hidden = !s.handsOff;
+  if ($('#lightDlg').open) fillLightDialog(s);
+}
+function fillLightDialog(s) {
+  $('#lightList').replaceChildren(
+    ...(lightItems.length
+      ? lightItems.map(([lvl, text, act]) => {
+          const li = el('li', { class: `lvl-${lvl === 'red' ? 'danger' : 'warn'}` }, [el('span', { text })]);
+          if (act) {
+            const b = el('button', { class: 'btn btn-small', type: 'button', text: 'Show me' });
+            b.addEventListener('click', () => {
+              $('#lightDlg').close();
+              act();
+            });
+            li.append(b);
+          }
+          return li;
+        })
+      : [el('li', { class: 'lvl-ok' }, [el('span', { text: 'Everything is working. Nothing needs you right now.' })])]),
+  );
+  const alerts = (s.alerts ?? []).slice(0, 6);
+  $('#lightAlerts').replaceChildren(
+    ...(alerts.length ? alerts.map((a) => el('li', { class: `lvl-${a.level}` }, [el('span', { class: 'msg', text: plain(a.message) }), el('time', { text: new Date(a.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) })])) : [el('li', {}, [el('span', { class: 'muted', text: 'No messages.' })])]),
+  );
+}
+$('#lightBtn').addEventListener('click', () => {
+  if (latest) fillLightDialog(latest);
+  $('#lightDlg').showModal();
+});
+$('#lightClose').addEventListener('click', () => $('#lightDlg').close());
+$('#handsOffBtn').addEventListener('click', () => send({ type: 'handsOff', on: true }));
+$('#handsResume').addEventListener('click', () => send({ type: 'handsOff', on: false }));
+
+// ---------- Get ready: Sunday morning, in order ----------
+let readyOpen = null; // the step a person opened (else the first one not done)
+let readyListen = null; // { slotId, until, samples, chs }
+function readySteps(s) {
+  const L = s.setlist;
+  const set = L?.current;
+  const ready = set?.ready ?? { gain: {} };
+  const c = s.checklist;
+  const gearDone = !!(c && s.status.connected && c.manual.every((i) => i.done));
+  const positions = set ? weekPositions(s) : [];
+  const gainDone = positions.length > 0 && positions.every((p) => ready.gain?.[p.base.id]);
+  return [
+    { id: 'gear', title: 'Set up the gear', done: gearDone },
+    { id: 'set', title: "This week's songs and people", done: !!(set && ready.set) },
+    { id: 'channels', title: 'Who is on which channel', done: !!set?.channelsDone },
+    { id: 'gain', title: 'Levels: one person at a time', done: gainDone },
+    { id: 'roles', title: 'Who sings lead on each song', done: !!ready.roles },
+    { id: 'sound', title: 'Anything sound wrong? (optional)', done: !!ready.sound },
+    { id: 'go', title: "You're ready", done: false },
+  ];
+}
+function readyLeft(s) {
+  return readySteps(s).filter((x) => x.id !== 'go' && x.id !== 'sound' && !x.done).length;
+}
+const mark = (step, value = true, slotId = null) => send({ type: 'readyMark', step, value, slotId });
+
+function renderReady(s) {
+  const steps = readySteps(s);
+  const L = s.setlist;
+  const set = L?.current;
+  const doneCount = steps.filter((x) => x.done && x.id !== 'go').length;
+  const total = steps.length - 1;
+  const first = steps.find((x) => !x.done)?.id ?? 'go';
+  const open = readyOpen ?? first;
+  $('#readyTitle').textContent = set ? `Get ready: ${set.title}` : 'Get ready';
+  $('#readySub').textContent = doneCount === total ? 'All done. You are ready.' : `${doneCount} of ${total} done · next: ${steps.find((x) => !x.done)?.title ?? ''}`;
+  $('#readyBar').style.width = `${Math.round((doneCount / total) * 100)}%`;
+  renderTechSetup(s);
+
+  // Rebuild only when something about the steps changes; live parts update below.
+  const positions = set ? weekPositions(s) : [];
+  const keyNow = [open, steps.map((x) => x.done), set?.id, set?.songs.length, positions.map((p) => [p.base.id, p.person.id, set?.ready?.gain?.[p.base.id]]), s.checklist?.manual, s.checklist?.auto?.map((a) => a.ok), readyListen?.slotId, s.pa?.values, L?.pco?.configured, tech];
+  if (changed('readySteps', keyNow)) {
+    // Park the shared cards first, so redrawing the steps can never throw them away.
+    $('#setCards').append(CH_CARD, SC_CARD);
+    $('#readySteps').replaceChildren(
+      ...steps.map((st, i) => {
+        const isOpen = st.id === open;
+        const head = el('button', { class: 'ready-step-head', type: 'button' }, [
+          el('span', { class: `ready-num${st.done ? ' done' : ''}`, text: st.done ? '✓' : String(i + 1) }),
+          el('b', { text: st.title }),
+          el('span', { class: 'muted small', text: st.done && !isOpen ? 'Done' : '' }),
+        ]);
+        head.addEventListener('click', () => {
+          readyOpen = isOpen ? '__none' : st.id;
+          keys.readySteps = null;
+          renderReady(latest);
+        });
+        const li = el('li', { class: `ready-step${isOpen ? ' open' : ''}${st.done ? ' done' : ''}` }, [head]);
+        if (isOpen) li.append(readyBody(st.id, s));
+        return li;
+      }),
+    );
+    // Shared cards: channels and song roles appear inside their steps (only while Get ready shows).
+    if (currentTab === 'ready') {
+      const chSlot = document.querySelector('[data-slot="channels"]');
+      if (chSlot) chSlot.append(CH_CARD);
+      const scSlot = document.querySelector('[data-slot="roles"]');
+      if (scSlot) scSlot.append(SC_CARD);
+    }
+  }
+  // Live: listening for a level.
+  if (readyListen) {
+    const levels = new Map(s.inventory.rows.map((r) => [r.id, r.levelDb ?? -128]));
+    const db = Math.max(...readyListen.chs.map((c) => levels.get(c) ?? -128));
+    readyListen.samples.push(db);
+    const box = document.querySelector(`[data-listen="${readyListen.slotId}"]`);
+    const left = Math.max(0, Math.ceil((readyListen.until - Date.now()) / 1000));
+    if (box) box.textContent = `Listening… ${left}s`;
+    if (Date.now() >= readyListen.until) {
+      const R = readyListen;
+      readyListen = null;
+      const loud = R.samples.filter((x) => x > -60).sort((a, b) => a - b);
+      if (loud.length < 10) {
+        if (box) box.textContent = "Didn't hear them. Check they're on this channel, then try again while they sing or play out.";
+        keys.readySteps = null;
+      } else {
+        send({ type: 'toneGain', slotId: R.slotId, loudDb: loud[Math.floor(loud.length * 0.95)] });
+        keys.readySteps = null;
+      }
+    }
+  }
+  for (const m of document.querySelectorAll('#readySteps .meter[data-ch]')) {
+    const levels = new Map(s.inventory.rows.map((r) => [r.id, r.levelDb ?? -128]));
+    const db = Math.max(levels.get(m.dataset.ch) ?? -128, m.dataset.ch2 ? levels.get(m.dataset.ch2) ?? -128 : -128);
+    m.firstChild.style.width = `${Math.max(0, Math.min(100, ((db + 60) / 60) * 100))}%`;
+    m.classList.toggle('active-now', db > ACTIVE_DB);
+  }
+}
+
+function readyBody(id, s) {
+  const L = s.setlist;
+  const set = L?.current;
+  const body = el('div', { class: 'ready-body' });
+  const next = (label, onClick) => {
+    const b = el('button', { class: 'btn btn-big ready-next', type: 'button', text: label });
+    b.addEventListener('click', () => {
+      onClick();
+      readyOpen = null;
+    });
+    return b;
+  };
+  if (id === 'gear') {
+    const c = s.checklist;
+    body.append(el('p', { class: 'muted', text: 'Tick each one as you go. Mix Assistant checks the first few itself.' }));
+    if (c?.venue) body.append(el('p', { class: 'venue-note', text: `${c.venue.name}${c.venue.notes ? `: ${c.venue.notes}` : ''}` }));
+    const list = el('ul', { class: 'ready-checks' });
+    for (const a of c?.auto ?? []) list.append(el('li', { class: a.ok ? 'ok' : 'bad' }, [el('span', { class: 'mark', text: a.ok ? '✓' : '…' }), el('span', { text: a.label }), el('span', { class: 'muted small', text: a.ok ? '' : a.detail ?? '' })]));
+    for (const m of c?.manual ?? []) {
+      const box = el('input', { type: 'checkbox', id: `rchk-${m.id}` });
+      box.checked = m.done;
+      box.addEventListener('change', () => send({ type: 'checkItem', id: m.id, done: box.checked }));
+      list.append(el('li', { class: m.done ? 'ok' : '' }, [el('label', { for: `rchk-${m.id}` }, [box, el('span', { text: m.label })])]));
+    }
+    body.append(list);
+    const pa = s.pa?.values ?? {};
+    const marks = (s.pa?.fields ?? []).filter((f) => pa[f.id] && f.id !== 'roomLevel').map((f) => `${f.label}: ${pa[f.id]}`);
+    if (marks.length) body.append(el('div', { class: 'ready-marks' }, [el('b', { text: 'Speaker marks from last time' }), ...marks.map((t) => el('div', { text: t }))]));
+    const help = el('button', { class: 'btn btn-ghost', type: 'button', text: 'Help me set up the speakers' });
+    help.addEventListener('click', () => showTab('pa'));
+    body.append(el('div', { class: 'row' }, [help]));
+  }
+  if (id === 'set') {
+    if (!set) {
+      body.append(el('p', { text: 'No set yet for this week.' }));
+    } else {
+      body.append(el('p', { class: 'ready-lead', text: `${set.title}${set.date ? ` · ${set.date}` : ''}` }));
+      body.append(el('div', { class: 'ready-two' }, [
+        el('div', {}, [el('b', { text: 'Songs' }), el('ol', {}, set.songs.map((x) => el('li', { text: x.title })))]),
+        el('div', {}, [el('b', { text: 'People' }), el('ul', {}, [...new Set(weekPositions(s).map((p) => p.person.name))].map((n) => el('li', { text: n })))]),
+      ]));
+    }
+    const row = el('div', { class: 'row' });
+    if ((L?.sets ?? []).length > 1) {
+      row.append(selectEl(L.sets.map((x) => [x.id, `${x.title}${x.date ? ` · ${x.date}` : ''}`]), set?.id ?? '', (v) => v && send({ type: 'openSet', id: v }), 'Which set'));
+    }
+    if (L?.pco?.configured) {
+      const b = el('button', { class: 'btn btn-ghost', type: 'button', text: 'Get it from Planning Center' });
+      b.addEventListener('click', () => {
+        showTab('set');
+        const f = $('#pcoBox')?.closest('details');
+        if (f) {
+          f.open = true;
+          f.scrollIntoView({ behavior: 'smooth' });
+        }
+      });
+      row.append(b);
+    }
+    const e = el('button', { class: 'btn btn-ghost', type: 'button', text: 'Change songs or people' });
+    e.addEventListener('click', () => {
+      showTab('set');
+      $('#editSetFold').open = true;
+      $('#editSetFold').scrollIntoView({ behavior: 'smooth' });
+    });
+    row.append(e);
+    body.append(row);
+    if (set?.songs.length) body.append(next("That's right ✓", () => mark('set')));
+  }
+  if (id === 'channels') {
+    body.append(el('p', { class: 'muted', text: 'Each person starts on the channel they used last time. Not sure? Tap Find and have them sing or play. Then tap "Channels are set".' }));
+    body.append(el('div', { 'data-slot': 'channels' }));
+  }
+  if (id === 'gain') {
+    body.append(el('p', { class: 'muted', text: 'One person at a time: tap Listen, and have them sing or play the loudest part of a song for 7 seconds. Mix Assistant sets their level.' }));
+    const list = el('ul', { class: 'ready-gain' });
+    for (const p of set ? weekPositions(s) : []) {
+      const done = !!set.ready?.gain?.[p.base.id];
+      const what = p.base.instrument === 'vocal' ? 'sings' : `plays ${p.base.name.toLowerCase()}`;
+      const status = el('span', { class: 'muted small', 'data-listen': p.base.id, text: done ? 'Level set ✓' : '' });
+      const listen = el('button', { class: `btn ${done ? 'btn-ghost' : ''}`, type: 'button', text: done ? 'Again' : 'Listen' });
+      listen.disabled = !!readyListen;
+      listen.addEventListener('click', () => {
+        readyListen = { slotId: p.base.id, until: Date.now() + 7000, samples: [], chs: [p.slot.left, p.slot.right].filter(Boolean) };
+        keys.readySteps = null;
+      });
+      const skip = el('button', { class: 'btn btn-ghost btn-small', type: 'button', text: 'Skip' });
+      skip.addEventListener('click', () => mark('gain', true, p.base.id));
+      list.append(el('li', { class: done ? 'done' : '' }, [
+        el('div', {}, [el('b', { text: p.person.name }), el('span', { class: 'muted', text: ` ${what}` })]),
+        el('div', { class: 'meter', 'data-ch': p.slot.left, 'data-ch2': p.slot.right || '' }, [el('div', { class: 'lvl' })]),
+        status,
+        listen,
+        ...(done ? [] : [skip]),
+      ]));
+    }
+    body.append(list);
+  }
+  if (id === 'roles') {
+    body.append(el('p', { class: 'muted', text: 'As the band plays each song, tap who is singing lead, harmony, or not singing, and which instrument carries it. Use ◀ ▶ to move between songs.' }));
+    // Soundcheck starts on song 1, so its mix is heard while roles are set.
+    if (currentTab === 'ready' && set?.songs.length && L.currentSong === null) send({ type: 'playSong', index: 0 });
+    body.append(el('div', { 'data-slot': 'roles' }));
+    body.append(next('Roles are set ✓', () => mark('roles')));
+  }
+  if (id === 'sound') {
+    body.append(el('p', { class: 'muted', text: 'Only if something sounds wrong. Open the person, tap what you hear, and use Before / After to check it helped. Save it so it comes back next week.' }));
+    const list = el('ul', { class: 'ready-gain' });
+    for (const p of set ? weekPositions(s) : []) {
+      const b = el('button', { class: 'btn btn-ghost', type: 'button', text: '🎚 Open' });
+      b.addEventListener('click', () => openTone(p.base.id));
+      const T = L.tone?.[p.base.id];
+      list.append(el('li', {}, [el('div', {}, [el('b', { text: p.person.name }), el('span', { class: 'muted', text: ` · ${p.base.instrument === 'vocal' ? 'voice' : p.base.name.toLowerCase()}` })]), el('span', { class: 'muted small', text: T?.saved ? 'their saved sound' : '' }), b]));
+    }
+    body.append(list);
+    const less = el('button', { class: 'btn btn-ghost', type: 'button', text: 'Too much reverb' });
+    less.addEventListener('click', () => send({ type: 'effectsNudge', which: 'reverb', db: -1.5 }));
+    const more = el('button', { class: 'btn btn-ghost', type: 'button', text: "Can't hear the reverb" });
+    more.addEventListener('click', () => send({ type: 'effectsNudge', which: 'reverb', db: 1.5 }));
+    body.append(el('div', { class: 'row' }, [less, more]));
+    body.append(next('Sounds good ✓', () => mark('sound')));
+  }
+  if (id === 'go') {
+    const left = readyLeft(s);
+    body.append(el('p', { class: 'ready-lead', text: left ? `${left} step${left > 1 ? 's' : ''} above still to do, but you can start whenever you need to.` : 'Everything is set. Mix Assistant takes it from here: it follows the service, the songs and the people talking.' }));
+    const fade = el('button', { class: 'btn btn-big', type: 'button', text: 'Fade pre-service music in' });
+    fade.addEventListener('click', () => {
+      const v = $('#plSelect').value;
+      send({ type: 'walkinStart', playlist: v === '' ? null : Number(v) });
+    });
+    const live = el('button', { class: 'btn btn-big btn-ghost', type: 'button', text: 'Go to Live' });
+    live.addEventListener('click', () => showTab('auto'));
+    body.append(el('div', { class: 'row' }, [fade, live]));
+    body.append(el('p', { class: 'muted small', text: 'If anything ever goes wrong, tap ✋ Hands off at the top: everything goes back to how people set it.' }));
+  }
+  return body;
+}
+
+/** Tech lead: the one-time setup, with what's done. */
+function renderTechSetup(s) {
+  if (!tech) return;
+  const L = s.setlist;
+  const ipads = s.checklist?.auto?.find((a) => a.id === 'auto-ipads');
+  const noCh = (L?.slots ?? []).filter((x) => !x.left && x.instrument !== 'bass' && x.id !== 'vox4');
+  const items = [
+    ['Booth Mac connected to the mixer', !!s.status.connected, null],
+    ['iPads connected (scan the QR code once per iPad)', !!ipads?.ok, () => $('#share').click()],
+    ['Channels for each stage position', noCh.length === 0, () => openFold('Channels for each position')],
+    ['Planning Center connected (optional)', !!L?.pco?.configured, () => openFold('Planning Center')],
+    ['ProPresenter linked (optional)', !!L?.pro?.host, () => openFold('ProPresenter')],
+    ['Reverb set up and run by Mix Assistant', !!s.effects?.running?.reverb, () => openFold('Reverb')],
+    ['Delay set up and run by Mix Assistant', !!s.effects?.running?.delay, () => openFold('Reverb')],
+  ];
+  if (!changed('techSetup', items.map((i) => i[1]))) return;
+  $('#techList').replaceChildren(
+    ...items.map(([t, ok, act]) => {
+      const li = el('li', { class: ok ? 'ok' : '' }, [el('span', { class: 'mark', text: ok ? '✓' : '○' }), el('span', { text: t })]);
+      if (!ok && act) {
+        const b = el('button', { class: 'btn btn-small btn-ghost', type: 'button', text: 'Open' });
+        b.addEventListener('click', act);
+        li.append(b);
+      }
+      return li;
+    }),
+  );
+}
+function openFold(title) {
+  showTab('set');
+  const f = [...document.querySelectorAll('#setView details')].find((d) => d.querySelector('summary h2')?.textContent === title);
+  if (f) {
+    f.open = true;
+    f.scrollIntoView({ behavior: 'smooth' });
+  }
+}
 
 connect();
