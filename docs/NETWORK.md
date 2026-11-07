@@ -48,7 +48,7 @@ If an adapter is ever added, this works only after this one-time test passes:
    - **If it opens:** the XR18 passes traffic between its Wi-Fi and Ethernet, and this works. Spotify streams over the school Wi-Fi.
    - **If it doesn't:** the XR18 keeps them separate. Use the normal setup (laptop on the XR18's Wi-Fi, downloaded playlists).
 
-Mix Assistant finds the mixer over whichever connection the laptop has, so no settings change between the two.
+Mix Assistant finds the mixer over whichever connection the laptop has. To choose, use **Reach the mixer over** in the This Mac card (Automatic, Prefer Wi-Fi, Prefer cable), and save each place as a **venue** so the right choice comes back when you pick it. The Mixer pill at the top shows "· Wi-Fi" or "· cable" so everyone can see which is in use.
 
 The options below are general reference.
 

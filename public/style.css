@@ -394,3 +394,18 @@ dialog.connect-dialog { width: min(640px, calc(100vw - 32px)); }
   .connect-grid { grid-template-columns: 1fr; justify-items: center; }
 }
 .home-tip { display: flex; gap: 12px; align-items: center; justify-content: space-between; padding: 10px 16px; background: rgba(90, 169, 255, 0.14); color: var(--text); border-bottom: 1px solid var(--line); font-size: 14px; }
+
+/* ---------- setup checklist, connection and venues ---------- */
+.checks li { align-items: center; }
+.checks .mark { width: 22px; flex: none; text-align: center; font-weight: 800; }
+.checks .ok .mark { color: var(--ok); }
+.checks .bad .mark { color: var(--warn); }
+.checks .detail { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 45%; }
+.checks label { display: flex; gap: 10px; align-items: center; flex: 1; cursor: pointer; }
+.checks input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--ok); flex: none; }
+.checks li.done label span { color: var(--muted); text-decoration: line-through; }
+.venue-note { margin: 0 0 8px; padding: 8px 10px; border-radius: 6px; background: rgba(90, 169, 255, 0.12); font-size: 13px; white-space: pre-wrap; }
+.field { display: grid; gap: 6px; }
+.field label { font-size: 12px; font-weight: 700; color: var(--muted); }
+.mac-card select, .venue-edit textarea { background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 10px; font: inherit; min-height: 44px; }
+.venue-edit summary { cursor: pointer; color: var(--muted); font-weight: 600; padding: 4px 0; }

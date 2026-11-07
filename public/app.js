@@ -300,7 +300,8 @@ function render(s) {
   } else $('#offlineBar').textContent = "The mixer isn't connected. Controls are paused until it's back.";
   if (s.automix) renderAuto(s.automix);
   $('#conn').title = `Mix Assistant ${st.version ?? ''}`;
-  if (st.connected) setPill($('#conn'), 'ok', `Mixer: ${st.mixer?.name ?? 'connected'}`);
+  const via = st.path && (st.path.kind === 'wifi' || st.path.kind === 'cable') ? ` · ${st.path.label}` : '';
+  if (st.connected) setPill($('#conn'), 'ok', `Mixer: ${st.mixer?.name ?? 'connected'}${via}`);
   else if (st.searching) setPill($('#conn'), 'warn', 'Looking for mixer…');
   else setPill($('#conn'), 'danger', 'Mixer offline');
 
@@ -337,8 +338,10 @@ function render(s) {
     if (r.role === 'unknown' && r.roleSource !== 'confirmed')
       issues.push(['info', `❔ ${r.label} "${r.name}": couldn't tell what this is from its name. Tap its name strip.`]);
   }
-  $('#issueCount').textContent = issues.length ? `${issues.length} to check` : '✓ All good';
-  $('#issueCount').style.color = issues.length ? 'var(--warn)' : 'var(--ok)';
+  const setupLeft = renderChecklist(s.checklist);
+  const parts = [setupLeft ? `Setup: ${setupLeft} left` : '', issues.length ? `${issues.length} to check` : ''].filter(Boolean);
+  $('#issueCount').textContent = parts.length ? parts.join(' · ') : '✓ All good';
+  $('#issueCount').style.color = parts.length ? 'var(--warn)' : 'var(--ok)';
   if (!issues.length) issues.push(['ok', '✅ Nothing needs attention.']);
   $('#issues').replaceChildren(...issues.map(([k, t]) => el('li', { class: `lvl-${k}` }, [el('span', { class: 'msg', text: t })])));
 
@@ -502,12 +505,93 @@ $('#homeTipOk').addEventListener('click', () => {
   }
 });
 
+// ---------- setup checklist (every device) ----------
+let manualKey = '';
+/** Draws the checklist; returns how many items still need attention. */
+function renderChecklist(c) {
+  if (!c) return 0;
+  $('#autoChecks').replaceChildren(
+    ...c.auto.map((i) =>
+      el('li', { class: i.ok ? 'ok' : 'bad' }, [
+        el('span', { class: 'mark', text: i.ok ? '✓' : '!' }),
+        el('span', { class: 'msg', text: i.label }),
+        el('span', { class: 'detail', text: i.detail ?? '' }),
+      ]),
+    ),
+  );
+  const key = JSON.stringify(c.manual);
+  if (key !== manualKey) {
+    manualKey = key;
+    $('#manualChecks').replaceChildren(
+      ...c.manual.map((i) => {
+        const box = el('input', { type: 'checkbox', id: `chk-${i.id}` });
+        box.checked = i.done;
+        box.addEventListener('change', () => send({ type: 'checkItem', id: i.id, done: box.checked }));
+        return el('li', { class: i.done ? 'done' : '' }, [el('label', { for: `chk-${i.id}` }, [box, el('span', { text: i.label })])]);
+      }),
+    );
+  }
+  $('#venueNote').hidden = !c.venue;
+  if (c.venue) $('#venueNote').textContent = `${c.venue.name}${c.venue.notes ? `: ${c.venue.notes}` : ''}`;
+  const total = c.auto.length + c.manual.length;
+  const done = c.auto.filter((i) => i.ok).length + c.manual.filter((i) => i.done).length;
+  $('#checkProgress').textContent = `${done} of ${total} done`;
+  return total - done;
+}
+
 // ---------- this Mac (only shown on the booth Mac's own screen) ----------
 let confirmUpdate = false;
+let venuesKey = '';
+function renderConnection(s) {
+  const m = s.mac;
+  const c = m.connection;
+  const sel = $('#connPref');
+  if (!sel.options.length) for (const [k, label] of Object.entries(c.modes)) sel.append(el('option', { value: k, text: k === 'auto' ? `${label} (recommended)` : label }));
+  if (document.activeElement !== sel) sel.value = c.mode;
+  sel.disabled = c.fixed;
+  const p = s.status.path;
+  const now = !s.status.connected ? 'Not connected to the mixer right now.' : p && p.kind !== 'local' ? `Using ${p.label}${p.port ? ` (${p.port})` : ''} to reach the mixer at ${p.mixerIp}.` : `Connected to the mixer at ${s.status.host}.`;
+  $('#connStatus').textContent = c.fixed
+    ? `Set to a fixed mixer address in config.json. ${now}`
+    : c.mode !== 'auto' && !c.preferenceMet
+      ? `${now} The ${c.mode === 'cable' ? 'cable' : 'Wi-Fi'} connection isn't reaching the mixer, so it's using what works.`
+      : now;
+
+  // Venues
+  const vkey = JSON.stringify([m.venues, m.venue]);
+  if (vkey !== venuesKey) {
+    venuesKey = vkey;
+    const vs = $('#venueSel');
+    vs.replaceChildren(el('option', { value: '', text: m.venues.length ? 'No venue chosen' : 'No venues saved yet' }), ...m.venues.map((v, i) => el('option', { value: String(i), text: v.name })));
+    vs.value = m.venue === null ? '' : String(m.venue);
+    const v = m.venue === null ? null : m.venues[m.venue];
+    $('#venueEditSummary').textContent = v ? `Edit venue "${v.name}"` : 'Save this setup as a venue';
+    if (document.activeElement !== $('#venueName')) $('#venueName').value = v?.name ?? '';
+    if (document.activeElement !== $('#venueNotes')) $('#venueNotes').value = v?.notes ?? '';
+    $('#venueDelete').hidden = !v;
+  }
+}
+$('#connPref').addEventListener('change', (e) => send({ type: 'setConnection', mode: e.target.value }));
+$('#venueSel').addEventListener('change', (e) => send({ type: 'selectVenue', index: e.target.value === '' ? null : Number(e.target.value) }));
+$('#venueForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const idx = latest?.mac?.venue;
+  const sameName = idx !== null && idx !== undefined && latest.mac.venues[idx]?.name === $('#venueName').value.trim();
+  send({ type: 'saveVenue', index: sameName ? idx : undefined, name: $('#venueName').value, notes: $('#venueNotes').value, connection: $('#connPref').value });
+  venuesKey = '';
+});
+$('#venueDelete').addEventListener('click', () => {
+  const idx = latest?.mac?.venue;
+  if (idx === null || idx === undefined) return;
+  send({ type: 'deleteVenue', index: idx });
+  venuesKey = '';
+});
+
 function renderMac(s) {
   const m = s.mac;
   $('#macCard').hidden = !m;
   if (!m) return;
+  renderConnection(s);
   const u = m.update ?? {};
   $('#macVersion').textContent = `Mix Assistant ${u.current ?? ''}`;
   $('#updCheck').disabled = !!u.checking || !!u.updating;

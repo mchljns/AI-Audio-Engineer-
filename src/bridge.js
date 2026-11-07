@@ -23,6 +23,7 @@ import { FadeEngine } from './fades.js';
 import { AutoMix } from './automix.js';
 import { MusicController, toSpotifyUri } from './music.js';
 import { Updater } from './updater.js';
+import { CONNECTION_MODES, chooseMixer, hardwarePorts, kindLabel, pathTo } from './netpath.js';
 import { ROLES } from './roles.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -39,6 +40,16 @@ const PIN_LENGTH = 6;
 const PIN_MAX_TRIES = 5;
 const PIN_LOCKOUT_MS = 60 * 1000;
 const UNUSED_SETTLE_MS = 15000;
+
+// Setup checklist items a person ticks (they reset each day). Built for a set-up/tear-down church.
+const SETUP_ITEMS = [
+  { id: 'speakers', label: 'Speakers powered, levels at their marks' },
+  { id: 'bluetooth', label: 'PRX ONE Bluetooth off' },
+  { id: 'wireless', label: 'Wireless mics scanned, fresh batteries in every pack' },
+  { id: 'ears', label: 'In-ear packs on and everyone can hear' },
+  { id: 'dnd', label: 'Laptop: Do Not Disturb on, lid stays open' },
+  { id: 'playlist', label: 'Pre/post-service playlist downloaded (if there is no internet)' },
+];
 
 export function loadConfig() {
   let file = {};
@@ -109,7 +120,7 @@ export class Bridge {
     this.roleStore = new RoleStore(path.join(config.dataDir, 'roles.json'));
     this.lockStore = new LockStore(path.join(config.dataDir, 'locks.json'));
     this.settingsFile = path.join(config.dataDir, 'settings.json');
-    this.settings = { walkinLevels: {}, automix: {}, playlists: [] };
+    this.settings = { walkinLevels: {}, automix: {}, playlists: [], connection: 'auto', venues: [], venue: null, checklist: { date: '', done: {} } };
     try {
       this.settings = { ...this.settings, ...JSON.parse(fs.readFileSync(this.settingsFile, 'utf8')) };
     } catch {
@@ -184,9 +195,45 @@ export class Bridge {
       onSendError: (err) => BLOCKED_CODES.has(err.code) && blocked++,
     });
     if (blocked && !found.length) this.#networkBlocked();
-    const pick = this.config.mixerName ? found.find((m) => m.name === this.config.mixerName) : found[0];
-    if (pick && found.length > 1) console.log(`Found ${found.length} mixers: ${found.map((m) => `${m.name} (${m.host})`).join(', ')}`);
+    // Work out which connection (Wi-Fi or cable) reaches each answer, then honour the preference.
+    const portMap = await hardwarePorts();
+    for (const m of found) m.path = pathTo(m.host, { portMap });
+    const { pick, preferenceMet } = chooseMixer(found, this.settings.connection ?? 'auto', this.config.mixerName);
+    this.preferenceMet = preferenceMet;
+    if (pick && found.length > 1) console.log(`Found ${found.length} mixer addresses: ${found.map((m) => `${m.name} ${m.host} (${kindLabel(m.path?.kind)})`).join(', ')}`);
     return pick ?? null;
+  }
+
+  /** Which connection the Mac is using to reach the mixer right now. */
+  async #updatePath() {
+    const ip = this.client?.hostIp ?? this.status.host;
+    const p = pathTo(ip, { portMap: await hardwarePorts() });
+    this.status.path = p ? { kind: p.kind, label: kindLabel(p.kind), port: p.port, iface: p.iface, mixerIp: ip } : null;
+  }
+
+  /** Apply a new connection preference now, if the mixer can be reached that way. Never drops a working connection. */
+  async #applyConnectionPreference() {
+    if (this.config.mixerHost !== 'auto' || !this.client || this.rediscovering) return;
+    this.rediscovering = true;
+    try {
+      const pick = await this.#discoverOnce();
+      const mode = this.settings.connection ?? 'auto';
+      if (pick && pick.host !== this.client.host) {
+        console.log(`Switching to the mixer at ${pick.host} over ${kindLabel(pick.path?.kind)}`);
+        await this.client.setHost(pick.host);
+        this.status.host = pick.host;
+        this.alert({ level: 'info', source: 'connection', message: `Now reaching the mixer over ${kindLabel(pick.path?.kind)}.` });
+      } else if (mode !== 'auto' && !this.preferenceMet) {
+        this.alert({
+          level: 'warn',
+          source: 'connection',
+          message: `Can't find the mixer over ${mode === 'cable' ? 'a cable' : 'Wi-Fi'}${this.status.path ? `, so staying on ${this.status.path.label}` : ''}. Check the ${mode === 'cable' ? 'cable and adapter are plugged in' : "laptop is on the mixer's Wi-Fi"}.`,
+        });
+      }
+      await this.#updatePath();
+    } finally {
+      this.rediscovering = false;
+    }
   }
 
   async #findMixer() {
@@ -255,7 +302,9 @@ export class Bridge {
       this.status.mixer = info;
       this.disconnectedAt = 0;
       console.log(`Connected to mixer at ${this.client.host}`);
-      this.alert({ level: 'ok', source: 'connection', message: 'Connected to the mixer.' });
+      this.#updatePath().then(() =>
+        this.alert({ level: 'ok', source: 'connection', message: `Connected to the mixer${this.status.path && this.status.path.kind !== 'local' ? ` over ${this.status.path.label}` : ''}.` }),
+      );
       this.#resync(() => {
         if (!this.automix.enabled) this.automix.start();
       });
@@ -308,6 +357,7 @@ export class Bridge {
   }
 
   #resync(then) {
+    this.#updatePath().catch(() => {});
     this.client.syncAll().then(() =>
       setTimeout(() => {
         if (this.stopped) return;
@@ -339,12 +389,15 @@ export class Bridge {
   handleCommand(cmd, { local = true } = {}) {
     if (!cmd || typeof cmd !== 'object' || typeof cmd.type !== 'string') return;
     // Things only the booth Mac's own screen can do (not iPads).
-    if (cmd.type === 'checkUpdate' || cmd.type === 'installUpdate' || cmd.type === 'practice') {
+    if (['checkUpdate', 'installUpdate', 'practice', 'setConnection', 'saveVenue', 'deleteVenue', 'selectVenue'].includes(cmd.type)) {
       if (!local) return;
       if (cmd.type === 'checkUpdate') return this.updater.check();
       if (cmd.type === 'installUpdate') return this.updater.install();
-      return cmd.on ? this.#startPractice() : this.#stopPractice();
+      if (cmd.type === 'practice') return cmd.on ? this.#startPractice() : this.#stopPractice();
+      return this.#venueCommand(cmd);
     }
+    // The setup checklist can be ticked from any connected device.
+    if (cmd.type === 'checkItem') return this.#checkItem(cmd);
     // Never act on a mixer we can't reach: the screen would show changes that didn't happen.
     // Commands that don't need the mixer.
     const offlineOk = new Set(['dismissAlert', 'clearAlerts', 'music', 'addPlaylist', 'removePlaylist']);
@@ -470,6 +523,109 @@ export class Bridge {
       default:
         return;
     }
+  }
+
+  // ---------- connection preference, venues and the setup checklist ----------
+
+  #venueCommand(cmd) {
+    const clean = (v, n) => String(v ?? '').trim().slice(0, n);
+    const venues = this.settings.venues ?? (this.settings.venues = []);
+    if (cmd.type === 'setConnection') {
+      if (!CONNECTION_MODES[cmd.mode]) return;
+      this.settings.connection = cmd.mode;
+      // Keep the chosen venue's saved connection in step.
+      if (Number.isInteger(this.settings.venue) && venues[this.settings.venue]) venues[this.settings.venue].connection = cmd.mode;
+      this.#saveSettings();
+      return this.#applyConnectionPreference();
+    }
+    if (cmd.type === 'saveVenue') {
+      const name = clean(cmd.name, 40);
+      if (!name) return;
+      const v = { name, connection: CONNECTION_MODES[cmd.connection] ? cmd.connection : this.settings.connection ?? 'auto', notes: clean(cmd.notes, 1000) };
+      const i = Number.isInteger(cmd.index) && venues[cmd.index] ? cmd.index : venues.length;
+      if (i === venues.length && venues.length >= 20) return;
+      venues[i] = v;
+      this.settings.venue = i;
+      this.settings.connection = v.connection;
+      this.#saveSettings();
+      this.alert({ level: 'ok', source: 'venue', message: `Saved venue "${name}".` });
+      return this.#applyConnectionPreference();
+    }
+    if (cmd.type === 'deleteVenue') {
+      if (!Number.isInteger(cmd.index) || !venues[cmd.index]) return;
+      venues.splice(cmd.index, 1);
+      if (this.settings.venue === cmd.index) this.settings.venue = null;
+      else if (this.settings.venue > cmd.index) this.settings.venue--;
+      this.#saveSettings();
+      return;
+    }
+    if (cmd.type === 'selectVenue') {
+      if (cmd.index === null) {
+        this.settings.venue = null;
+        this.#saveSettings();
+        return;
+      }
+      const v = Number.isInteger(cmd.index) ? venues[cmd.index] : null;
+      if (!v) return;
+      this.settings.venue = cmd.index;
+      this.settings.connection = v.connection;
+      this.#saveSettings();
+      return this.#applyConnectionPreference();
+    }
+  }
+
+  #today() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+
+  /** Ticks reset each day, so every Sunday starts with a fresh checklist. */
+  #checklistDone() {
+    const c = this.settings.checklist ?? (this.settings.checklist = { date: '', done: {} });
+    if (c.date !== this.#today()) {
+      c.date = this.#today();
+      c.done = {};
+    }
+    return c.done;
+  }
+
+  #checkItem(cmd) {
+    if (!SETUP_ITEMS.some((i) => i.id === cmd.id) || typeof cmd.done !== 'boolean') return;
+    const done = this.#checklistDone();
+    if (cmd.done) done[cmd.id] = true;
+    else delete done[cmd.id];
+    this.#saveSettings();
+  }
+
+  #ipadCount() {
+    let n = 0;
+    for (const ws of this.wss?.clients ?? []) if (ws.readyState === 1 && ws.authed && !ws.isLocal) n++;
+    return n;
+  }
+
+  /** The setup checklist: things the app can check itself, then things a person ticks. */
+  #checklist() {
+    const st = this.status;
+    const g = this.guard ? this.guard.status() : null;
+    const m = this.music?.status();
+    const pathText = st.path && st.path.kind !== 'local' ? ` over ${st.path.label}` : '';
+    const auto = [
+      { id: 'auto-mixer', label: 'Mixer connected', ok: !!st.connected, detail: st.connected ? `${st.mixer?.name ?? 'XR18'}${pathText}` : st.searching ? 'Looking for it…' : 'Not connected' },
+      { id: 'auto-lock', label: 'Click and guide locked out of the room', ok: !!g && g.locked.length > 0 && g.allSafe, detail: !g ? 'Waiting for the mixer' : !g.locked.length ? 'No Click or Guide channel found' : g.allSafe ? 'Locked' : 'Being fixed' },
+      { id: 'auto-ipads', label: 'iPad connected', ok: this.#ipadCount() > 0, detail: `${this.#ipadCount()} connected` },
+    ];
+    if (m?.available) {
+      auto.push({
+        id: 'auto-music',
+        label: 'Music player ready',
+        ok: !m.error,
+        detail: m.error ? m.error : `${m.label}${m.internet === false ? ' · no internet: downloaded playlists only' : ''}`,
+      });
+    }
+    const done = this.#checklistDone();
+    const manual = SETUP_ITEMS.map((i) => ({ ...i, done: !!done[i.id] }));
+    const v = Number.isInteger(this.settings.venue) ? this.settings.venues?.[this.settings.venue] : null;
+    return { auto, manual, venue: v ? { name: v.name, notes: v.notes } : null, date: this.#today() };
   }
 
   // ---------- practice mode (a pretend mixer, started from the app) ----------
@@ -652,7 +808,22 @@ export class Bridge {
       roles: Object.fromEntries(Object.entries(ROLES).map(([k, v]) => [k, v.label])),
       // Only this computer's own screen is shown the PIN, so volunteers can read it off the Mac.
       pin: local ? this.pin : undefined,
-      mac: local ? { update: this.updater?.status(), practice: !!this.practice, practicePort: this.config.practicePort ?? 8081 } : undefined,
+      mac: local
+        ? {
+            update: this.updater?.status(),
+            practice: !!this.practice,
+            practicePort: this.config.practicePort ?? 8081,
+            connection: {
+              mode: this.settings.connection ?? 'auto',
+              modes: CONNECTION_MODES,
+              fixed: this.config.mixerHost !== 'auto', // set by config.json: the preference doesn't apply
+              preferenceMet: this.preferenceMet !== false,
+            },
+            venues: (this.settings.venues ?? []).map((v) => ({ name: v.name, connection: v.connection, notes: v.notes })),
+            venue: Number.isInteger(this.settings.venue) ? this.settings.venue : null,
+          }
+        : undefined,
+      checklist: this.#checklist(),
       addresses: local && this.boundPort ? this.#addressesForIpads().map((ip) => `http://${ip}:${this.boundPort}`) : undefined,
       // The Mac's Bonjour name (e.g. booth-mac.local) doesn't change week to week the way an address can.
       localName: local && this.boundPort ? `http://${macLocalName()}:${this.boundPort}` : undefined,

@@ -74,6 +74,12 @@ It takes about two minutes, needs the internet while installing, and needs no ad
 
 **Updates, practice mode and troubleshooting reports** are buttons in the app's **This Mac** card (shown only on the Mac itself). Running the installer again also updates. Settings are always kept. It installs the **stable** version: the last one tested on the real mixer.
 
+### Venues, Wi-Fi or cable, and the setup checklist
+
+- **Reach the mixer over** (This Mac card): **Automatic** (recommended: uses a cable if one reaches the mixer, otherwise Wi-Fi), **Prefer Wi-Fi**, or **Prefer cable**. A preference never drops a working connection: if the preferred path can't reach the mixer, it stays on the other one and says so. The line underneath, and the Mixer pill at the top on every device, show which one is in use. A cable needs a USB-C to Ethernet adapter on this laptop.
+- **Venues** (This Mac card): save each place you set up with its connection choice and notes ("Power strip behind stage left"). Choosing a venue applies its connection and shows its notes at the top of the setup checklist.
+- **Setup checklist** (Pre-service check, on every device): the app ticks what it can check itself (mixer connected, click and guide locked, an iPad connected, music player ready). Volunteers tick the rest from any iPad: speakers at their marks, PRX ONE Bluetooth off, wireless scanned with fresh batteries, in-ears working, Do Not Disturb, playlist downloaded. Ticks start fresh each day.
+
 The download page can also be published as a website: in the repository's **Settings → Pages**, choose **Deploy from a branch**, branch **stable**, folder **/docs**. It then appears at https://mchljns.github.io/AI-Audio-Engineer-/.
 
 For developers, the same installer runs from Terminal: `curl -fsSL https://raw.githubusercontent.com/mchljns/AI-Audio-Engineer-/stable/install.sh | bash` (add `MIX_CHANNEL=main` before `bash` for untested work). After changing `install.sh` or `macos/installer-launch.sh`, run `scripts/build-mac-installer.sh` (a test checks the download is in sync).

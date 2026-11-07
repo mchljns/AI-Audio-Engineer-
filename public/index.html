@@ -36,6 +36,15 @@
       </summary>
       <div class="panel-body">
         <div class="panel-col">
+          <div class="panel-head">
+            <strong>Setup checklist</strong>
+            <span id="checkProgress" class="muted small"></span>
+          </div>
+          <p id="venueNote" class="venue-note" hidden></p>
+          <ul id="autoChecks" class="list checks"></ul>
+          <ul id="manualChecks" class="list checks"></ul>
+        </div>
+        <div class="panel-col">
           <ul id="issues" class="list"></ul>
           <button id="muteUnused" class="btn">Mute unused channels</button>
         </div>
@@ -108,6 +117,27 @@
         <div class="row">
           <button id="connectBtn" class="btn">Connect an iPad</button>
         </div>
+        <div class="field">
+          <label for="venueSel">Venue</label>
+          <select id="venueSel"></select>
+        </div>
+        <div class="field">
+          <label for="connPref">Reach the mixer over</label>
+          <select id="connPref"></select>
+          <p id="connStatus" class="muted small"></p>
+        </div>
+        <details class="venue-edit">
+          <summary id="venueEditSummary">Save this setup as a venue</summary>
+          <form id="venueForm" class="pl-form">
+            <input id="venueName" placeholder="Venue name, e.g. School" maxlength="40" aria-label="Venue name" />
+            <textarea id="venueNotes" rows="3" maxlength="1000" placeholder="Notes shown in the setup checklist, e.g. Wi-Fi: mixer's own. Power strip behind stage left." aria-label="Venue notes"></textarea>
+            <p class="muted small">Saves the venue with the connection chosen above.</p>
+            <div class="row">
+              <button class="btn" type="submit">Save venue</button>
+              <button id="venueDelete" class="btn btn-ghost" type="button" hidden>Delete this venue</button>
+            </div>
+          </form>
+        </details>
         <div class="row">
           <button id="updCheck" class="btn btn-ghost">Check for updates</button>
           <button id="updInstall" class="btn" hidden>Update now</button>
