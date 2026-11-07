@@ -705,14 +705,21 @@ function renderSoundcheck(s) {
   const people = Object.fromEntries((L?.people ?? []).map((p) => [p.id, p]));
   const singers = set ? L.slots.filter((x) => x.instrument === 'vocal' && set.lineup[x.id] && x.left).map((x) => ({ slot: x, person: people[set.lineup[x.id]] })).filter((x) => x.person) : [];
   const players = set ? L.slots.filter((x) => x.instrument !== 'vocal' && set.lineup[x.id] && x.left).map((x) => ({ slot: x, person: people[set.lineup[x.id]] })).filter((x) => x.person) : [];
+  // One row per person on stage: their vocal mic (if any) and the instruments they play.
+  const rows = new Map();
+  for (const { slot, person } of [...singers, ...players]) {
+    if (!rows.has(person.id)) rows.set(person.id, { person, vocal: null, instruments: [] });
+    const r = rows.get(person.id);
+    if (slot.instrument === 'vocal') r.vocal ??= slot;
+    else r.instruments.push(slot);
+  }
 
   $('#scPrev').disabled = !song || idx === 0;
   $('#scNext').disabled = !set?.songs.length || (song && idx === set.songs.length - 1);
   if (!set || !set.songs.length) {
     $('#scSong').textContent = set ? 'No songs yet' : 'No set yet';
     $('#scCount').textContent = set ? 'Add songs under Service → Edit this set, or import from Planning Center.' : 'Start or import a set first.';
-    $('#scSingers').replaceChildren();
-    $('#scInstruments').replaceChildren();
+    $('#scPeople').replaceChildren();
     return;
   }
   if (!song) {
@@ -724,44 +731,56 @@ function renderSoundcheck(s) {
   }
 
   // Tiles: rebuilt when the song or roles change; levels update every refresh.
-  if (changed('scTiles', [set.id, idx, song?.lead, song?.harmonies, song?.leadInstrument, singers.map((x) => [x.slot.id, x.person.id]), players.map((x) => [x.slot.id, x.person.id])])) {
-    $('#scSingers').replaceChildren(
-      ...singers.map(({ slot, person }) => {
-        const r = song ? roleOf(song, person.id) : 'none';
-        const t = el('button', { class: `tile r-${r}`, type: 'button', 'data-ch': slot.left }, [el('b', { text: person.name }), el('span', { class: 'role', text: r === 'lead' ? 'Lead' : r === 'harmony' ? 'Harmony' : 'Not singing' }), el('span', { class: 'muted small', text: slot.name }), el('div', { class: 'lvl' })]);
-        t.addEventListener('click', () => {
-          if (!song) return;
-          let lead = song.lead;
-          const harm = new Set(song.harmonies);
-          const cur = roleOf(song, person.id);
-          if (cur === 'none') {
-            // Becomes the lead; the old lead moves to harmony.
-            if (lead) harm.add(lead);
-            harm.delete(person.id);
-            lead = person.id;
-          } else if (cur === 'lead') {
-            lead = null;
-            harm.add(person.id);
-          } else harm.delete(person.id);
-          harm.delete(lead);
-          send({ type: 'setSongLeads', index: idx, lead, harmonies: [...harm] });
-        });
-        return t;
-      }),
-    );
-    $('#scInstruments').replaceChildren(
-      ...players.map(({ slot, person }) => {
-        const isLead = song?.leadInstrument === slot.id;
-        const t = el('button', { class: `tile${isLead ? ' r-lead' : ''}`, type: 'button', 'data-ch': slot.left, 'data-ch2': slot.right || '' }, [el('b', { text: slot.name }), el('span', { class: 'role', text: isLead ? 'Lead instrument' : '' }), el('span', { class: 'muted small', text: person.name }), el('div', { class: 'lvl' })]);
-        t.addEventListener('click', () => song && send({ type: 'setSongLeads', index: idx, leadInstrument: isLead ? null : slot.id }));
-        return t;
+  if (changed('scRows', [set.id, idx, song?.lead, song?.harmonies, song?.leadInstrument, [...rows.values()].map((r) => [r.person.id, r.vocal?.id, r.instruments.map((i) => i.id)])])) {
+    const setVocal = (pid, role) => {
+      if (!song) return;
+      let lead = song.lead;
+      const harm = new Set(song.harmonies);
+      harm.delete(pid);
+      if (lead === pid) lead = null;
+      if (role === 'lead') {
+        if (lead) harm.add(lead); // the old lead keeps singing, as harmony
+        lead = pid;
+      } else if (role === 'harmony') harm.add(pid);
+      harm.delete(lead);
+      send({ type: 'setSongLeads', index: idx, lead, harmonies: [...harm] });
+    };
+    const meter = (slot) => el('div', { class: 'meter', 'data-ch': slot.left, 'data-ch2': slot.right || '' }, [el('div', { class: 'lvl' })]);
+    $('#scPeople').replaceChildren(
+      ...[...rows.values()].map(({ person, vocal, instruments }) => {
+        const role = song ? roleOf(song, person.id) : 'none';
+        const leadsInstrument = instruments.some((i) => song?.leadInstrument === i.id);
+        const parts = [el('div', { class: 'sc-name' }, [el('b', { text: person.name }), el('span', { class: 'muted small', text: vocal ? `Mic: ${vocal.name}` : 'Plays only' })])];
+        const controls = [];
+        if (vocal) {
+          const seg = el('div', { class: 'sc-ctl' }, [el('span', { class: 'sc-label', text: 'Sings' }), meter(vocal)]);
+          const btns = el('div', { class: 'seg mini' });
+          for (const [r, label] of [['lead', 'Lead'], ['harmony', 'Harmony'], ['none', 'Off']]) {
+            const b = el('button', { class: `seg-btn${role === r ? ` active v-${r}` : ''}`, type: 'button', text: label });
+            b.disabled = !song;
+            b.addEventListener('click', () => role !== r && setVocal(person.id, r));
+            btns.append(b);
+          }
+          seg.append(btns);
+          controls.push(seg);
+        }
+        for (const slot of instruments) {
+          const isLead = song?.leadInstrument === slot.id;
+          const b = el('button', { class: `chip-btn${isLead ? ' on' : ''}`, type: 'button', text: isLead ? '★ Lead' : '☆ Lead' });
+          b.disabled = !song;
+          b.setAttribute('aria-pressed', String(isLead));
+          b.addEventListener('click', () => send({ type: 'setSongLeads', index: idx, leadInstrument: isLead ? null : slot.id }));
+          controls.push(el('div', { class: 'sc-ctl' }, [el('span', { class: 'sc-label', text: slot.name }), meter(slot), b]));
+        }
+        parts.push(el('div', { class: 'sc-ctls' }, controls));
+        return el('div', { class: `sc-row${role !== 'none' ? ` v-${role}` : ''}${leadsInstrument ? ' i-lead' : ''}` }, parts);
       }),
     );
   }
-  for (const t of document.querySelectorAll('#scCard .tile')) {
-    const db = Math.max(levelOf(t.dataset.ch), t.dataset.ch2 ? levelOf(t.dataset.ch2) : -128);
-    t.querySelector('.lvl').style.width = `${Math.max(0, Math.min(100, ((db + 60) / 60) * 100))}%`;
-    t.classList.toggle('active-now', db > ACTIVE_DB);
+  for (const m of document.querySelectorAll('#scPeople .meter')) {
+    const db = Math.max(levelOf(m.dataset.ch), m.dataset.ch2 ? levelOf(m.dataset.ch2) : -128);
+    m.firstChild.style.width = `${Math.max(0, Math.min(100, ((db + 60) / 60) * 100))}%`;
+    m.classList.toggle('active-now', db > ACTIVE_DB);
   }
 
   // Listen: which singers are active during this song, and how strongly.

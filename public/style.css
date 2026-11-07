@@ -505,3 +505,29 @@ dialog.connect-dialog { width: min(640px, calc(100vw - 32px)); }
 .tile.r-harmony { border-color: #a855f7; background: rgba(168, 85, 247, 0.14); }
 .tile.r-harmony .role { color: #c084fc; }
 .hearing { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-top: 10px; padding: 10px 12px; border-radius: 10px; background: var(--strip); }
+
+/* Soundcheck: one row per person (sing and play on the same row) */
+.sc-people { display: grid; gap: 10px; }
+.sc-row { display: grid; grid-template-columns: minmax(130px, 200px) minmax(0, 1fr); gap: 12px; align-items: center; padding: 12px 14px; border-radius: 14px; border: 2px solid var(--line); background: var(--panel); }
+.sc-row.v-lead { border-color: var(--accent); }
+.sc-row.v-harmony { border-color: #a855f7; }
+.sc-row.i-lead:not(.v-lead):not(.v-harmony) { border-color: #f5b942; }
+.sc-name { display: grid; gap: 2px; min-width: 0; }
+.sc-name b { font-size: 19px; }
+.sc-ctls { display: grid; gap: 8px; }
+.sc-ctl { display: grid; grid-template-columns: 110px 70px minmax(0, 1fr); gap: 10px; align-items: center; }
+.sc-label { font-weight: 700; }
+.meter { height: 8px; border-radius: 4px; background: var(--strip); overflow: hidden; }
+.meter .lvl { height: 100%; width: 0; background: var(--muted); transition: width 90ms linear; }
+.meter.active-now .lvl { background: var(--ok); }
+.seg.mini { padding: 3px; }
+.seg.mini .seg-btn { min-height: 44px; padding: 8px 6px; }
+.seg.mini .seg-btn:disabled, .chip-btn:disabled { opacity: 0.45; cursor: default; }
+.seg.mini .seg-btn.active.v-none { background: var(--line); color: var(--text); }
+.seg.mini .seg-btn.active.v-harmony { background: #a855f7; color: #fff; }
+.chip-btn { appearance: none; min-height: 44px; border-radius: 10px; border: 2px solid var(--line); background: var(--strip); color: var(--muted); font: inherit; font-weight: 700; cursor: pointer; }
+.chip-btn.on { border-color: #f5b942; background: rgba(245, 185, 66, 0.18); color: #f5b942; }
+@media (max-width: 640px) {
+  .sc-row { grid-template-columns: minmax(0, 1fr); }
+  .sc-ctl { grid-template-columns: 76px 36px minmax(0, 1fr); gap: 8px; }
+}
