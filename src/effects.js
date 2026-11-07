@@ -135,6 +135,11 @@ export class Effects {
     this.song = { delay: !!delay, lead: lead.map(String), amounts, bpm, title };
   }
 
+  /** The song section: in a full section (chorus, bridge) the reverb sits 2 dB lower. */
+  setSection(kind) {
+    this.section = kind === 'light' || kind === 'full' ? kind : null;
+  }
+
   /** The tempo heard right now ({ bpm, source } or null). */
   setLive(live) {
     this.live = live;
@@ -248,6 +253,9 @@ export class Effects {
       } else if (mode === 'talkover' || (mode === 'worship' && activity.vocalTalking)) {
         target = -this.settings.talkDb;
         this.reason = 'while someone talks';
+      } else if (mode === 'worship' && this.section === 'full') {
+        target = -2;
+        this.reason = 'in the chorus (fuller sections need less)';
       }
     }
     for (const fx of [this.settings.reverbFx, this.settings.delayFx]) {

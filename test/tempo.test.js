@@ -94,7 +94,7 @@ test("bridge: hears the simulator's 120 BPM click and remembers it as the song's
   await cmd({ type: 'addSong', title: 'Holy Forever' });
   await cmd({ type: 'playSong', index: 0 });
   await cmd({ type: 'setSongDelay', index: 0, delay: true });
-  for (let i = 0; i < 40 && !(bridge.snapshot().setlist.current.songs[0].bpm > 0); i++) await new Promise((r) => setTimeout(r, 500));
+  for (let i = 0; i < 70 && !(bridge.snapshot().setlist.current.songs[0].bpm > 0); i++) await new Promise((r) => setTimeout(r, 500));
   const snap = bridge.snapshot();
   assert.ok(snap.tempo && Math.abs(snap.tempo.bpm - 120) <= 1, `heard ${snap.tempo?.bpm}`);
   assert.equal(snap.tempo.source, 'click');

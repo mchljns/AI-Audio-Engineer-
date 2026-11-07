@@ -88,3 +88,99 @@ test('reverb timed to the song, with a person\'s fixes kept on top', () => {
   fx.tick({ mode: 'worship' });
   assert.ok(Math.abs(last(2) - Math.log(0.9 / 0.5) / Math.log(20)) < 1e-9, 'next song: 1.2 s − 0.3 = 0.9 s');
 });
+
+test('song sections from ProPresenter: verse leaves room for the vocal, chorus comes back with less reverb', async (t) => {
+  const { XR18Simulator } = await import('../src/simulator/xr18-sim.js');
+  const { Bridge } = await import('../src/bridge.js');
+  const { groupAt, presentationGroups } = await import('../src/propresenter.js');
+  const json = { presentation: { id: { name: 'Holy Forever' }, groups: [{ name: 'Verse 1', slides: [{}, {}] }, { name: 'Chorus', slides: [{}, {}] }, { name: 'Bridge', slides: [{}] }] } };
+  assert.equal(groupAt(presentationGroups(json), 3), 'Chorus');
+  assert.equal(groupAt(presentationGroups(json), 4), 'Bridge');
+  assert.equal(groupAt(presentationGroups(json), 9), null);
+  let slide = 0;
+  const proFetch = async (url) => ({ ok: true, status: 200, json: async () => (url.endsWith('slide_index') ? { presentation_index: { index: slide } } : json) });
+  const port = 20000 + Math.floor(Math.random() * 20000);
+  const sim = await new XR18Simulator({ port }).start();
+  const bridge = await new Bridge({
+    mixerHost: '127.0.0.1', mixerPort: port, httpPort: 0, walkinFadeSeconds: 1, proFetch,
+    dataDir: fs.mkdtempSync(path.join(os.tmpdir(), 'mix-')), keepAwake: false, pin: false, trustLocalhost: true, protectedBuses: null,
+  }).start();
+  t.after(() => {
+    bridge.stop();
+    sim.stop();
+  });
+  const cmd = (c) => bridge.handleCommand(c, { local: false });
+  const until = async (f) => {
+    for (let i = 0; i < 40 && !f(); i++) await new Promise((r) => setTimeout(r, 150));
+  };
+  await new Promise((r) => setTimeout(r, 900));
+  await cmd({ type: 'newSet', title: 'S' });
+  await cmd({ type: 'addSong', title: 'Holy Forever' });
+  await cmd({ type: 'proPresenter', host: '127.0.0.1', port: '1025', follow: true });
+  await until(() => bridge.automix.section?.name === 'Verse 1');
+  assert.deepEqual(bridge.automix.section, { kind: 'light', name: 'Verse 1' });
+  assert.equal(bridge.snapshot().setlist.pro.section, 'Verse 1');
+  slide = 2;
+  await until(() => bridge.automix.section?.name === 'Chorus');
+  assert.equal(bridge.automix.section.kind, 'full');
+  assert.equal(bridge.effects.section, 'full');
+  await cmd({ type: 'proPresenter', sections: false });
+  assert.equal(bridge.automix.section, null, 'switched off: no section moves');
+});
+
+test('bass weeks: steady bass for 5 s flips to present; 30 s of silence back; a verse off does not', async () => {
+  const { BassWatch } = await import('../src/basswatch.js');
+  const b = new BassWatch();
+  let t = 0;
+  const run = (db, ms, worship = true) => {
+    for (let i = 0; i < ms; i += 50) b.feed([db], worship, (t += 50));
+  };
+  run(-85, 3000);
+  assert.equal(b.present, false);
+  run(-20, 6000, false);
+  assert.equal(b.present, false, 'only judged during songs');
+  run(-20, 16000);
+  assert.equal(b.present, true, 'bass playing');
+  run(-85, 15000);
+  assert.equal(b.present, true, 'laying out for a verse: still a bass week');
+  run(-85, 30000);
+  assert.equal(b.present, false, 'gone for 30 s+: no bass');
+  b.present = true;
+  b.feed([], true, (t += 50));
+  assert.equal(b.present, false, 'nobody on a bass position: no bass');
+});
+
+test('bass weeks on the mixer: keys low cut raised between songs, put back exactly', async (t) => {
+  const { XR18Simulator } = await import('../src/simulator/xr18-sim.js');
+  const { Bridge } = await import('../src/bridge.js');
+  const port = 20000 + Math.floor(Math.random() * 20000);
+  const sim = await new XR18Simulator({ port }).start();
+  const bridge = await new Bridge({
+    mixerHost: '127.0.0.1', mixerPort: port, httpPort: 0, walkinFadeSeconds: 1,
+    dataDir: fs.mkdtempSync(path.join(os.tmpdir(), 'mix-')), keepAwake: false, pin: false, trustLocalhost: true, protectedBuses: null,
+  }).start();
+  t.after(() => {
+    bridge.stop();
+    sim.stop();
+  });
+  const cmd = (c) => bridge.handleCommand(c, { local: false });
+  await new Promise((r) => setTimeout(r, 900));
+  await cmd({ type: 'savePerson', person: { name: 'Ann', instruments: [{ type: 'keys' }] } });
+  await cmd({ type: 'savePerson', person: { name: 'Bo', instruments: [{ type: 'bass' }] } });
+  const [ann, bo] = bridge.snapshot().setlist.people;
+  await cmd({ type: 'newSet', title: 'S' });
+  await cmd({ type: 'setLineup', slotId: 'keys', personId: ann.id }); // ch 7/8
+  await cmd({ type: 'setLineup', slotId: 'bass', personId: bo.id });
+  await cmd({ type: 'setSetChannel', slotId: 'bass', left: '12', right: '' }); // the simulator plays ch 12 steadily
+  bridge.bass = null;
+  for (let i = 0; i < 60 && !bridge.bass?.present; i++) await new Promise((r) => setTimeout(r, 250));
+  assert.equal(bridge.bass.present, true, 'heard the bass');
+  await cmd({ type: 'addSong', title: 'Next' });
+  await cmd({ type: 'playSong', index: 0 }); // a song boundary
+  for (let i = 0; i < 30 && sim.state.get('/ch/07/preamp/hpon').value !== 1; i++) await new Promise((r) => setTimeout(r, 150));
+  const hz = (raw) => 20 * Math.exp(Math.log(20) * raw);
+  assert.equal(sim.state.get('/ch/07/preamp/hpon').value, 1);
+  assert.ok(Math.abs(hz(sim.state.get('/ch/07/preamp/hpf').value) - 120) < 0.5, 'keys low cut 120 Hz');
+  assert.ok(Math.abs(hz(sim.state.get('/ch/08/preamp/hpf').value) - 120) < 0.5, 'both sides');
+  assert.match(bridge.snapshot().automix.now.join(' '), /Bass playing/);
+});

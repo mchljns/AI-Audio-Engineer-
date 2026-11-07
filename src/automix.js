@@ -74,6 +74,7 @@ const RIDE_LEAD_HOLD_MS = 1500; // an automatically picked lead holds this long 
 const FEEDBACK_RISE_DB = 6; // a boosted mic climbing this much in ~1 s while held up…
 const FEEDBACK_BLOCK_MS = 60000; // …gets no boosts for this long
 const FADER_CEILING_DB = 6; // riding never pushes a fader past +6 dB
+const SECTION_LIGHT_DB = 1.5; // band under its level in verses (from the song section in ProPresenter)
 
 const SPEECH_ROLES = new Set(['pastor', 'speech']);
 const VOCAL_ROLES = new Set(['vocal']);
@@ -171,6 +172,11 @@ export class AutoMix extends EventEmitter {
     );
   }
 
+  /** The song section ProPresenter shows: 'light' (verse, intro…), 'full' (chorus, bridge…) or null. */
+  setSection(kind, name = null) {
+    this.section = kind === 'light' || kind === 'full' ? { kind, name } : null;
+  }
+
   /** Something tells us a mode has started (e.g. a song button). Unlike setMode, doesn't lock it. */
   hintMode(mode) {
     if (!MODES[mode] || mode === 'idle' || this.modeLocked || this.settings.autoModes === false) return;
@@ -246,7 +252,9 @@ export class AutoMix extends EventEmitter {
     const duck = this.settings.duckMusic && this.mode === 'talkover' && speechActive && musicActive ? -this.settings.duckDb : 0;
     // Vocal riding (worship only): how much to move the lead and the band right now.
     const ride = this.#ride(groups, now);
-    for (const id of groups.music) this.ch.get(id).targetDb = Math.max(-24, duck + focus(id) + ride.band);
+    // Verses leave room for the lead vocal: the band sits 1.5 dB under its level; choruses come back.
+    const sectionDb = this.mode === 'worship' && this.section?.kind === 'light' ? -SECTION_LIGHT_DB : 0;
+    for (const id of groups.music) this.ch.get(id).targetDb = Math.max(-24, duck + focus(id) + ride.band + sectionDb);
     for (const id of groups.vocal) if (!this.pulled.has(id)) this.ch.get(id).targetDb = focus(id) + (ride.lead === id ? ride.voc : 0);
     this.boostOk = ride.lead && ride.voc > 0 ? ride.lead : null;
     // Pre/post-service music comes down under a welcome or closing words, whatever the mode.
@@ -488,6 +496,7 @@ export class AutoMix extends EventEmitter {
         out.push(`${v < -0.5 && band > -0.5 ? `${this.#nameOf(r.lead)} is belting, easing back` : `Keeping ${this.#nameOf(r.lead)} on top`}: ${bits.join(', ')}`);
       } else if (r.lead) out.push(`${this.#nameOf(r.lead)} leading: sitting right, no change needed`);
       else if (r.note) out.push(r.note);
+      if (this.section) out.push(this.section.kind === 'light' ? `${this.section.name || 'Verse'}: band −${SECTION_LIGHT_DB} dB to leave room for the vocal` : `${this.section.name || 'Chorus'}: full band`);
       if (this.settings.songMix !== false && this.focus.size && [...this.focus.values()].some((v) => v < 0)) out.push('Song mix on: lead forward, harmonies and others back');
     }
     if (this.mode === 'talkover' || this.mode === 'walkin') {

@@ -1258,15 +1258,17 @@ function renderPro(s) {
   else if (P.error) msg = P.error;
   else if (!P.connected) msg = 'Connecting…';
   else if (!P.match) msg = 'Connected. Waiting for a song to go up.';
-  else if (P.match.song) msg = `Up now: ${P.match.song}`;
+  else if (P.match.song) msg = `Up now: ${P.match.song}${P.section && P.sections ? ` · ${P.section}` : ''}`;
   else msg = `Up now: "${P.match.name}" (not a song in this set, so nothing changed)`;
   $('#proStatus').textContent = msg;
   $('#proStatus').classList.toggle('music-warn', !!(P.follow && P.error));
+  if (document.activeElement !== $('#proSections')) $('#proSections').checked = P.sections !== false;
   if (changed('proForm', [P.host, P.port]) && document.activeElement?.closest?.('#proForm') == null) {
     $('#proHost').value = P.host ?? '';
     $('#proPort').value = P.port ?? '';
   }
 }
+$('#proSections').addEventListener('change', (e) => send({ type: 'proPresenter', sections: e.target.checked }));
 $('#proFollow').addEventListener('click', () => send({ type: 'proPresenter', follow: !latest?.setlist?.pro?.follow }));
 $('#proForm').addEventListener('submit', (e) => {
   e.preventDefault();

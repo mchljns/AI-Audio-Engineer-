@@ -25,11 +25,12 @@ import { MusicController, toSpotifyUri } from './music.js';
 import { Updater } from './updater.js';
 import { Library, INSTRUMENTS } from './library.js';
 import { PlanningCenter } from './pco.js';
-import { ProPresenter } from './propresenter.js';
+import { ProPresenter, sectionKind } from './propresenter.js';
 import { Effects, VERB_LEVELS, DELAY_LEVELS, fxSendBus } from './effects.js';
 import { TempoDetector, TEMPO_SOURCES } from './tempo.js';
 import { FxDesk, REVERB_TWEAKS } from './fxsetup.js';
 import { channelName } from './naming.js';
+import { BassWatch, BASS_LOW_CUT } from './basswatch.js';
 import { ToneDesk, applyPops, applyGain, applyFix, applyComp, applyGate, freshModel, toneToSave, describeTone, FIXES, COMP_PRESETS } from './tone.js';
 import { CONNECTION_MODES, chooseMixer, hardwarePorts, kindLabel, pathTo } from './netpath.js';
 import { ROLES, LOCKED_ROLES } from './roles.js';
@@ -152,6 +153,7 @@ export class Bridge {
       file: path.join(config.dataDir, 'propresenter.json'),
       ...(config.proFetch ? { fetchImpl: config.proFetch } : {}),
       onPresentation: (name) => this.#followPresentation(name),
+      onSection: (name) => this.#followSection(name),
     });
     this.proMatch = null; // { name, song } for the last presentation ProPresenter put up
     this.pco = new PlanningCenter({ file: path.join(config.dataDir, 'pco.json'), ...(config.pcoBaseUrl ? { baseUrl: config.pcoBaseUrl } : {}) });
@@ -356,6 +358,7 @@ export class Bridge {
         try {
           this.automix.tick();
           this.#listenForTempo();
+          this.#watchBass();
           const am = this.automix;
           const talkers = (am.lastGroups?.vocal ?? []).filter((id) => Date.now() - (am.ch.get(id)?.lastActive ?? 0) < 400);
           this.effects?.tick({ mode: am.mode, activity: am.activity, talkers });
@@ -934,6 +937,54 @@ export class Bridge {
     }
   }
 
+  /** Bass weeks: is a bassist playing? Keys and acoustic low cut follow, between songs. */
+  #watchBass() {
+    this.bass ??= new BassWatch();
+    const lib = this.library;
+    const set = lib.set();
+    const bassChans = set ? Object.keys(set.lineup).map((id) => lib.slotThisWeek(id)).filter((t) => t?.instrument === 'bass').flatMap((t) => t.channels) : [];
+    const levels = bassChans.map((ch) => this.state.strips[String(ch)]?.levelDb ?? -128);
+    this.bass.feed(levels, this.automix?.mode === 'worship', Date.now());
+    // Apply between songs: a new song, or not in worship.
+    const songKey = `${lib.data.currentSet}:${lib.data.currentSong}`;
+    const boundary = songKey !== this.bassSong || this.automix?.mode !== 'worship';
+    this.bassSong = songKey;
+    if (this.bass.pending && boundary && this.tone && this.status.connected && !this.bassBusy) {
+      this.bass.pending = false;
+      this.bassBusy = true;
+      this.#applyBass().finally(() => (this.bassBusy = false));
+    }
+  }
+
+  async #applyBass() {
+    const lib = this.library;
+    const set = lib.set();
+    if (!set) return;
+    const changed = [];
+    for (const slotId of Object.keys(set.lineup)) {
+      const t = lib.slotThisWeek(slotId);
+      const target = BASS_LOW_CUT[t?.instrument];
+      if (!target || !t.channels.length) continue;
+      const model = this.tone.model(t.channels[0]) ?? (await this.tone.read(t.channels[0]));
+      if (!model) continue;
+      const name = `${lib.person(t.personId)?.name?.split(' ')[0] ?? ''}'s ${t.slot.name.toLowerCase()}`;
+      if (this.bass.present) {
+        const cur = model.hpOn ? model.hpHz : 20;
+        if (cur >= target - 2) continue;
+        for (const ch of t.channels) this.bass.raised.set(String(ch), { hpOn: model.hpOn, hpHz: model.hpHz });
+        this.tone.write(t.channels.map(String), { ...model, hpOn: true, hpHz: target }, `Bass is playing: low cut ${target} Hz so ${name} and the bass don't pile up`);
+        changed.push(`${name} low cut ${target} Hz`);
+      } else {
+        const was = this.bass.raised.get(String(t.channels[0]));
+        if (!was) continue;
+        for (const ch of t.channels) this.bass.raised.delete(String(ch));
+        this.tone.write(t.channels.map(String), { ...model, hpOn: was.hpOn, hpHz: was.hpHz }, `No bass: ${name} keeps its low end again`);
+        changed.push(`${name} back to its own low end`);
+      }
+    }
+    if (changed.length) this.alert({ level: 'info', source: 'set', message: `${this.bass.present ? 'Bass is playing' : 'No bass playing'}: ${changed.join(', ')}.` });
+  }
+
   /** Live tempo from the click, the tracks or the band; learned into the song once it's steady. */
   #listenForTempo() {
     this.tempo ??= new TempoDetector();
@@ -978,6 +1029,8 @@ export class Bridge {
     const lib = this.library;
     const i = lib.matchSong(name);
     this.proMatch = { name, song: i >= 0 ? lib.set().songs[i].title : null };
+    this.automix?.setSection(null);
+    this.effects?.setSection(null);
     if (i < 0 || i === lib.data.currentSong) return;
     lib.playSong(i);
     this.automix?.hintMode('worship');
@@ -985,7 +1038,21 @@ export class Bridge {
     this.effects?.setSong(lib.songEffects());
   }
 
+  /** ProPresenter moved to another slide group: verse, chorus… (only while a song of the set is up). */
+  #followSection(name) {
+    const on = this.settings.sections !== false && this.proMatch?.song;
+    const kind = on ? sectionKind(name) : null;
+    this.automix?.setSection(kind, name);
+    this.effects?.setSection(kind);
+  }
+
   #proCommand(cmd) {
+    if (typeof cmd.sections === 'boolean') {
+      this.settings.sections = cmd.sections;
+      this.#saveSettings();
+      if (!cmd.sections) this.#followSection(null);
+      return;
+    }
     try {
       this.pro.configure({ host: cmd.host, port: cmd.port, follow: cmd.follow });
       this.proMatch = null;
@@ -1129,7 +1196,7 @@ export class Bridge {
         : null,
       currentSong: d.currentSong,
       pco: this.pco.status(),
-      pro: { ...this.pro.status(), match: this.proMatch },
+      pro: { ...this.pro.status(), match: this.proMatch, sections: this.settings.sections !== false },
       tone: this.#toneSnapshot(),
     };
   }
@@ -1369,7 +1436,7 @@ export class Bridge {
       unusedReady: this.state.settled(UNUSED_SETTLE_MS),
       unused: this.state.settled(UNUSED_SETTLE_MS) ? this.#unusedRows().map((r) => ({ id: r.id, label: r.label })) : [],
       clickGuard: this.guard ? this.guard.status() : { locked: [], allSafe: true, unsure: [], protectedBuses: [], buses: [] },
-      automix: this.automix ? { ...this.automix.status(), now: [...this.automix.describe(), ...(this.effects?.describe(this.library.songContext().names) ?? [])].sort((x, y) => Number(/^Song mix on/.test(x)) - Number(/^Song mix on/.test(y))) } : null,
+      automix: this.automix ? { ...this.automix.status(), now: [...this.automix.describe(), ...(this.bass?.present ? ['Bass playing: keys and acoustic low end thinned'] : []), ...(this.effects?.describe(this.library.songContext().names) ?? [])].sort((x, y) => Number(/^Song mix on/.test(x)) - Number(/^Song mix on/.test(y))) } : null,
       effects: this.effects ? { ...this.effects.status(), ask: this.fxAsk ?? null, note: this.fxNote ?? null, tweaks: Object.entries(REVERB_TWEAKS).map(([id, t]) => ({ id, label: t.label })) } : null,
       options: { nameChannels: this.settings.nameChannels !== false },
       tempo: this.tempo?.result ? { ...this.tempo.result, label: TEMPO_SOURCES[this.tempo.result.source] } : null,

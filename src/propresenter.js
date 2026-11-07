@@ -30,8 +30,38 @@ export function presentationName(json) {
   return typeof name === 'string' && name.trim() ? name.trim() : null;
 }
 
+/** The slide groups of a /v1/presentation/current reply, in order: [{ name, slides }]. */
+export function presentationGroups(json) {
+  const groups = json?.presentation?.groups;
+  if (!Array.isArray(groups)) return [];
+  return groups.map((g) => ({ name: String(g?.name ?? ''), slides: Array.isArray(g?.slides) ? g.slides.length : 0 }));
+}
+
+/** Which group a slide index falls in (slides counted through the groups in order). */
+export function groupAt(groups, index) {
+  let i = Number(index);
+  if (!Number.isInteger(i) || i < 0) return null;
+  for (const g of groups) {
+    if (i < g.slides) return g.name;
+    i -= g.slides;
+  }
+  return null;
+}
+
+/**
+ * What kind of section a ProPresenter group name is: 'light' (verse, pre-chorus, intro,
+ * instrumental: room for the lead vocal) or 'full' (chorus, bridge, tag, vamp, outro).
+ */
+export function sectionKind(name) {
+  const n = String(name ?? '').toLowerCase();
+  if (/pre[\s-]?chorus|verse|intro|instrumental|interlude|turnaround|^v\d/.test(n)) return 'light';
+  if (/chorus|bridge|tag|vamp|outro|ending|refrain|^c\d|^b\d/.test(n)) return 'full';
+  return null;
+}
+
 export class ProPresenter {
-  constructor({ file, onPresentation = () => {}, fetchImpl = globalThis.fetch } = {}) {
+  constructor({ file, onPresentation = () => {}, onSection = () => {}, fetchImpl = globalThis.fetch } = {}) {
+    this.onSection = onSection;
     this.file = file;
     this.onPresentation = onPresentation;
     this.fetch = fetchImpl;
@@ -87,11 +117,25 @@ export class ProPresenter {
       const res = await this.fetch(`http://${host}:${port}/v1/presentation/current`, { signal: AbortSignal.timeout(TIMEOUT_MS) });
       if (res.status === 404) throw new Error('old');
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const name = presentationName(await res.json().catch(() => null));
-      this.state = { connected: true, presentation: name, error: null };
+      const json = await res.json().catch(() => null);
+      const name = presentationName(json);
+      this.state = { connected: true, presentation: name, error: null, section: this.state.section ?? null };
       if (name && name !== this.lastName) {
         this.lastName = name;
+        this.state.section = null;
         this.onPresentation(name);
+      }
+      // Which slide is live, and so which section of the song (Verse 2, Chorus…).
+      const groups = presentationGroups(json);
+      if (groups.length) {
+        const r2 = await this.fetch(`http://${host}:${port}/v1/presentation/slide_index`, { signal: AbortSignal.timeout(TIMEOUT_MS) }).catch(() => null);
+        const j2 = r2?.ok ? await r2.json().catch(() => null) : null;
+        const idx = (j2?.presentation_index ?? j2?.presentation)?.index;
+        const section = groupAt(groups, idx);
+        if (section !== this.state.section) {
+          this.state.section = section;
+          this.onSection(section);
+        }
       }
     } catch (e) {
       this.state = {

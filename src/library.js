@@ -32,6 +32,7 @@ export const DEFAULT_SLOTS = [
   { id: 'keys', name: 'Keys', instrument: 'keys', left: '7', right: '8' },
   { id: 'acoustic', name: 'Acoustic', instrument: 'acoustic', left: '6', right: '14' },
   { id: 'electric', name: 'Electric', instrument: 'electric', left: '12', right: '13' },
+  { id: 'bass', name: 'Bass', instrument: 'bass', left: '', right: '' },
 ];
 
 export const DEFAULT_MIX = { harmonyDb: -4, otherVocalDb: -10, otherInstrumentDb: -3 };
@@ -48,6 +49,8 @@ export class Library {
     try {
       const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
       this.data = { ...this.data, ...saved, mix: { ...DEFAULT_MIX, ...(saved.mix ?? {}) } };
+      // Added in 0.15: a Bass position (no channel until one is given).
+      if (!this.data.slots.some((x) => x.instrument === 'bass')) this.data.slots.push({ id: 'bass', name: 'Bass', instrument: 'bass', left: '', right: '' });
     } catch {
       /* first run */
     }
