@@ -27,6 +27,7 @@ import { Library, INSTRUMENTS } from './library.js';
 import { PlanningCenter } from './pco.js';
 import { ProPresenter } from './propresenter.js';
 import { Effects, VERB_LEVELS, DELAY_LEVELS, fxSendBus } from './effects.js';
+import { TempoDetector, TEMPO_SOURCES } from './tempo.js';
 import { ToneDesk, applyFix, applyComp, applyGate, freshModel, toneToSave, describeTone, FIXES, COMP_PRESETS } from './tone.js';
 import { CONNECTION_MODES, chooseMixer, hardwarePorts, kindLabel, pathTo } from './netpath.js';
 import { ROLES } from './roles.js';
@@ -341,6 +342,7 @@ export class Bridge {
       if (this.automix.enabled) {
         try {
           this.automix.tick();
+          this.#listenForTempo();
           this.effects?.tick({ mode: this.automix.mode, activity: this.automix.activity });
         } catch (err) {
           console.error('Auto-mix error:', err.message);
@@ -462,6 +464,19 @@ export class Bridge {
     if (cmd.type === 'effects' && this.effects) {
       this.settings.effects = { ...this.effects.update(cmd.settings ?? {}) };
       this.#saveSettings();
+      return;
+    }
+    if (cmd.type === 'delayTimeTest' && this.effects) {
+      const how = this.effects.testDelayTime();
+      if (how) this.alert({ level: 'info', source: 'effects', message: `Set FX${this.effects.settings.delayFx}'s delay time to 500 ms. Check X Air: does FX${this.effects.settings.delayFx} show 500 ms?` });
+      return;
+    }
+    if (cmd.type === 'delayTimeConfirm' && this.effects) {
+      if (this.effects.confirmDelayTime(!!cmd.ok)) {
+        this.settings.effects = { ...this.effects.settings };
+        this.#saveSettings();
+        this.alert({ level: 'ok', source: 'effects', message: 'Delay time is now set automatically from each song\'s tempo.' });
+      } else this.effects.testDelayTime();
       return;
     }
     if (cmd.type === 'effectsNudge' && this.effects) {
@@ -797,6 +812,45 @@ export class Bridge {
       out[slotId] = { channels: t.channels, ...(st ?? {}), verb, delay, saved: saved?.savedAt ? { at: saved.savedAt, summary: describeTone(saved) } : null };
     }
     return out;
+  }
+
+  /** Live tempo from the click, the tracks or the band; learned into the song once it's steady. */
+  #listenForTempo() {
+    this.tempo ??= new TempoDetector();
+    const lib = this.library;
+    const songKey = `${lib.data.currentSet}:${lib.data.currentSong}`;
+    if (songKey !== this.tempoSong) {
+      this.tempoSong = songKey;
+      this.tempo.reset();
+      this.tempoSteady = null;
+    }
+    const now = Date.now();
+    if (!this.tempoRoles || now - this.tempoRolesAt > 2000) {
+      this.tempoRolesAt = now;
+      this.tempoRoles = { click: [], track: [], band: [] };
+      for (const id of STRIP_IDS) {
+        const s = this.state.strips[id];
+        if (!s?.synced) continue;
+        const { role } = resolveRole(s, this.roleStore);
+        if (role === 'click') this.tempoRoles.click.push(id);
+        else if (role === 'track') this.tempoRoles.track.push(id);
+        else if (ROLES[role]?.group === 'band') this.tempoRoles.band.push(id);
+      }
+    }
+    const lvl = (ids) => ids.map((id) => this.state.strips[id].levelDb ?? -128);
+    const song = lib.set()?.songs[lib.data.currentSong];
+    const r = this.tempo.feed({ click: lvl(this.tempoRoles.click), track: lvl(this.tempoRoles.track), band: lvl(this.tempoRoles.band) }, now, song?.bpm ?? null);
+    this.effects?.setLive(r ? { ...r, label: TEMPO_SOURCES[r.source] } : null);
+    // Steady for 8 seconds during a song: remember it as the song's tempo.
+    if (!r || !song || this.automix?.mode !== 'worship') {
+      this.tempoSteady = null;
+      return;
+    }
+    if (!this.tempoSteady || Math.abs(this.tempoSteady.bpm - r.bpm) > 1.5) this.tempoSteady = { bpm: r.bpm, since: now };
+    else if (now - this.tempoSteady.since >= 8000 && (!song.bpm || Math.abs(song.bpm - r.bpm) > 1.5)) {
+      lib.setSongDelay(lib.data.currentSong, { bpm: r.bpm });
+      this.effects?.setSong(lib.songEffects());
+    }
   }
 
   /** ProPresenter put up a presentation: if it's a song in today's set, go to that song. */
@@ -1192,8 +1246,9 @@ export class Bridge {
       unusedReady: this.state.settled(UNUSED_SETTLE_MS),
       unused: this.state.settled(UNUSED_SETTLE_MS) ? this.#unusedRows().map((r) => ({ id: r.id, label: r.label })) : [],
       clickGuard: this.guard ? this.guard.status() : { locked: [], allSafe: true, unsure: [], protectedBuses: [], buses: [] },
-      automix: this.automix ? { ...this.automix.status(), now: [...this.automix.describe(), ...(this.effects?.describe(this.library.songContext().names) ?? [])] } : null,
+      automix: this.automix ? { ...this.automix.status(), now: [...this.automix.describe(), ...(this.effects?.describe(this.library.songContext().names) ?? [])].sort((x, y) => Number(/^Song mix on/.test(x)) - Number(/^Song mix on/.test(y))) } : null,
       effects: this.effects ? this.effects.status() : null,
+      tempo: this.tempo?.result ? { ...this.tempo.result, label: TEMPO_SOURCES[this.tempo.result.source] } : null,
       dcas: Object.values(this.state.dcas),
       walkin: this.#walkinStrips().map((id) => ({ id, fading: !!this.fades?.isFading(id), on: this.state.strips[id].on })),
       music: this.music ? this.music.status() : null,

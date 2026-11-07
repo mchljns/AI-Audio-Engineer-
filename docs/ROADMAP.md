@@ -11,6 +11,7 @@ Built for this system: XR18 → PRX ONE (both mains, summed) → pass-thru → P
 - **0.4 Pre/post-service music player:** Spotify (or Apple Music) on the Mac controlled from the iPad: Fade music in (play + fade up), Fade music out (fade out + pause), transport, saved playlists, offline warning. Network guide for iPads on the mixer's Wi-Fi. (0.4.1: "walk-in" renamed to pre/post-service music.)
 - **0.5 No Terminal:** download page and Mix Assistant Installer app; a Mix Assistant app on the Desktop; in-app updates, practice mode and troubleshooting report on the booth Mac's This Mac card.
 - **0.5.1 QR connect:** scan once per iPad; the home-screen icon signs in every week.
+- **0.13 Live tempo for the delay:** hears the tempo from the click (or tracks, or a steady strum), remembers it per song, and after a one-time check sets the delay time itself.
 - **0.12 Effects:** speech kept dry, reverb and delay follow the service, per-person reverb and delay amounts in Tone, light delay per song with tempo from Planning Center or tap tempo, reverb help.
 - **0.11 Tone at soundcheck:** per-person EQ fix buttons, compression set by listening, a hiss gate set from the mic's own noise, undo, and tone saved per person that follows them to this week's channel.
 - **0.10 Vocal riding and a live status line:** keeps the lead on top as needed (Off / Gentle / Normal / Strong), with boost safeguards; plain-English "what it's doing" on the Auto screen and Set tab.

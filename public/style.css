@@ -597,3 +597,4 @@ dialog.connect-dialog { width: min(640px, calc(100vw - 32px)); }
 .fx-q p { margin: 8px 0 2px; }
 .fx-start { display: grid; gap: 8px; font-size: 14px; }
 .fx-start > div { padding: 10px 12px; border-radius: 10px; background: var(--strip); }
+.fx-time { font-weight: 600; margin: 8px 0; }

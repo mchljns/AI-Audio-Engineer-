@@ -416,7 +416,7 @@ function renderAuto(a) {
   if (changed('mixNow', now)) {
     const items = now.map((t) => el('div', { class: 'mix-line', text: t }));
     $('#mixNow').replaceChildren(...items);
-    $('#setMixNow').replaceChildren(el('span', { class: 'mix-dot' }), ...now.slice(0, 2).map((t) => el('span', { text: t })));
+    $('#setMixNow').replaceChildren(el('span', { class: 'mix-dot' }), ...now.slice(0, 3).map((t) => el('span', { text: t })));
   }
   for (const b of document.querySelectorAll('#rideSeg .seg-btn')) b.classList.toggle('active', b.dataset.ride === (a.settings.ride ?? 'normal'));
 
@@ -759,9 +759,16 @@ function renderSoundcheck(s) {
     d.classList.toggle('on', !!song.delay);
     d.setAttribute('aria-pressed', String(!!song.delay));
     d.textContent = song.delay ? '✓ Light delay on this song' : 'Light delay on this song';
-    const q = song.bpm ? Math.round(60000 / song.bpm) : 0;
-    const t = song.bpm ? { q, de: Math.round(q * 0.75) } : null;
-    $('#scTempo').textContent = t ? `${song.bpm} BPM · delay time ${t.de} ms (dotted 1/8) or ${t.q} ms (1/4)` : song.delay ? 'Tempo unknown: tap along to set the delay time' : '';
+    const live = s.tempo;
+    const E = s.effects;
+    const bpm = live?.bpm ?? song.bpm;
+    const ms = E?.delayMs;
+    const parts = [];
+    if (live) parts.push(`Hearing ${Math.round(live.bpm)} BPM from ${live.label}`);
+    else if (song.bpm) parts.push(`${song.bpm} BPM`);
+    if (song.delay && ms) parts.push(E.delaySetMs ? `delay set to ${E.delaySetMs} ms ✓` : `delay time ${ms} ms (set it in X Air, or let Mix Assistant: Effects)`);
+    if (!bpm) parts.push(song.delay ? 'Listening for the tempo… or tap along' : '');
+    $('#scTempo').textContent = parts.filter(Boolean).join(' · ');
   }
   if (!song) {
     $('#scSong').textContent = 'Tap ▶ to start with song 1';
@@ -1145,6 +1152,11 @@ function renderEffects(s) {
     for (const x of document.querySelectorAll('.fx-slot-r')) x.textContent = `FX${st.reverbFx ?? 1}`;
     for (const x of document.querySelectorAll('.fx-slot-d')) x.textContent = st.delayFx ? `FX${st.delayFx}` : 'not set';
   }
+  for (const b of document.querySelectorAll('#fxNote .seg-btn')) b.classList.toggle('active', b.dataset.note === st.delayNote);
+  $('#fxTimeTest').hidden = !st.delayFx || st.delayTimeAuto || !!E.testing;
+  $('#fxTimeAsk').hidden = !E.testing;
+  if (st.delayTimeAuto) $('#fxTimeStatus').textContent = `Automatic: Mix Assistant sets FX${st.delayFx}'s delay time for each light-delay song${E.delaySetMs ? ` (now ${E.delaySetMs} ms)` : ''}.`;
+  else if (!E.testing && fxTries === 0) $('#fxTimeStatus').textContent = st.delayFx ? 'Manual: set the delay time in X Air from the time shown on each song. Or let Mix Assistant do it (a 10-second check first):' : 'Pick which effect is the delay above.';
   if (document.activeElement !== $('#fxFollow')) $('#fxFollow').checked = !!st.follow;
   if (document.activeElement !== $('#fxSpeechDry')) $('#fxSpeechDry').checked = !!st.speechDry;
   $('#fxReverbNow').textContent = E.reverbDb === null ? '' : `(level ${E.reverbDb > 0 ? '+' : ''}${E.reverbDb} dB)`;
@@ -1161,6 +1173,23 @@ $('#fxReverb').addEventListener('change', (e) => send({ type: 'effects', setting
 $('#fxDelay').addEventListener('change', (e) => send({ type: 'effects', settings: { delayFx: e.target.value ? Number(e.target.value) : null } }));
 $('#fxFollow').addEventListener('change', (e) => send({ type: 'effects', settings: { follow: e.target.checked } }));
 $('#fxSpeechDry').addEventListener('change', (e) => send({ type: 'effects', settings: { speechDry: e.target.checked } }));
+for (const b of document.querySelectorAll('#fxNote .seg-btn')) b.addEventListener('click', () => send({ type: 'effects', settings: { delayNote: b.dataset.note } }));
+let fxTries = 0;
+$('#fxTestBtn').addEventListener('click', () => {
+  fxTries = 1;
+  send({ type: 'delayTimeTest' });
+});
+$('#fxYes').addEventListener('click', () => send({ type: 'delayTimeConfirm', ok: true }));
+$('#fxNo').addEventListener('click', () => {
+  fxTries++;
+  if (fxTries > 2) {
+    fxTries = 0;
+    $('#fxTimeAsk').hidden = true;
+    $('#fxTimeStatus').textContent = "That didn't work on this mixer, so the delay time stays manual: set it in X Air from the time shown on each song. Please mention it in the troubleshooting report.";
+    return;
+  }
+  send({ type: 'delayTimeConfirm', ok: false });
+});
 $('#fxLess').addEventListener('click', () => send({ type: 'effectsNudge', which: 'reverb', db: -1.5 }));
 $('#fxMore').addEventListener('click', () => send({ type: 'effectsNudge', which: 'reverb', db: 1.5 }));
 

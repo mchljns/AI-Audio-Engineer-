@@ -73,6 +73,7 @@ function initialState() {
   }
   // FX returns 1–4 (reverb on FX1, delay on FX2, as most churches set it).
   for (let n = 1; n <= 4; n++) st.set(`/rtn/${n}/mix/fader`, { type: 'f', value: n <= 2 ? dbToFloat(-5) : 0 });
+  for (let n = 1; n <= 4; n++) st.set(`/fx/${n}/par/01`, { type: 'f', value: 0.5 }); // e.g. a delay's Time
   BUS_NAMES.forEach((name, i) => st.set(paths.busName(i + 1), { type: 's', value: name }));
   for (let n = 1; n <= DCA_COUNT; n++) {
     st.set(paths.dcaName(n), { type: 's', value: ['Speech', 'Vocals', 'Band', 'Tracks'][n - 1] });
