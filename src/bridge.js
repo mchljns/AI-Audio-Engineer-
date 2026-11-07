@@ -23,7 +23,7 @@ import { FadeEngine } from './fades.js';
 import { AutoMix } from './automix.js';
 import { MusicController, toSpotifyUri } from './music.js';
 import { Updater } from './updater.js';
-import { Library } from './library.js';
+import { Library, INSTRUMENTS } from './library.js';
 import { PlanningCenter } from './pco.js';
 import { ProPresenter } from './propresenter.js';
 import { CONNECTION_MODES, chooseMixer, hardwarePorts, kindLabel, pathTo } from './netpath.js';
@@ -48,7 +48,7 @@ const LIBRARY_COMMANDS = new Set([
   'saveSlot', 'deleteSlot', 'savePerson', 'deletePerson',
   'newSet', 'openSet', 'deleteSet', 'setLineup',
   'addSong', 'removeSong', 'moveSong', 'setSongLeads', 'playSong', 'nextSong', 'songMixAmounts',
-  'pcoServiceTypes', 'pcoPlans', 'pcoImport', 'setSetChannel',
+  'pcoServiceTypes', 'pcoPlans', 'pcoImport', 'setSetChannel', 'placePerson',
 ]);
 
 // PA knob positions worth writing down, so a bumped knob can be put back next week.
@@ -695,6 +695,12 @@ export class Bridge {
         case 'deleteSet':
           lib.deleteSet(String(cmd.id));
           break;
+        case 'placePerson': {
+          const label = INSTRUMENTS[cmd.instrument]?.label ?? 'that';
+          const ok = lib.placePerson(String(cmd.personId), String(cmd.instrument), !!cmd.on);
+          if (!ok && cmd.on) this.alert({ level: 'warn', source: 'set', message: `No free ${cmd.instrument === 'vocal' ? 'vocal mic' : label.toLowerCase()} position. Free one up, or add a position under Channels for each position.` });
+          break;
+        }
         case 'setSetChannel':
           lib.setSetChannel(String(cmd.slotId), cmd.left === null ? '' : String(cmd.left ?? ''), String(cmd.right ?? ''));
           break;

@@ -747,7 +747,7 @@ function renderSoundcheck(s) {
   }
 
   // Tiles: rebuilt when the song or roles change; levels update every refresh.
-  if (changed('scRows', [set.id, idx, song?.lead, song?.harmonies, song?.leadInstrument, [...rows.values()].map((r) => [r.person.id, r.vocal?.id, r.instruments.map((i) => i.id)]), set.channels])) {
+  if (changed('scRows', [set.id, idx, song?.lead, song?.harmonies, song?.leadInstrument, [...rows.values()].map((r) => [r.person.id, r.vocal?.id, r.instruments.map((i) => i.id)]), set.channels, L.people])) {
     const setVocal = (pid, role) => {
       if (!song) return;
       let lead = song.lead;
@@ -768,7 +768,17 @@ function renderSoundcheck(s) {
       ...[...rows.values()].map(({ person, vocal, instruments }) => {
         const role = song ? roleOf(song, person.id) : 'none';
         const leadsInstrument = instruments.some((i) => song?.leadInstrument === i.id);
-        const parts = [el('div', { class: 'sc-name' }, [el('b', { text: person.name }), el('span', { class: 'muted small', text: vocal ? `Mic: ${vocal.name}` : 'Plays only' })])];
+        // This week: does this person sing, and which of their instruments do they play? (tap to switch)
+        const types = ['vocal', ...new Set([...(person.instruments ?? []).map((i) => i.type), ...instruments.map((i) => i.instrument)].filter((t) => t !== 'vocal'))];
+        const doing = (t) => (t === 'vocal' ? !!vocal : instruments.some((i) => i.instrument === t));
+        const chips = el('div', { class: 'week-chips' }, types.map((t) => {
+          const on = doing(t);
+          const b = el('button', { class: `wk${on ? ' on' : ''}`, type: 'button', text: `${on ? '✓ ' : '+ '}${t === 'vocal' ? 'Sings' : (L.instruments[t]?.label ?? t).replace(/ guitar$/, '')}`, 'aria-pressed': String(on) });
+          b.title = on ? 'Tap if they are not doing this this week' : 'Tap if they are doing this this week';
+          b.addEventListener('click', () => send({ type: 'placePerson', personId: person.id, instrument: t, on: !on }));
+          return b;
+        }));
+        const parts = [el('div', { class: 'sc-name' }, [el('b', { text: person.name }), chips])];
         const controls = [];
         if (vocal) {
           const seg = el('div', { class: 'sc-ctl' }, [label('Sings', vocal), meter(vocal)]);
@@ -790,9 +800,23 @@ function renderSoundcheck(s) {
           b.addEventListener('click', () => send({ type: 'setSongLeads', index: idx, leadInstrument: isLead ? null : slot.id }));
           controls.push(el('div', { class: 'sc-ctl' }, [label(slot.name, slot), meter(slot), b]));
         }
+        if (!controls.length) controls.push(el('p', { class: 'muted small', text: 'Not singing or playing this week. Tap above to put them back.' }));
         parts.push(el('div', { class: 'sc-ctls' }, controls));
         return el('div', { class: `sc-row${role !== 'none' ? ` v-${role}` : ''}${leadsInstrument ? ' i-lead' : ''}` }, parts);
       }),
+      (() => {
+        // Someone not on the lineup this morning: add them with what they usually do (switch things off in their row).
+        const off = (L.people ?? []).filter((p) => !rows.has(p.id));
+        if (!off.length) return el('span');
+        return el('div', { class: 'sc-add' }, [
+          selectEl([['', '+ Add someone to this set…'], ...off.map((p) => [p.id, p.name])], '', (v) => {
+            const p = off.find((x) => x.id === v);
+            if (!p) return;
+            const types = p.instruments?.length ? p.instruments.map((i) => i.type) : ['vocal'];
+            for (const t of types) send({ type: 'placePerson', personId: p.id, instrument: t, on: true });
+          }, 'Add someone to this set'),
+        ]);
+      })(),
     );
   }
   for (const m of document.querySelectorAll('#scPeople .meter')) {

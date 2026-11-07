@@ -149,3 +149,32 @@ test('bridge follows ProPresenter: the song that goes up becomes the current son
   await settle();
   assert.equal(bridge.snapshot().setlist.currentSong, 0, "reconnecting to the same slide doesn't undo the engineer's choice");
 });
+
+test('this week: a singer without an instrument, a player who does not sing, and switching either', () => {
+  const lib = new Library(tmp('library.json'));
+  const mike = lib.savePerson({ name: 'Mike', instruments: [{ type: 'vocal' }, { type: 'acoustic' }] });
+  const sarah = lib.savePerson({ name: 'Sarah', instruments: [{ type: 'vocal' }] });
+  const joe = lib.savePerson({ name: 'Joe', instruments: [{ type: 'electric' }] });
+  lib.newSet({ title: 'Sunday' });
+  assert.ok(lib.placePerson(sarah.id, 'vocal', true), 'Sarah only sings');
+  assert.ok(lib.placePerson(joe.id, 'electric', true), 'Joe only plays');
+  assert.ok(lib.placePerson(mike.id, 'acoustic', true), 'Mike only plays this week');
+  const lineup = lib.set().lineup;
+  assert.equal(Object.values(lineup).filter((p) => p === mike.id).length, 1, 'Mike has no mic this week');
+  assert.ok(lib.placePerson(mike.id, 'acoustic', true), 'placing twice is harmless');
+  assert.equal(Object.values(lib.set().lineup).filter((p) => p === mike.id).length, 1);
+
+  lib.addSong({ title: 'Holy Forever' });
+  lib.setSongLeads(0, { lead: mike.id, harmonies: [] }); // remembered from a week he sang
+  lib.playSong(0);
+  assert.equal(lib.focusForCurrentSong()['3'], 0, "a lead who isn't singing this week doesn't pull Sarah down");
+
+  assert.ok(lib.placePerson(mike.id, 'vocal', true), 'Mike sings after all');
+  const f = lib.focusForCurrentSong();
+  assert.equal(f[lib.data.slots.find((x) => lib.set().lineup[x.id] === mike.id && x.instrument === 'vocal').left], 0, 'now he leads');
+  assert.equal(f['3'], -10, 'Sarah sits back');
+  assert.ok(lib.placePerson(mike.id, 'vocal', false));
+  assert.equal(Object.values(lib.set().lineup).filter((p) => p === mike.id).length, 1, 'mic taken away, acoustic kept');
+  for (const n of ['A', 'B', 'C', 'D']) lib.placePerson(lib.savePerson({ name: n, instruments: [{ type: 'vocal' }] }).id, 'vocal', true);
+  assert.equal(lib.placePerson(mike.id, 'vocal', true), false, 'no free vocal mic');
+});

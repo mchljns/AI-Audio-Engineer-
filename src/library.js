@@ -187,6 +187,27 @@ export class Library {
     return i;
   }
 
+  /**
+   * This week, does this person sing / play this instrument? On: put them on a free position for it.
+   * Off: take them off every position of that kind. Returns false when there's no free position.
+   */
+  placePerson(personId, type, on) {
+    const set = this.set();
+    if (!set || !this.person(personId) || !INSTRUMENTS[type]) return false;
+    const ofType = this.data.slots.filter((s) => s.instrument === type);
+    if (!on) {
+      for (const s of ofType) if (set.lineup[s.id] === personId) delete set.lineup[s.id];
+      this.save();
+      return true;
+    }
+    if (ofType.some((s) => set.lineup[s.id] === personId)) return true;
+    const free = ofType.find((s) => !set.lineup[s.id] && s.left) ?? ofType.find((s) => !set.lineup[s.id]);
+    if (!free) return false;
+    set.lineup[free.id] = personId;
+    this.save();
+    return true;
+  }
+
   setLineup(slotId, personId) {
     const set = this.set();
     if (!set || !this.slot(slotId)) return;
@@ -284,13 +305,16 @@ export class Library {
     if (!song) return {};
     const out = {};
     const { harmonyDb, otherVocalDb, otherInstrumentDb } = this.data.mix;
+    // A lead who isn't on a vocal mic this week (only playing) doesn't count: leave the singers alone.
+    const onMic = (pid) => this.data.slots.some((x) => x.instrument === 'vocal' && set.lineup[x.id] === pid);
+    const lead = song.lead && onMic(song.lead) ? song.lead : null;
     for (const slot of this.data.slots) {
       const pid = set.lineup[slot.id];
       if (!pid) continue;
       let db = 0;
       if (slot.instrument === 'vocal') {
-        if (!song.lead) db = 0; // no lead chosen: leave the singers alone
-        else if (pid === song.lead) db = 0;
+        if (!lead) db = 0; // no lead chosen (or not singing this week): leave the singers alone
+        else if (pid === lead) db = 0;
         else if (song.harmonies.includes(pid)) db = harmonyDb;
         else db = otherVocalDb;
       } else if (song.leadInstrument) {

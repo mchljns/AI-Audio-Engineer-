@@ -540,3 +540,7 @@ dialog.connect-dialog { width: min(640px, calc(100vw - 32px)); }
 .ch-pick { font-size: 13px; padding: 4px 6px; min-height: 36px; width: 100%; }
 .ch-pick.moved { border-color: #f5b942; color: #f5b942; }
 .gold { color: #f5b942; }
+.week-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.wk { appearance: none; min-height: 34px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--muted); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.wk.on { border-color: var(--ok); color: var(--ok); background: rgba(60, 207, 122, 0.12); }
+.sc-add select { width: 100%; min-height: 44px; }
