@@ -36,10 +36,10 @@ npm test
 ## Install on the booth Mac
 
 1. **Install Node.js:** download the LTS installer from https://nodejs.org and run it.
-2. **Get the code:** download this repository (green **Code** button → **Download ZIP**), unzip it and move the folder somewhere like `Documents/church-mix-assistant`.
+2. **Get the code:** on github.com, open this repository, press the green **Code** button → **Download ZIP**. Unzip it, rename the folder to `mix-assistant` and move it into your **Documents** folder.
 3. **Install:** open **Terminal**, then:
    ```bash
-   cd ~/Documents/church-mix-assistant
+   cd ~/Documents/mix-assistant
    npm install
    ```
 4. **Connect the Mac to the XR18.** Best: an Ethernet cable from the Mac to the XR18's Ethernet port (or both into the same router), and keep the Mac's Wi-Fi on the church internet. Or join the XR18's own Wi-Fi.
