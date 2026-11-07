@@ -11,6 +11,7 @@ Built for this system: XR18 → PRX ONE (both mains, summed) → pass-thru → P
 - **0.4 Pre/post-service music player:** Spotify (or Apple Music) on the Mac controlled from the iPad: Fade music in (play + fade up), Fade music out (fade out + pause), transport, saved playlists, offline warning. Network guide for iPads on the mixer's Wi-Fi. (0.4.1: "walk-in" renamed to pre/post-service music.)
 - **0.5 No Terminal:** download page and Mix Assistant Installer app; a Mix Assistant app on the Desktop; in-app updates, practice mode and troubleshooting report on the booth Mac's This Mac card.
 - **0.5.1 QR connect:** scan once per iPad; the home-screen icon signs in every week.
+- **0.12 Effects:** speech kept dry, reverb and delay follow the service, per-person reverb and delay amounts in Tone, light delay per song with tempo from Planning Center or tap tempo, reverb help.
 - **0.11 Tone at soundcheck:** per-person EQ fix buttons, compression set by listening, a hiss gate set from the mic's own noise, undo, and tone saved per person that follows them to this week's channel.
 - **0.10 Vocal riding and a live status line:** keeps the lead on top as needed (Off / Gentle / Normal / Strong), with boost safeguards; plain-English "what it's doing" on the Auto screen and Set tab.
 - **0.9 Follow ProPresenter and this week's channels:** the song ProPresenter puts up becomes the current song; people's channels can change per set. (0.9.1: per-week sings/plays chips and Add someone in the soundcheck view. 0.9.2: a weekly "This week's channels" step with Find by listening and last-week memory.)
@@ -52,6 +53,6 @@ Needs a small native macOS helper to read the XR18's USB audio, plus microphone 
 
 - **Anything that changes the in-ear mixes (aux sends):** out of scope. The band mixes their own ears.
 - **Ducking done by the mixer's own duck gates:** deferred. The app-held ducking is bounded (8 dB), saved, and restored on restart (QA M3), which is enough for now.
-- **Tempo-synced delay, effects automation:** deferred; not a priority for this team.
+- **Setting the reverb's and delay's own parameters (decay, delay time) from the app:** after the FX parameter commands are confirmed on the XR18. Until then the app shows the exact settings to use in X Air, including each song's delay time.
 - **Helix integration:** not part of this setup.
 - **Native iPad app:** not needed; the web app plus the background service on the Mac covers it.

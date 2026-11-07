@@ -26,6 +26,7 @@ import { Updater } from './updater.js';
 import { Library, INSTRUMENTS } from './library.js';
 import { PlanningCenter } from './pco.js';
 import { ProPresenter } from './propresenter.js';
+import { Effects, VERB_LEVELS, DELAY_LEVELS, fxSendBus } from './effects.js';
 import { ToneDesk, applyFix, applyComp, applyGate, freshModel, toneToSave, describeTone, FIXES, COMP_PRESETS } from './tone.js';
 import { CONNECTION_MODES, chooseMixer, hardwarePorts, kindLabel, pathTo } from './netpath.js';
 import { ROLES } from './roles.js';
@@ -45,12 +46,12 @@ const PIN_MAX_TRIES = 5;
 const PIN_LOCKOUT_MS = 60 * 1000;
 const UNUSED_SETTLE_MS = 15000;
 
-const TONE_COMMANDS = new Set(['toneRead', 'toneFix', 'toneComp', 'toneGate', 'toneFresh', 'toneUndo', 'toneSave', 'toneLoad']);
+const TONE_COMMANDS = new Set(['toneRead', 'toneFix', 'toneComp', 'toneGate', 'toneFresh', 'toneUndo', 'toneSave', 'toneLoad', 'toneVerb', 'toneDelay']);
 const LIBRARY_COMMANDS = new Set([
   'saveSlot', 'deleteSlot', 'savePerson', 'deletePerson',
   'newSet', 'openSet', 'deleteSet', 'setLineup',
   'addSong', 'removeSong', 'moveSong', 'setSongLeads', 'playSong', 'nextSong', 'songMixAmounts',
-  'pcoServiceTypes', 'pcoPlans', 'pcoImport', 'setSetChannel', 'placePerson', 'channelsDone',
+  'pcoServiceTypes', 'pcoPlans', 'pcoImport', 'setSetChannel', 'placePerson', 'channelsDone', 'setSongDelay',
 ]);
 
 // PA knob positions worth writing down, so a bumped knob can be put back next week.
@@ -210,6 +211,7 @@ export class Bridge {
     this.pro?.stop();
     this.fades?.stopAll();
     this.automix?.stop();
+    this.effects?.stop();
     this.music?.stop();
     clearTimeout(this.pauseTimer);
     this.#stopPractice();
@@ -319,6 +321,16 @@ export class Bridge {
       onAlert: (a) => this.alert(a),
     });
     this.automix.setFocus(this.library.focusForCurrentSong(), this.library.songContext());
+    this.effects?.stop();
+    this.effects = new Effects({
+      state: this.state,
+      client: this.client,
+      roleStore: this.roleStore,
+      settings: this.settings.effects ?? {},
+      stateFile: path.join(this.config.dataDir, 'effects-state.json'),
+      onAlert: (a) => this.alert(a),
+    });
+    this.effects.setSong(this.library.songEffects());
     this.automix.on('mode', ({ mode, auto }) => {
       const label = { walkin: 'Before / after', worship: 'Worship', talkover: 'Talking over music', speaking: 'Speaking' }[mode] ?? mode;
       this.alert({ level: 'info', source: 'automix', message: `${auto ? 'Switched' : 'Set'} to ${label}.` });
@@ -329,6 +341,7 @@ export class Bridge {
       if (this.automix.enabled) {
         try {
           this.automix.tick();
+          this.effects?.tick({ mode: this.automix.mode, activity: this.automix.activity });
         } catch (err) {
           console.error('Auto-mix error:', err.message);
         }
@@ -344,6 +357,7 @@ export class Bridge {
       );
       this.#resync(() => {
         if (!this.automix.enabled) this.automix.start();
+        if (!this.effects.started) this.effects.start();
       });
     });
     this.client.on('disconnected', () => {
@@ -445,6 +459,18 @@ export class Bridge {
     if (LIBRARY_COMMANDS.has(cmd.type)) return this.#libraryCommand(cmd);
     if (cmd.type === 'proPresenter') return this.#proCommand(cmd);
     if (TONE_COMMANDS.has(cmd.type)) return this.#toneCommand(cmd);
+    if (cmd.type === 'effects' && this.effects) {
+      this.settings.effects = { ...this.effects.update(cmd.settings ?? {}) };
+      this.#saveSettings();
+      return;
+    }
+    if (cmd.type === 'effectsNudge' && this.effects) {
+      const fx = cmd.which === 'delay' ? this.effects.settings.delayFx : this.effects.settings.reverbFx;
+      const db = Math.max(-3, Math.min(3, Number(cmd.db) || 0));
+      const now = fx && this.effects.nudgeReturn(fx, db);
+      this.alert(now === false || now === undefined || now === null ? { level: 'warn', source: 'effects', message: `Couldn't read FX${fx}'s level from the mixer yet.` } : { level: 'ok', source: 'effects', message: `${cmd.which === 'delay' ? 'Delay' : 'Reverb'} in the room ${db > 0 ? 'up' : 'down'} to ${now.toFixed(1)} dB.` });
+      return;
+    }
     // Never act on a mixer we can't reach: the screen would show changes that didn't happen.
     // Commands that don't need the mixer.
     const offlineOk = new Set(['dismissAlert', 'clearAlerts', 'music', 'addPlaylist', 'removePlaylist']);
@@ -683,14 +709,38 @@ export class Bridge {
       case 'toneUndo':
         this.tone.undo(t.channels.map(String));
         return;
+      case 'toneVerb': {
+        const fx = this.effects?.settings.reverbFx;
+        if (!fx || !(cmd.level in VERB_LEVELS)) return;
+        const db = VERB_LEVELS[cmd.level];
+        for (const ch of t.channels) this.#setFxSend(ch, fx, db);
+        this.tone.notes.set(String(t.channels[0]), `Reverb: ${cmd.level === 'dry' ? 'dry (none)' : `${cmd.level} (send ${db} dB)`}`);
+        return;
+      }
+      case 'toneDelay': {
+        if (!(cmd.level in DELAY_LEVELS)) return;
+        const saved = { ...(this.library.personTone(t.personId, t.instrument) ?? {}) };
+        saved.delayDb = DELAY_LEVELS[cmd.level];
+        if (cmd.level === 'off') saved.delayOff = true;
+        else delete saved.delayOff;
+        this.library.savePersonTone(t.personId, t.instrument, saved);
+        this.effects?.setSong(this.library.songEffects());
+        this.tone.notes.set(String(t.channels[0]), `Delay on their songs: ${cmd.level}`);
+        return;
+      }
       case 'toneSave': {
-        this.library.savePersonTone(t.personId, t.instrument, toneToSave(t.model));
+        const keep = this.library.personTone(t.personId, t.instrument) ?? {};
+        const fx = this.effects?.settings.reverbFx;
+        const verb = fx ? this.state.strips[t.channels[0]]?.sends?.[fxSendBus(fx)] : undefined;
+        this.library.savePersonTone(t.personId, t.instrument, { ...toneToSave(t.model), verbDb: verb > 0 ? Math.round(floatToDb(verb) * 10) / 10 : verb === 0 ? null : keep.verbDb, delayDb: keep.delayDb, delayOff: keep.delayOff });
         this.alert({ level: 'ok', source: 'tone', message: `Saved ${t.name}'s ${t.instrument === 'vocal' ? 'vocal' : t.slot.name.toLowerCase()} tone. It loads onto their channel each week when you tap "Channels are set".` });
         return;
       }
       case 'toneLoad': {
         const saved = this.library.personTone(t.personId, t.instrument);
         if (!saved) return;
+        const fxv = this.effects?.settings.reverbFx;
+        if (fxv && saved.verbDb !== undefined) for (const ch of t.channels) this.#setFxSend(ch, fxv, saved.verbDb);
         r = { model: { ...t.model, ...saved, b1: { ...t.model.b1, ...saved.b1 }, b2: { ...t.model.b2, ...saved.b2 }, b3: { ...t.model.b3, ...saved.b3 }, b4: { ...t.model.b4, ...saved.b4 }, comp: { ...t.model.comp, ...saved.comp }, gate: { ...t.model.gate, ...saved.gate } }, note: `Loaded ${t.name}'s saved tone` };
         break;
       }
@@ -703,6 +753,15 @@ export class Bridge {
       return;
     }
     this.tone.write(t.channels.map(String), r.model, r.note);
+  }
+
+  /** A channel's send to an effect (dB, or null for none). Never an in-ear (aux) send. */
+  #setFxSend(ch, fx, db) {
+    const bus = fxSendBus(fx);
+    const v = db === null ? 0 : dbToFloat(db);
+    const s = this.state.strips[String(ch)];
+    if (s) s.sends[bus] = v;
+    this.client.setFloat(paths.send(String(ch), bus), v);
   }
 
   /** Channels confirmed for the week: put each person's saved tone on their channel. */
@@ -730,7 +789,12 @@ export class Bridge {
       if (!t?.channels.length) continue;
       const st = this.tone.status(t.channels[0]);
       const saved = this.library.personTone(t.personId, t.instrument);
-      out[slotId] = { channels: t.channels, ...(st ?? {}), saved: saved ? { at: saved.savedAt, summary: describeTone(saved) } : null };
+      const fx = this.effects?.settings.reverbFx;
+      const send = fx ? this.state.strips[t.channels[0]]?.sends?.[fxSendBus(fx)] : undefined;
+      const verbDb = send > 0 ? floatToDb(send) : send === 0 ? null : undefined;
+      const verb = verbDb === undefined ? null : verbDb === null ? 'dry' : verbDb < -15 ? 'little' : verbDb < -9.5 ? 'normal' : 'more';
+      const delay = saved?.delayOff ? 'off' : saved?.delayDb === DELAY_LEVELS.more ? 'more' : 'light';
+      out[slotId] = { channels: t.channels, ...(st ?? {}), verb, delay, saved: saved?.savedAt ? { at: saved.savedAt, summary: describeTone(saved) } : null };
     }
     return out;
   }
@@ -744,6 +808,7 @@ export class Bridge {
     lib.playSong(i);
     this.automix?.hintMode('worship');
     this.automix?.setFocus(lib.focusForCurrentSong(), lib.songContext());
+    this.effects?.setSong(lib.songEffects());
   }
 
   #proCommand(cmd) {
@@ -803,6 +868,9 @@ export class Bridge {
           if (!ok && cmd.on) this.alert({ level: 'warn', source: 'set', message: `No free ${cmd.instrument === 'vocal' ? 'vocal mic' : label.toLowerCase()} position. Free one up, or add a position under Channels for each position.` });
           break;
         }
+        case 'setSongDelay':
+          lib.setSongDelay(int(cmd.index), { delay: cmd.delay, bpm: cmd.bpm });
+          break;
         case 'channelsDone':
           lib.setChannelsDone(!!cmd.done);
           if (cmd.done) await this.#loadSavedTones();
@@ -861,6 +929,7 @@ export class Bridge {
     }
     // Whatever changed, the song mix follows the current song.
     this.automix?.setFocus(lib.focusForCurrentSong(), lib.songContext());
+    this.effects?.setSong(lib.songEffects());
   }
 
   /** What the Set tab needs. */
@@ -1123,7 +1192,8 @@ export class Bridge {
       unusedReady: this.state.settled(UNUSED_SETTLE_MS),
       unused: this.state.settled(UNUSED_SETTLE_MS) ? this.#unusedRows().map((r) => ({ id: r.id, label: r.label })) : [],
       clickGuard: this.guard ? this.guard.status() : { locked: [], allSafe: true, unsure: [], protectedBuses: [], buses: [] },
-      automix: this.automix ? this.automix.status() : null,
+      automix: this.automix ? { ...this.automix.status(), now: [...this.automix.describe(), ...(this.effects?.describe(this.library.songContext().names) ?? [])] } : null,
+      effects: this.effects ? this.effects.status() : null,
       dcas: Object.values(this.state.dcas),
       walkin: this.#walkinStrips().map((id) => ({ id, fading: !!this.fades?.isFading(id), on: this.state.strips[id].on })),
       music: this.music ? this.music.status() : null,

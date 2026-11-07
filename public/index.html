@@ -194,6 +194,23 @@
         <button class="seg-btn" type="button" data-comp="medium">Medium</button>
         <button class="seg-btn" type="button" data-comp="firm">Firm</button>
       </div>
+      <div id="toneFx">
+        <h3>Reverb on this person <small class="muted">their send to the reverb (also what they hear in their ears)</small></h3>
+        <div class="seg mini" id="toneVerb">
+          <button class="seg-btn" type="button" data-verb="dry">Dry</button>
+          <button class="seg-btn" type="button" data-verb="little">A little</button>
+          <button class="seg-btn" type="button" data-verb="normal">Normal</button>
+          <button class="seg-btn" type="button" data-verb="more">More</button>
+        </div>
+        <div id="toneDelayBox">
+          <h3>Delay on their lead lines <small class="muted">only on songs marked "light delay"</small></h3>
+          <div class="seg mini" id="toneDelay">
+            <button class="seg-btn" type="button" data-delay="off">Never</button>
+            <button class="seg-btn" type="button" data-delay="light">Light</button>
+            <button class="seg-btn" type="button" data-delay="more">More</button>
+          </div>
+        </div>
+      </div>
       <h3>Hiss between lines <small class="muted">a gentle gate, set from their mic's own hiss</small></h3>
       <div class="row">
         <button id="toneGateOn" class="btn btn-small" type="button">Turn hiss down between lines</button>
@@ -243,6 +260,11 @@
             <h2 id="scSong">No songs yet</h2>
           </div>
           <button id="scNext" class="icon-btn big" type="button" aria-label="Next song">▶</button>
+        </div>
+        <div class="sc-delay" id="scDelay">
+          <button id="scDelayBtn" class="chip-btn" type="button" aria-pressed="false">Light delay on this song</button>
+          <span id="scTempo" class="muted small"></span>
+          <button id="scTap" class="btn btn-small btn-ghost" type="button">Tap tempo</button>
         </div>
         <p class="muted small">Under each name, tap what they're doing <b>this week</b>: only singing, only playing, or both. Then, per song, pick how they sing and tap <b>★ Lead</b> on the instrument that carries it. Everything saves straight away.</p>
         <div id="scPeople" class="sc-people"></div>
@@ -304,6 +326,35 @@
           </form>
           <p class="muted small">Song names are matched loosely: "Holy Forever (Live) - Chris Tomlin" in ProPresenter finds "Holy Forever" in the set. Announcements, sermon slides and anything that isn't a song in today's set are ignored, and you can still tap songs yourself.</p>
           <p class="muted small"><b>Network:</b> this Mac reaches ProPresenter over its Wi-Fi. If both are on the school's open Wi-Fi it usually works, but some guest networks block computers from talking to each other. If it says it can't reach ProPresenter, join the ProPresenter computer to the same network as this Mac's Wi-Fi.</p>
+        </div>
+      </details>
+
+      <details class="auto-card fold" id="fxFold">
+        <summary><h2>Effects (reverb and delay)</h2></summary>
+        <div class="fold-body">
+          <p class="muted">Mix Assistant keeps speech dry, turns the effects down while people talk and during the sermon, and puts a light delay on the lead singer on songs you mark. Only the effects' level in the room moves; what the band hears in their in-ears isn't touched.</p>
+          <div class="row fx-pick">
+            <label>Reverb is on <select id="fxReverb" aria-label="Reverb effect slot"></select></label>
+            <label>Delay is on <select id="fxDelay" aria-label="Delay effect slot"></select></label>
+          </div>
+          <label class="switch"><input type="checkbox" id="fxFollow" /><span><b>Effects follow the service</b><br /><small>Down a few dB while someone talks between songs or over music; well down for the sermon and pre/post-service music; back for worship.</small></span></label>
+          <label class="switch"><input type="checkbox" id="fxSpeechDry" /><span><b>Keep announcement mics dry too</b><br /><small>The pastor is always kept dry.</small></span></label>
+
+          <h3>Reverb in the room <span id="fxReverbNow" class="muted small"></span></h3>
+          <div class="row">
+            <button class="btn btn-small" type="button" id="fxLess">Too much reverb</button>
+            <button class="btn btn-small" type="button" id="fxMore">Can't hear the reverb</button>
+          </div>
+          <p class="muted small">Each tap moves the reverb's level in the room by 1.5 dB. For one singer only, use their 🎚 Tone.</p>
+
+          <h3>Reverb sounds wrong? Pick what you hear</h3>
+          <div id="fxHelp" class="fx-help"></div>
+
+          <h3>Good starting settings (set once in X Air)</h3>
+          <div class="fx-start">
+            <div><b>Reverb</b> (<span class="fx-slot-r">FX1</span>): Plate or Vintage Room/Hall · Decay 1.4–1.8 s · Pre-delay 25–35 ms · Low cut 200–250 Hz · High cut / damping 6–7 kHz · Return fader around −5 dB. Singers: send "Normal" in their Tone.</div>
+            <div><b>Delay</b> (<span class="fx-slot-d">FX2</span>): Stereo Delay · Time from the song's tempo (shown on each song at soundcheck; a dotted eighth is the usual worship delay) · Feedback 15–25% (2–3 repeats) · Low cut 300 Hz · High cut 5 kHz · Mix 100% (wet). Mix Assistant only feeds it the lead singer on songs marked "light delay".</div>
+          </div>
         </div>
       </details>
 

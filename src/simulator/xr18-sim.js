@@ -71,6 +71,8 @@ function initialState() {
     for (const [k, v] of [['on', 0], ['mode', 3]]) n(`gate/${k}`, v);
     for (const [k, v] of [['thr', 0.3], ['range', 0.3], ['attack', 0], ['hold', 0.5], ['release', 0.5]]) f(`gate/${k}`, v);
   }
+  // FX returns 1–4 (reverb on FX1, delay on FX2, as most churches set it).
+  for (let n = 1; n <= 4; n++) st.set(`/rtn/${n}/mix/fader`, { type: 'f', value: n <= 2 ? dbToFloat(-5) : 0 });
   BUS_NAMES.forEach((name, i) => st.set(paths.busName(i + 1), { type: 's', value: name }));
   for (let n = 1; n <= DCA_COUNT; n++) {
     st.set(paths.dcaName(n), { type: 's', value: ['Speech', 'Vocals', 'Band', 'Tracks'][n - 1] });

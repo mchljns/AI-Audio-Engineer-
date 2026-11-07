@@ -57,6 +57,8 @@ A running list of what could go wrong, what handles it, and how it's checked. Re
 
 | # | Assumption | Status |
 |---|---|---|
+| P10 | FX returns and sends: /rtn/1..4/mix/fader (return level in the room) and /ch/NN/mix/07..10/level (channel → FX1–4); the returns' sends to the in-ear buses are pre- or post-fader | Midweek: confirm the return fader path moves FX1 in X Air, and check whether the singers' in-ear reverb dips when the app turns the reverb down for talking (if FX return → aux sends are post-fader it will; set them pre-fader in X Air to keep in-ear reverb steady) | Midweek |
+| M20 | Effects on speech; washy talking between songs; delay used wrongly | Pastor always dry (any FX send reset to zero, one note); announcements dry by default; returns down 6 dB for talking, 15 dB for sermon/pre-service; delay only on marked songs, only the lead singer, only in worship; a person moving a return sets its new level; restart puts returns back | Tests, Browser |
 | P9 | Channel processing addresses: /ch/NN/preamp/hpon, hpf (20–400 Hz log); /eq/1..4/type, f (20–20k log), g (±15 lin), q (0.3–10 log, inverted); /dyn/on, thr (−60..0), ratio (index 0–11), knee, mgain, attack, release (log), auto; /gate/on, mode (3 = gate), thr (−80..0), range (3–60) | From the xair-api library (tested on MR18). Midweek: open Tone on a spare channel, tap Muddy and Medium, and check X Air shows −2 dB at 300 Hz and a 3:1 compressor; check the meter tap point (pre/post compressor) | Midweek |
 | P1 | Meter blob: int32 count then int16 values in 1/256 dB | Matches Behringer's doc and forum reports; byte order to confirm |
 | P2 | `/meters/1` order: 16 channels, then aux L/R | To confirm |

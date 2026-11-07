@@ -269,13 +269,13 @@ export class Library {
     this.save();
   }
 
-  addSong({ title, key = '', pcoSongId = null } = {}) {
+  addSong({ title, key = '', pcoSongId = null, bpm = null } = {}) {
     const set = this.set();
     const t = clean(title, 120);
     if (!set || !t || set.songs.length >= 40) return;
     const k = songKey(t, pcoSongId);
     const mem = this.data.songs[k] ?? {};
-    set.songs.push({ id: newId(), title: t, key: clean(key, 8), songKey: k, lead: this.#onStage(set, mem.lead) ? mem.lead : null, harmonies: (mem.harmonies ?? []).filter((h) => this.#onStage(set, h)), leadInstrument: mem.leadInstrument && set.lineup[mem.leadInstrument] ? mem.leadInstrument : null });
+    set.songs.push({ id: newId(), title: t, key: clean(key, 8), songKey: k, lead: this.#onStage(set, mem.lead) ? mem.lead : null, harmonies: (mem.harmonies ?? []).filter((h) => this.#onStage(set, h)), leadInstrument: mem.leadInstrument && set.lineup[mem.leadInstrument] ? mem.leadInstrument : null, delay: !!mem.delay, bpm: mem.bpm ?? (Number(bpm) >= 40 && Number(bpm) <= 220 ? Math.round(Number(bpm)) : null) });
     this.save();
   }
 
@@ -313,7 +313,7 @@ export class Library {
     if (harmonies !== undefined) song.harmonies = [...new Set((Array.isArray(harmonies) ? harmonies : []).filter((h) => this.person(h) && h !== song.lead))];
     else song.harmonies = song.harmonies.filter((h) => h !== song.lead);
     if (leadInstrument !== undefined) song.leadInstrument = leadInstrument && this.slot(leadInstrument) ? leadInstrument : null;
-    this.data.songs[song.songKey] = { title: song.title, lead: song.lead, harmonies: song.harmonies, leadInstrument: song.leadInstrument };
+    this.data.songs[song.songKey] = { ...(this.data.songs[song.songKey] ?? {}), title: song.title, lead: song.lead, harmonies: song.harmonies, leadInstrument: song.leadInstrument };
     this.save();
   }
 
@@ -349,6 +349,38 @@ export class Library {
     let stereo = mode === 'always';
     if (mode === 'choice') stereo = !!this.person(personId)?.instruments.find((i) => i.type === slot.instrument)?.stereo;
     return stereo && slot.right ? [slot.left, slot.right] : [slot.left];
+  }
+
+  /** Light delay on a song (and its tempo, for the delay time). Remembered for next time. */
+  setSongDelay(index, { delay, bpm } = {}) {
+    const song = this.set()?.songs[index];
+    if (!song) return;
+    if (delay !== undefined) song.delay = !!delay;
+    if (bpm !== undefined) {
+      const b = Number(bpm);
+      song.bpm = Number.isFinite(b) && b >= 40 && b <= 220 ? Math.round(b) : null;
+    }
+    this.data.songs[song.songKey] = { ...(this.data.songs[song.songKey] ?? {}), title: song.title, delay: !!song.delay, bpm: song.bpm ?? null };
+    this.save();
+  }
+
+  /** What the effects need for the current song: delay on/off, lead channels, delay amounts, tempo. */
+  songEffects() {
+    const set = this.set();
+    const song = set && this.data.currentSong !== null ? set.songs[this.data.currentSong] : null;
+    if (!song) return { delay: false, lead: [], amounts: {}, bpm: null, title: null };
+    const { lead } = this.songContext();
+    const amounts = {};
+    for (const slot of this.data.slots) {
+      const pid = set.lineup[slot.id];
+      if (!pid || slot.instrument !== 'vocal') continue;
+      const t = this.personTone(pid, 'vocal');
+      for (const ch of this.channelsFor(slot, pid)) {
+        if (t?.delayOff) amounts[ch] = null; // this person never gets delay
+        else if (t?.delayDb !== undefined && t.delayDb !== null) amounts[ch] = t.delayDb;
+      }
+    }
+    return { delay: !!song.delay, lead: lead.filter((ch) => amounts[ch] !== null), amounts, bpm: song.bpm ?? null, title: song.title };
   }
 
   /** For vocal riding and the status line: the current song's lead singer channel(s), and who is on each channel. */
@@ -417,7 +449,7 @@ export class Library {
       }
       else unplaced.push(`${m.name} (${m.position})`);
     }
-    for (const s of songs) this.addSong({ title: s.title, key: s.key, pcoSongId: s.songId });
+    for (const s of songs) this.addSong({ title: s.title, key: s.key, pcoSongId: s.songId, bpm: s.bpm });
     this.save();
     return { set, unplaced };
   }

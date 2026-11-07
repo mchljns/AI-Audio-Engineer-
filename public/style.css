@@ -584,3 +584,16 @@ dialog.connect-dialog { width: min(640px, calc(100vw - 32px)); }
 .fix-btn:active { border-color: var(--accent); }
 .tone-listen { margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: rgba(245, 185, 66, 0.15); color: #f5b942; font-weight: 700; }
 .tone-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 8px; }
+
+/* Effects */
+.sc-delay { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 8px 0 4px; }
+.sc-delay .chip-btn { padding: 0 14px; }
+.sc-delay .chip-btn.on { border-color: #a855f7; background: rgba(168, 85, 247, 0.15); color: #c084fc; }
+.fx-pick { gap: 16px; flex-wrap: wrap; }
+.fx-pick label { display: flex; align-items: center; gap: 8px; font-weight: 700; }
+.fx-help { display: grid; gap: 6px; }
+.fx-q { border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; background: var(--strip); }
+.fx-q summary { cursor: pointer; font-weight: 700; }
+.fx-q p { margin: 8px 0 2px; }
+.fx-start { display: grid; gap: 8px; font-size: 14px; }
+.fx-start > div { padding: 10px 12px; border-radius: 10px; background: var(--strip); }

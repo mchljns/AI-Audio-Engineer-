@@ -370,6 +370,7 @@ function render(s) {
   renderSet(s);
   renderChannels(s);
   renderTone(s);
+  renderEffects(s);
   renderSoundcheck(s);
   renderPro(s);
 
@@ -751,6 +752,17 @@ function renderSoundcheck(s) {
     $('#scPeople').replaceChildren();
     return;
   }
+  // Light delay and tempo for this song.
+  $('#scDelay').hidden = !song || !s.effects?.settings.delayFx;
+  if (song) {
+    const d = $('#scDelayBtn');
+    d.classList.toggle('on', !!song.delay);
+    d.setAttribute('aria-pressed', String(!!song.delay));
+    d.textContent = song.delay ? '✓ Light delay on this song' : 'Light delay on this song';
+    const q = song.bpm ? Math.round(60000 / song.bpm) : 0;
+    const t = song.bpm ? { q, de: Math.round(q * 0.75) } : null;
+    $('#scTempo').textContent = t ? `${song.bpm} BPM · delay time ${t.de} ms (dotted 1/8) or ${t.q} ms (1/4)` : song.delay ? 'Tempo unknown: tap along to set the delay time' : '';
+  }
   if (!song) {
     $('#scSong').textContent = 'Tap ▶ to start with song 1';
     $('#scCount').textContent = `${set.songs.length} songs`;
@@ -1019,6 +1031,8 @@ for (const b of document.querySelectorAll('#toneComp .seg-btn')) {
     toneListen = { kind: 'comp', preset: b.dataset.comp, until: Date.now() + 7000, samples: [] };
   });
 }
+for (const b of document.querySelectorAll('#toneVerb .seg-btn')) b.addEventListener('click', () => toneSend({ type: 'toneVerb', level: b.dataset.verb }));
+for (const b of document.querySelectorAll('#toneDelay .seg-btn')) b.addEventListener('click', () => toneSend({ type: 'toneDelay', level: b.dataset.delay }));
 $('#toneGateOn').addEventListener('click', () => (toneListen = { kind: 'gate', until: Date.now() + 4000, samples: [] }));
 $('#toneGateOff').addEventListener('click', () => toneSend({ type: 'toneGate', on: false }));
 
@@ -1047,6 +1061,12 @@ function renderTone(s) {
   const ratio = comp?.on ? [1.1, 1.3, 1.5, 2, 2.5, 3, 4, 5, 7, 10, 20, 100][comp.ratio] : null;
   const compNow = !comp?.on ? 'off' : ratio <= 2 ? 'light' : ratio <= 3 ? 'medium' : 'firm';
   for (const b of document.querySelectorAll('#toneComp .seg-btn')) b.classList.toggle('active', b.dataset.comp === compNow);
+
+  const fxOn = !!s.effects?.settings.reverbFx;
+  $('#toneFx').hidden = !fxOn;
+  $('#toneDelayBox').hidden = slot.instrument !== 'vocal' || !s.effects?.settings.delayFx;
+  for (const b of document.querySelectorAll('#toneVerb .seg-btn')) b.classList.toggle('active', b.dataset.verb === T.verb);
+  for (const b of document.querySelectorAll('#toneDelay .seg-btn')) b.classList.toggle('active', b.dataset.delay === T.delay);
 
   const fixes = L.toneFixes?.[slot.instrument] ?? L.toneFixes?.vocal ?? [];
   if (changed('toneFixes', [toneSlot, fixes.map((f) => f.id)])) {
@@ -1101,6 +1121,49 @@ function renderTone(s) {
   }
 }
 
+// ---------- Effects: setup, reverb level, help for a reverb that sounds wrong ----------
+const FX_HELP = [
+  ['Washy: words blur together', 'Shorten Decay to about 1.4 s and set Pre-delay to 30–40 ms, so each word lands before the reverb starts. If it is still washy, use "Too much reverb" above.'],
+  ['Muddy: the low end gets thick', 'Raise the reverb\'s Low cut to 250–300 Hz. Reverb on low notes only adds mud.'],
+  ['Splashy or hissy: bright and sizzly', "Lower the High cut / Damping to about 5–6 kHz. Bright reverb makes S's and cymbals splash."],
+  ['Like a cave: far too long', 'Decay down to 1.2–1.5 s, and pick Plate or a Room rather than a big Hall.'],
+  ['Dry and harsh: no space at all', 'Check the singers\' reverb is "Normal" in their Tone, then use "Can\'t hear the reverb". If the reverb itself is very short, Decay up to 1.6–1.8 s.'],
+  ['Only one singer sounds wrong', 'Open their 🎚 Tone and pick Dry, A little or More. Save it to them so it comes back next week.'],
+  ['Feedback or ringing when it is up', 'Use "Too much reverb", and lower the High cut to 5 kHz. Reverb on a loud wedge or an omni mic can ring.'],
+];
+function renderEffects(s) {
+  const E = s.effects;
+  $('#fxFold').hidden = !E;
+  if (!E) return;
+  const st = E.settings;
+  const opts = (none) => [...(none ? [['', 'No delay']] : []), ...[1, 2, 3, 4].map((n) => [String(n), `FX${n}`])];
+  if (changed('fxPick', [st.reverbFx, st.delayFx])) {
+    $('#fxReverb').replaceChildren(...opts(false).map(([v, t]) => el('option', { value: v, text: t })));
+    $('#fxDelay').replaceChildren(...opts(true).map(([v, t]) => el('option', { value: v, text: t })));
+    $('#fxReverb').value = String(st.reverbFx ?? 1);
+    $('#fxDelay').value = st.delayFx ? String(st.delayFx) : '';
+    for (const x of document.querySelectorAll('.fx-slot-r')) x.textContent = `FX${st.reverbFx ?? 1}`;
+    for (const x of document.querySelectorAll('.fx-slot-d')) x.textContent = st.delayFx ? `FX${st.delayFx}` : 'not set';
+  }
+  if (document.activeElement !== $('#fxFollow')) $('#fxFollow').checked = !!st.follow;
+  if (document.activeElement !== $('#fxSpeechDry')) $('#fxSpeechDry').checked = !!st.speechDry;
+  $('#fxReverbNow').textContent = E.reverbDb === null ? '' : `(level ${E.reverbDb > 0 ? '+' : ''}${E.reverbDb} dB)`;
+  if (changed('fxHelp', [st.reverbFx])) {
+    $('#fxHelp').replaceChildren(
+      ...FX_HELP.map(([q, a]) => {
+        const d = el('details', { class: 'fx-q' }, [el('summary', { text: q }), el('p', { text: a.startsWith('Open') || a.startsWith('Use') || a.startsWith('Check') ? a : `In X Air: Effects → FX${st.reverbFx ?? 1} (the reverb): ${a}` })]);
+        return d;
+      }),
+    );
+  }
+}
+$('#fxReverb').addEventListener('change', (e) => send({ type: 'effects', settings: { reverbFx: Number(e.target.value) } }));
+$('#fxDelay').addEventListener('change', (e) => send({ type: 'effects', settings: { delayFx: e.target.value ? Number(e.target.value) : null } }));
+$('#fxFollow').addEventListener('change', (e) => send({ type: 'effects', settings: { follow: e.target.checked } }));
+$('#fxSpeechDry').addEventListener('change', (e) => send({ type: 'effects', settings: { speechDry: e.target.checked } }));
+$('#fxLess').addEventListener('click', () => send({ type: 'effectsNudge', which: 'reverb', db: -1.5 }));
+$('#fxMore').addEventListener('click', () => send({ type: 'effectsNudge', which: 'reverb', db: 1.5 }));
+
 // ---------- ProPresenter: follow the song that's up ----------
 function renderPro(s) {
   const P = s.setlist?.pro;
@@ -1131,6 +1194,26 @@ $('#proForm').addEventListener('submit', (e) => {
 });
 $('#proRemove').addEventListener('click', () => send({ type: 'proPresenter', host: '', port: '' }));
 
+$('#scDelayBtn').addEventListener('click', () => {
+  const L = latest?.setlist;
+  const idx = L?.currentSong;
+  const song = idx !== null && idx !== undefined ? L.current?.songs[idx] : null;
+  if (song) send({ type: 'setSongDelay', index: idx, delay: !song.delay });
+});
+// Tap tempo: tap along with the song; four taps or more sets the tempo.
+let taps = [];
+$('#scTap').addEventListener('click', () => {
+  const now = performance.now();
+  taps = [...taps.filter((t) => now - t < 3000), now];
+  const n = taps.length;
+  $('#scTap').textContent = n < 4 ? `Tap… ${n}` : 'Tap tempo';
+  if (n >= 4) {
+    const gaps = taps.slice(1).map((t, i) => t - taps[i]);
+    const bpm = Math.round(60000 / (gaps.reduce((a, b) => a + b, 0) / gaps.length));
+    const idx = latest?.setlist?.currentSong;
+    if (idx !== null && idx !== undefined && bpm >= 40 && bpm <= 220) send({ type: 'setSongDelay', index: idx, bpm });
+  }
+});
 $('#scUseHearing').addEventListener('click', () => {
   const idx = latest?.setlist?.currentSong;
   if (!hearingSuggestion || idx === null || idx === undefined) return;

@@ -107,13 +107,18 @@ export class PlanningCenter {
       const p = encodeURIComponent(String(planId));
       const [planJ, itemsJ, teamJ] = await Promise.all([
         this.#get(`/services/v2/service_types/${st}/plans/${p}`),
-        this.#get(`/services/v2/service_types/${st}/plans/${p}/items?per_page=100`),
+        this.#get(`/services/v2/service_types/${st}/plans/${p}/items?per_page=100&include=arrangement`),
         this.#get(`/services/v2/service_types/${st}/plans/${p}/team_members?per_page=100`),
       ]);
       const items = (itemsJ.data ?? [])
         .filter((d) => d.attributes?.item_type === 'song')
         .sort((a, b) => (a.attributes?.sequence ?? 0) - (b.attributes?.sequence ?? 0))
-        .map((d) => ({ title: String(d.attributes?.title ?? 'Song'), key: String(d.attributes?.key_name ?? ''), songId: d.relationships?.song?.data?.id ? String(d.relationships.song.data.id) : null }));
+        .map((d) => {
+          // Tempo lives on the song's arrangement, when the team has filled it in.
+          const arr = d.relationships?.arrangement?.data?.id;
+          const bpm = Number((itemsJ.included ?? []).find((x) => x.type === 'Arrangement' && x.id === arr)?.attributes?.bpm);
+          return { title: String(d.attributes?.title ?? 'Song'), key: String(d.attributes?.key_name ?? ''), songId: d.relationships?.song?.data?.id ? String(d.relationships.song.data.id) : null, bpm: Number.isFinite(bpm) && bpm > 0 ? bpm : null };
+        });
       const team = (teamJ.data ?? []).map((d) => ({
         name: String(d.attributes?.name ?? 'Someone'),
         position: String(d.attributes?.team_position_name ?? ''),
