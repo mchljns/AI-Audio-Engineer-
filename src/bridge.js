@@ -29,7 +29,10 @@ const MAX_ALERTS = 50;
 function loadConfig() {
   let file = {};
   try {
-    file = JSON.parse(fs.readFileSync(path.join(ROOT, 'config.json'), 'utf8'));
+    // Installed copies keep config.json in the data folder so updates never overwrite it.
+    const candidates = [process.env.DATA_DIR && path.join(process.env.DATA_DIR, 'config.json'), path.join(ROOT, 'config.json')];
+    const found = candidates.find((f) => f && fs.existsSync(f));
+    if (found) file = JSON.parse(fs.readFileSync(found, 'utf8'));
   } catch {
     /* defaults */
   }

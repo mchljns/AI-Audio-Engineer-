@@ -35,22 +35,30 @@ npm test
 
 ## Install on the booth Mac
 
-1. **Install Node.js:** download the LTS installer from https://nodejs.org and run it.
-2. **Get the code:** on github.com, open this repository, press the green **Code** button → **Download ZIP**. Unzip it, rename the folder to `mix-assistant` and move it into your **Documents** folder.
-3. **Install:** open **Terminal**, then:
-   ```bash
-   cd ~/Documents/mix-assistant
-   npm install
-   ```
-4. **Connect the Mac to the XR18.** Best: an Ethernet cable from the Mac to the XR18's Ethernet port (or both into the same router), and keep the Mac's Wi-Fi on the church internet. Or join the XR18's own Wi-Fi.
-5. **Start it:**
-   ```bash
-   npm start
-   ```
-   It finds the mixer on its own and prints the web address to open, e.g. `http://192.168.1.20:8080`. If it can't find the mixer, give the address directly: `MIXER_HOST=192.168.1.50 npm start`. The XR18's IP address is shown in the X Air app's connection screen.
-6. **On the iPad:** connect to the same network, open that address in Safari, then **Share → Add to Home Screen**. Set the iPad's **Auto-Lock to Never** for services.
+Open **Terminal** (press ⌘-Space, type *Terminal*, press Return), paste this line and press Return:
 
-While the bridge runs, it keeps the Mac awake. Stop it with **Ctrl+C** in Terminal.
+```bash
+curl -fsSL https://raw.githubusercontent.com/mchljns/AI-Audio-Engineer-/main/install.sh | bash
+```
+
+It takes a minute or two and needs no administrator password. It:
+- puts everything in a **MixAssistant** folder in your home folder, including its own copy of Node.js, so nothing else on the Mac is touched
+- adds two shortcuts to your **Desktop**:
+  - **Mix Assistant** — use with the real XR18
+  - **Mix Assistant (practice)** — try it with a pretend mixer
+- opens practice mode so you can look around
+
+To **update** later, run the same line again. Your settings are kept.
+
+### Using it
+
+1. **Connect the Mac to the XR18.** Best: an Ethernet cable from the Mac to the XR18's Ethernet port (or both into the same router), and keep the Mac's Wi-Fi on the church internet. Or join the XR18's own Wi-Fi.
+2. **Double-click "Mix Assistant" on the Desktop.** A Terminal window opens (leave it open; closing it stops the app) and the app opens in the browser. It finds the mixer on its own.
+3. **On the iPad:** connect to the same network and open the address shown in the Terminal window, e.g. `http://192.168.1.20:8080`. Then **Share → Add to Home Screen**. Set the iPad's **Auto-Lock to Never** for services.
+
+If it can't find the mixer, create `~/MixAssistant/data/config.json` containing `{ "mixerHost": "192.168.1.50" }` with your XR18's address (shown in the X Air app's connection screen).
+
+While it runs, it keeps the Mac awake.
 
 ### Mac settings for services
 
