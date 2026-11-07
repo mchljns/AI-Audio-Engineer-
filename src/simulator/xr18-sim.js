@@ -29,7 +29,7 @@ const LAYOUT = {
   12: { name: '', pattern: 'steady', db: -30 },
   15: { name: 'Click', pattern: 'click', db: -12 },
   16: { name: 'Guide', pattern: 'speech', db: -16 },
-  aux: { name: 'Walk-in', pattern: 'steady', db: -14 },
+  aux: { name: 'Spotify', pattern: 'steady', db: -14 },
 };
 
 const BUS_NAMES = ['IEM Keys', 'IEM Gtr', 'IEM Vox 1', 'IEM Vox 2', '', ''];
@@ -68,6 +68,7 @@ export const SERVICE = [
   { part: 'announcements', secs: 45, live: ['2', '7', '8'], quiet: ['7', '8'] },
   { part: 'sermon', secs: 70, live: ['1'] },
   { part: 'worship', secs: 50, live: ['3', '5', '6', '7', '8', '9', '10', '11', '15', '16'] },
+  { part: 'postservice', secs: 30, live: ['aux'] },
 ];
 const SERVICE_TOTAL = SERVICE.reduce((n, p) => n + p.secs, 0) * 1000;
 

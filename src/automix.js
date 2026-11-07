@@ -5,7 +5,7 @@
 //      announcements). The mic being talked into stays at its set level; the others
 //      are turned down by how far they sit below the combined level, so the total
 //      gain stays constant (less hiss, less feedback, no fighting mics).
-//   2. Service modes: works out walk-in / worship / talking over music / speaking
+//   2. Service modes: works out before-after / worship / talking over music / speaking
 //      from which kinds of channels are active, with hold times so a pause between
 //      songs doesn't flip the mode.
 //   3. Mode actions: ducks the band and tracks under speech in "talking over music",
@@ -29,7 +29,7 @@ import { resolveRole } from './inventory.js';
 import { ROLES } from './roles.js';
 
 export const MODES = {
-  walkin: { label: 'Walk-in', hint: 'Music before the service' },
+  walkin: { label: 'Before / after', hint: 'Music before and after the service' },
   worship: { label: 'Worship', hint: 'Band and singers' },
   talkover: { label: 'Talking over music', hint: 'Announcements, prayer, transitions' },
   speaking: { label: 'Speaking', hint: 'Sermon, announcements without music' },
@@ -194,7 +194,7 @@ export class AutoMix extends EventEmitter {
     // Ducking under speech
     const duck = this.settings.duckMusic && this.mode === 'talkover' && speechActive && musicActive ? -this.settings.duckDb : 0;
     for (const id of groups.music) this.ch.get(id).targetDb = duck;
-    // Walk-in music comes down under a welcome, whatever the mode.
+    // Pre/post-service music comes down under a welcome or closing words, whatever the mode.
     const duckWalkin = this.settings.duckMusic && talking ? -this.settings.duckDb : 0;
     for (const id of groups.walkin) this.ch.get(id).targetDb = duckWalkin;
 

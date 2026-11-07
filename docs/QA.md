@@ -15,10 +15,10 @@ A running list of what could go wrong, what handles it, and how it's checked. Re
 | S4 | Click channel renamed, so it's no longer recognised by name | Lock is sticky: the channel stays protected and the volunteer is warned. A "release the lock" button in the channel dialog hands it back when a person says it's not the click any more. *Fixed in 0.3.0: there was no way to release it* | Test |
 | S5 | Click lands on a channel that was never named Click (Prime routing changed) | **Open.** Mixer setup is the first defence (LR off and recall-safe on click/guide). Recognising the click by sound is planned with audio analysis | — |
 | S6 | Mix Assistant stops (crash, Mac asleep, update) | Audio never passes through it; the mixer keeps its current settings. The background service restarts it within ~10 s | Midweek |
-| S7 | App stops mid-fade | Fade stops where it is. Harmless for walk-in. **Rule for future automation:** anything the app holds (ducking) must be done by the mixer itself, so nothing is left stuck if the app stops | Design rule |
+| S7 | App stops mid-fade | Fade stops where it is. Harmless for pre/post-service music. **Rule for future automation:** anything the app holds (ducking) must be done by the mixer itself, so nothing is left stuck if the app stops | Design rule |
 | S8 | Someone moves a fader the app is fading | The fade stops; the person wins | Test |
 | S9 | "Mute unused" mutes something in use | Refused until every channel name has loaded and meters have flowed 15 s; shows the exact list and asks first; never click/guide. *Fixed in 0.3.0: right after a restart everything looked unused* | Test |
-| S10 | Bringing walk-in back up blasts at the old level | Starts from silence and fades to the saved level | Test |
+| S10 | Fading the pre/post-service music back in blasts at the old level | Starts from silence and fades to the saved level | Test |
 
 ## Access
 
@@ -84,10 +84,10 @@ A running list of what could go wrong, what handles it, and how it's checked. Re
 | M8 | Speech mic picks up loud music and counts as "talking" | Possible with omni earsets near the band. Watch for it midweek; tune `activeAboveFloorDb` | Midweek |
 | M12 | The app changes the band's in-ear mixes | Never: it only moves channel faders and never mutes channels or touches aux sends (tested). Needs the in-ear sends to be **pre-fader**, which is checked midweek. *Changed in 0.3.4: singers are turned down with the fader instead of muted, because a mute also cut them from the in-ears* | Test, Midweek |
 | M9 | Singer mic muted for the sermon while someone talks on it (worship leader praying after the sermon) | A singer mic is only muted if it has been silent for the whole 20 s; a singer mic used for talking with no music counts as speaking. If someone starts talking into a mic it muted, it unmutes at once (needs the meters to read before the mute: confirm midweek). *Fixed in 0.3.3* | Test, Midweek |
-| M10 | Walk-in music stays loud under a welcome | Walk-in ducks under any talking, in any mode; a fade in progress is never interrupted; the saved walk-in level is the one a person set, not the ducked one. *Fixed in 0.3.3* | Test |
+| M10 | Pre/post-service music stays loud under a welcome | It ducks under any talking, in any mode; a fade in progress is never interrupted; the saved music level is the one a person set, not the ducked one. *Fixed in 0.3.3* | Test |
 | M11 | Worship leader talks over a keys pad on their vocal mic: app can't tell talking from singing, so no duck | Known limit. Tap "Talking over music" for that moment | — |
 
-## Walk-in player
+## Pre/post-service music player
 
 | # | Failure | What handles it | Check |
 |---|---|---|---|
@@ -95,7 +95,7 @@ A running list of what could go wrong, what handles it, and how it's checked. Re
 | W2 | macOS blocks control of Spotify | The app says exactly which setting to turn on (Privacy & Security → Automation) | Midweek |
 | W3 | The status check keeps opening Spotify | It only asks Spotify for status if it's already running | Test |
 | W4 | No internet on Sunday (Mac on the mixer's Wi-Fi) | Player shows that only downloaded playlists will play; NETWORK.md explains downloading during the week | Test |
-| W5 | End walk-in pauses music someone just brought back up | The pause after the fade only happens if the walk-in channel is still off | Test |
+| W5 | Fade music out pauses music someone just brought back up | The pause after the fade only happens if the music channel is still off | Test |
 | W6 | iPads are shown an address they can't reach (Mac on two networks) | The Mac's address on the mixer's network is listed first | Design |
 | W7 | Practice mode starts the real Spotify | Practice mode uses a pretend player | Design |
 

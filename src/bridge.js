@@ -64,7 +64,7 @@ export function loadConfig() {
     automix: typeof file.automix === 'object' && file.automix ? file.automix : {},
     // Both speakers get the same feed (XR18 main → PRX ONE → pass-thru → Passport), so warn about panning.
     monoPA: file.monoPA !== false,
-    musicApp: file.musicApp === 'music' ? 'music' : 'spotify', // walk-in player on the Mac
+    musicApp: file.musicApp === 'music' ? 'music' : 'spotify', // pre/post-service music player on the Mac
   };
 }
 
@@ -216,7 +216,7 @@ export class Bridge {
       onAlert: (a) => this.alert(a),
     });
     this.automix.on('mode', ({ mode, auto }) => {
-      const label = { walkin: 'Walk-in', worship: 'Worship', talkover: 'Talking over music', speaking: 'Speaking' }[mode] ?? mode;
+      const label = { walkin: 'Before / after', worship: 'Worship', talkover: 'Talking over music', speaking: 'Speaking' }[mode] ?? mode;
       this.alert({ level: 'info', source: 'automix', message: `${auto ? 'Switched' : 'Set'} to ${label}.` });
     });
 
@@ -457,7 +457,7 @@ export class Bridge {
     if (action !== 'out' && action !== 'in') return;
     const ids = this.#walkinStrips();
     if (!ids.length) {
-      this.alert({ level: 'warn', source: 'walkin', message: 'No walk-in music channel found. Name it "Walk-in" or set its role.' });
+      this.alert({ level: 'warn', source: 'walkin', message: 'No pre/post-service music channel found. Name it "Spotify" or "Pre/Post" in the X Air app, or set its role.' });
       return;
     }
     const secs = Math.min(60, Math.max(0.2, isFiniteNum(seconds) ? seconds : this.config.walkinFadeSeconds));
@@ -483,11 +483,11 @@ export class Bridge {
     this.alert({
       level: 'info',
       source: 'walkin',
-      message: action === 'out' ? `Fading out walk-in music over ${secs} s.` : `Bringing up walk-in music over ${secs} s.`,
+      message: action === 'out' ? `Fading the music out over ${secs} s.` : `Fading the music in over ${secs} s.`,
     });
   }
 
-  // ---------- walk-in music player ----------
+  // ---------- pre/post-service music player ----------
 
   async #musicCommand(cmd) {
     if (cmd.type === 'addPlaylist') {
@@ -502,9 +502,9 @@ export class Bridge {
         link = uri;
       } else if (!link) link = name; // Apple Music plays playlists by name
       if (!name && !link) return;
-      this.settings.playlists = [...(this.settings.playlists ?? []), { name: name || 'Walk-in playlist', link }].slice(-10);
+      this.settings.playlists = [...(this.settings.playlists ?? []), { name: name || 'Pre-service playlist', link }].slice(-10);
       this.#saveSettings();
-      this.alert({ level: 'ok', source: 'music', message: `Saved "${name || 'Walk-in playlist'}".` });
+      this.alert({ level: 'ok', source: 'music', message: `Saved "${name || 'Pre-service playlist'}".` });
       return;
     }
     if (cmd.type === 'removePlaylist') {
@@ -520,16 +520,16 @@ export class Bridge {
     await this.music.command(action);
   }
 
-  /** One tap before the service: start the playlist (or resume) and fade the walk-in channel up. */
+  /** One tap before or after the service: start the playlist (or resume) and fade the music channel in. */
   async #walkinStart(index) {
     clearTimeout(this.pauseTimer);
     const pl = Number.isInteger(index) ? this.settings.playlists?.[index] : null;
     const ok = pl ? await this.music.command('playList', pl.link) : await this.music.command('play');
     this.#walkin('in');
-    if (!ok) this.alert({ level: 'warn', source: 'music', message: 'The walk-in channel is up, but the music player didn\'t start. Check Spotify on the Mac.' });
+    if (!ok) this.alert({ level: 'warn', source: 'music', message: 'The music channel is up, but the player didn\'t start. Check Spotify on the Mac.' });
   }
 
-  /** One tap when the service starts: fade the walk-in channel out, then pause the player. */
+  /** One tap when the service starts (or the room has emptied): fade the music channel out, then pause the player. */
   #walkinEnd() {
     clearTimeout(this.pauseTimer);
     this.#walkin('out');

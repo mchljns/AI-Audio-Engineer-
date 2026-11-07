@@ -52,7 +52,7 @@
           <button id="modeAuto" class="chip-btn">Automatic</button>
         </div>
         <div class="modes" id="modes">
-          <button class="mode" data-mode="walkin"><b>Walk-in</b><span>Music before the service</span></button>
+          <button class="mode" data-mode="walkin"><b>Before / after</b><span>Music before and after the service</span></button>
           <button class="mode" data-mode="worship"><b>Worship</b><span>Band and singers</span></button>
           <button class="mode" data-mode="talkover"><b>Talking over music</b><span>Announcements, prayer</span></button>
           <button class="mode" data-mode="speaking"><b>Speaking</b><span>Sermon</span></button>
@@ -66,7 +66,7 @@
       </section>
 
       <section class="auto-card walkin-card">
-        <h2>Walk-in music</h2>
+        <h2>Pre/post-service music</h2>
         <div class="now-playing">
           <div class="np-icon" aria-hidden="true">♪</div>
           <div class="np-text">
@@ -74,13 +74,13 @@
             <span id="npArtist" class="muted"></span>
           </div>
         </div>
-        <p id="walkinState" class="muted small">No walk-in channel found.</p>
+        <p id="walkinState" class="muted small">No music channel found.</p>
         <p id="musicWarn" class="music-warn" hidden></p>
         <label class="pl-label" for="plSelect">Playlist</label>
         <select id="plSelect"></select>
         <div class="row">
-          <button id="walkinStart" class="btn btn-big">Start walk-in</button>
-          <button id="walkinEnd" class="btn btn-big btn-ghost">End walk-in</button>
+          <button id="walkinStart" class="btn btn-big">Fade music in</button>
+          <button id="walkinEnd" class="btn btn-big btn-ghost">Fade music out</button>
         </div>
         <div class="transport" role="group" aria-label="Player">
           <button id="mPrev" class="btn btn-ghost" aria-label="Previous track">⏮</button>
@@ -90,7 +90,7 @@
         <details class="pl-add">
           <summary>Add a playlist</summary>
           <form id="plForm" class="pl-form">
-            <input id="plName" placeholder="Name, e.g. Sunday walk-in" maxlength="60" aria-label="Playlist name" />
+            <input id="plName" placeholder="Name, e.g. Sunday pre-service" maxlength="60" aria-label="Playlist name" />
             <input id="plLink" placeholder="Spotify: Share → Copy link to playlist" aria-label="Playlist link" />
             <button class="btn" type="submit">Save playlist</button>
           </form>

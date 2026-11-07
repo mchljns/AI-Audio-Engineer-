@@ -1,6 +1,6 @@
 # Church Mix Assistant
 
-An assistant for a Behringer XR18 at a small church. A small **bridge** program runs on the booth Mac (the one that already runs Prime and walk-in music). It talks to the mixer over the network, and volunteers use the **web app** from any iPad, phone or computer on the same network.
+An assistant for a Behringer XR18 at a small church. A small **bridge** program runs on the booth Mac (the one that already plays the pre- and post-service music). It talks to the mixer over the network, and volunteers use the **web app** from any iPad, phone or computer on the same network.
 
 It works alongside the Behringer X Air app, which stays available as a backup.
 
@@ -9,7 +9,7 @@ It works alongside the Behringer X Air app, which stays available as a backup.
 The app opens on the **Auto** screen. It listens to the channel meters and mixes the service by itself:
 
 - **Balances the speech mics.** Whoever is talking (pastor, announcements) stays up; the other speech mic comes down, so there's less hiss and less feedback. Between sentences the last talker stays up.
-- **Knows where the service is.** Walk-in → Worship → Talking over music → Speaking, worked out from which channels are making sound. Big buttons let a volunteer set the mode instead.
+- **Knows where the service is.** Before / after (pre- and post-service music) → Worship → Talking over music → Speaking, worked out from which channels are making sound. Big buttons let a volunteer set the mode instead.
 - **Turns the band and tracks down under talking** during announcements and prayer over music, and brings them back smoothly.
 - **Turns unused singer mics down in the room during the sermon** (after 20 seconds of speaking), and brings them back the moment music starts or someone talks into one.
 - **It never touches the in-ear mixes.** It only moves channel faders and never mutes, so with pre-fader aux sends (the XR18 setting for in-ears) the band's mixes don't change.
@@ -17,11 +17,11 @@ The app opens on the **Auto** screen. It listens to the channel meters and mixes
 
 A **Mixer** tab has the full console view for anything else.
 
-## Walk-in music from the iPad
+## Pre/post-service music from the iPad
 
-The Walk-in card controls **Spotify** on the booth Mac, so nobody has to touch the Mac on Sunday:
-- **Start walk-in**: plays the chosen playlist and fades the walk-in channel up.
-- **End walk-in**: fades the walk-in channel out, then pauses Spotify.
+The Pre/post-service music card controls **Spotify** on the booth Mac, so nobody has to touch the Mac on Sunday:
+- **Fade music in** (before the service, and again after it): plays the chosen playlist and fades the music channel up.
+- **Fade music out** (when the service starts, or once the room has emptied): fades the music channel out, then pauses Spotify.
 - Previous / play-pause / next, and what's playing now.
 - Save playlists once: in Spotify use **Share → Copy link to playlist**, then paste it under "Add a playlist".
 
@@ -40,7 +40,7 @@ See [docs/NETWORK.md](docs/NETWORK.md) for keeping Spotify working while the iPa
   - It watches for changes from any app or scene recall and undoes them within moments, with an alert.
   - **The lock is sticky.** If someone renames the Click channel, it stays protected and the volunteer is warned, until a person sets what the channel is now.
 - **Mute unused channels** with one tap. Only touches channels with no name and no signal, never click/guide. This helps the noise floor.
-- **Walk-in music.** Fade out smoothly when the service starts, and bring it back to its saved level afterwards. If someone grabs the fader during a fade, the fade stops and the person wins.
+- **Pre/post-service music.** Fades out smoothly when the service starts, and back in to its saved level after the service. If someone grabs the fader during a fade, the fade stops and the person wins.
 - **PIN for other devices.** iPads and phones enter a 4-digit PIN once (shown at the top of the app on the booth Mac). Five wrong tries locks that device out for a minute. The booth Mac itself never needs it.
 - **Console-style mixer view**: side-by-side channel strips with fader, meter, mute, main (LR) assign and a colour-coded name strip, plus the 4 DCA groups at the right. Faders move relative to your finger, so touching one never makes it jump. Tap a name strip to see what the app thinks the channel is, or to change it. The pre-service check and alerts fold away above the strips.
 - **Confirm a channel's role** when the name is unclear (e.g. "Sarah"). The answer is remembered, but only while the channel keeps that name. Rename it, and the app reads the new name again.
@@ -54,7 +54,7 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:8081. This runs a simulated XR18 with the church layout, playing a pretend service on a loop (walk-in, worship, announcements, sermon) so you can watch the auto-mix work. To watch the click lock work, run `npm run dev -- --chaos`: every 20 seconds the simulator pretends someone routed the click or guide into the house.
+Open http://localhost:8081. This runs a simulated XR18 with the church layout, playing a pretend service on a loop (pre-service music, worship, announcements, sermon, post-service music) so you can watch the auto-mix work. To watch the click lock work, run `npm run dev -- --chaos`: every 20 seconds the simulator pretends someone routed the click or guide into the house.
 
 ```bash
 npm test
@@ -96,7 +96,7 @@ Logs are in `~/MixAssistant/logs/bridge.log`. To remove Mix Assistant completely
 
 - **System Settings → Sound → Alert sounds:** play through the Mac's built-in speakers, not the XR18. Otherwise notification dings go through the PA.
 - Turn on **Do Not Disturb** during services.
-- In **Audio MIDI Setup**, make sure the Mac's default output (Music/Spotify) goes to the XR18 USB channels that feed your walk-in channel, not a track, click or guide channel.
+- In **Audio MIDI Setup**, make sure the Mac's default output (Music/Spotify) goes to the XR18 USB channels that feed your pre/post-service music-in channel, not a track, click or guide channel.
 
 ### Name your channels
 
@@ -108,7 +108,7 @@ The app reads names from the mixer, so consistent names make it work best. Sugge
 | 2 | Announce | | 12–14 | (spare) |
 | 3–5 | Vox 1, Vox 2, Vox 3 | | 15 | **Click** |
 | 6 | Ac Gtr (NUX) | | 16 | **Guide** |
-| 7–8 | Keys L, Keys R | | Aux 17/18 | Walk-in |
+| 7–8 | Keys L, Keys R | | Aux 17/18 | Spotify |
 
 ## First test on the real mixer (midweek, not Sunday)
 
@@ -120,7 +120,7 @@ Keep the X Air app open as a backup.
 4. In the X Air app, raise the click's send to FX1. Same result expected.
 5. Check that every in-ear aux send is **pre-fader** in the X Air app. Then move a singer's channel fader: their in-ear mix must not change. (The auto-mix relies on this to leave the in-ears alone.)
 6. On an iPad, open the app, enter the PIN, and move a fader. Check the X Air app shows the same move.
-7. Save a walk-in playlist and try **Start walk-in** and **End walk-in** from an iPad. The first time, allow "node" to control Spotify when macOS asks.
+7. Save a pre-service playlist and try **Fade music in** and **Fade music out** from an iPad. The first time, allow "node" to control Spotify when macOS asks.
    Then, on the Auto screen, have someone talk on the pastor's mic, then the announcement mic: the other one should come down. Move a channel fader up and down: does its meter move with it? If it does, tell me (the meters are post-fader, and one setting needs changing).
 8. Note anything that looks wrong and send screenshots plus `~/MixAssistant/logs/bridge.log`.
 

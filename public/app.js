@@ -346,9 +346,9 @@ function render(s) {
     const fading = s.walkin.some((w) => w.fading);
     const on = s.walkin.some((w) => w.on);
     const sound = s.walkin.some((w) => s.inventory.rows.find((r) => r.id === w.id)?.signal);
-    $('#walkinState').textContent = fading ? 'Walk-in channel: fading…' : !on ? 'Walk-in channel: off.' : sound ? 'Walk-in channel: playing in the room.' : 'Walk-in channel is up, but no music is reaching the mixer. Check the Mac\'s sound output.';
+    $('#walkinState').textContent = fading ? 'Music channel: fading…' : !on ? 'Music channel: off.' : sound ? 'Music channel: playing in the room.' : 'Music channel is up, but no music is reaching the mixer. Check the Mac\'s sound output.';
   } else {
-    $('#walkinState').textContent = 'No walk-in channel found. Name a channel "Walk-in" in the X Air app.';
+    $('#walkinState').textContent = 'No music channel found. Name the Spotify channel "Spotify" or "Pre/Post" in the X Air app.';
   }
   renderMusic(s);
 
@@ -371,7 +371,7 @@ $('#unusedDialog').addEventListener('close', () => {
 });
 
 // ---------- Auto view ----------
-const MODE_LABEL = { walkin: 'Walk-in', worship: 'Worship', talkover: 'Talking over music', speaking: 'Speaking', idle: 'Quiet' };
+const MODE_LABEL = { walkin: 'Before / after', worship: 'Worship', talkover: 'Talking over music', speaking: 'Speaking', idle: 'Quiet' };
 function renderAuto(a) {
   for (const b of document.querySelectorAll('.mode')) {
     const m = b.dataset.mode;
@@ -452,7 +452,7 @@ function renderMusic(s) {
     $('#npArtist').textContent = '';
   } else if (!m.running) {
     $('#npTrack').textContent = `${m.label} isn't open`;
-    $('#npArtist').textContent = 'Start walk-in opens it';
+    $('#npArtist').textContent = '"Fade music in" opens it';
   } else {
     $('#npTrack').textContent = m.track || (m.playing ? 'Playing' : 'Paused');
     $('#npArtist').textContent = [m.artist, m.playing ? '' : 'paused'].filter(Boolean).join(' · ');

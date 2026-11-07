@@ -6,9 +6,9 @@
 
 Everything runs on the mixer's own network, with no dependence on church Wi-Fi.
 
-1. **During the week, at home or the office:** in Spotify on the booth Mac, open each walk-in playlist and switch on **Download** (needs Spotify Premium). Wait until every song shows the green download arrow.
+1. **During the week, at home or the office:** in Spotify on the booth Mac, open each pre/post-service playlist and switch on **Download** (needs Spotify Premium). Wait until every song shows the green download arrow.
 2. **On Sunday:** join the Mac and the iPads to the XR18's Wi-Fi. Open the app on the iPads at the address shown in the blue badge on the Mac.
-3. Start walk-in from the iPad. Downloaded songs play without internet. The app shows a note on the player when the Mac is offline, as a reminder that only downloaded playlists will play.
+3. Tap **Fade music in** on the iPad. Downloaded songs play without internet. The app shows a note on the player when the Mac is offline, as a reminder that only downloaded playlists will play.
 
 Things to know:
 - Spotify needs the Mac to go online at least **once every 30 days** to keep downloads playable. Connecting it to any Wi-Fi during the week does this.
@@ -23,7 +23,7 @@ Set the Mac to use the cable for internet: **System Settings → Network → ⋯
 
 ## Option 3: Mac on the XR18's Wi-Fi, internet from an iPhone over its cable
 
-Same as Option 2, using a phone you already have: connect an iPhone to the Mac with its charging cable and turn on **Personal Hotspot** on the phone. Then, in Set Service Order, drag **iPhone USB** above Wi-Fi. Uses the phone's data plan; walk-in music is roughly 50–150 MB an hour.
+Same as Option 2, using a phone you already have: connect an iPhone to the Mac with its charging cable and turn on **Personal Hotspot** on the phone. Then, in Set Service Order, drag **iPhone USB** above Wi-Fi. Uses the phone's data plan; music is roughly 50–150 MB an hour.
 
 ## Option 4: everything on the church Wi-Fi (no mixer Wi-Fi)
 

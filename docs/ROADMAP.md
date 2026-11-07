@@ -2,14 +2,14 @@
 
 Priorities: **ease of use** and **auto-mixing**, no new hardware, Spotify stays on Wi-Fi.
 
-Built for this system: XR18 → PRX ONE (both mains, summed) → pass-thru → Passport fill; 4 Phenyx Pro PTU-7000 mics + Shure BLX14R earset; NUX acoustic, stereo keys, tracks, click and guide on their own channels; 4 in-ear mixes on aux 1–4 through two PTM-10s; walk-in music from Spotify on the booth Mac.
+Built for this system: XR18 → PRX ONE (both mains, summed) → pass-thru → Passport fill; 4 Phenyx Pro PTU-7000 mics + Shure BLX14R earset; NUX acoustic, stereo keys, tracks, click and guide on their own channels; 4 in-ear mixes on aux 1–4 through two PTM-10s; pre- and post-service music from Spotify on the booth Mac.
 
 ## Done
 
-- **0.1–0.2 Foundation and hardening:** mixer link, channel inventory, click & guide lock (main L/R, FX, protected buses, sticky), mute unused, walk-in fades, console view, PIN, background service, stable channel.
+- **0.1–0.2 Foundation and hardening:** mixer link, channel inventory, click & guide lock (main L/R, FX, protected buses, sticky), mute unused, music fades, console view, PIN, background service, stable channel.
 - **0.3 Auto-mix:** speech gain sharing, automatic service modes, music ducked under talking, singer mics muted during the sermon, Auto screen. Fixes from an independent review.
-- **0.4 Walk-in player:** Spotify (or Apple Music) on the Mac controlled from the iPad: Start walk-in (play + fade up), End walk-in (fade out + pause), transport, saved playlists, offline warning. Network guide for iPads on the mixer's Wi-Fi.
-- **0.3.x Fitted to this system:** mono-PA pan check, PRX ONE / Passport / vocal / wireless / in-ear setup guide. Singer mics are no longer muted while someone talks on them (worship leader praying after the sermon); walk-in music ducks under a welcome.
+- **0.4 Pre/post-service music player:** Spotify (or Apple Music) on the Mac controlled from the iPad: Fade music in (play + fade up), Fade music out (fade out + pause), transport, saved playlists, offline warning. Network guide for iPads on the mixer's Wi-Fi. (0.4.1: "walk-in" renamed to pre/post-service music.)
+- **0.3.x Fitted to this system:** mono-PA pan check, PRX ONE / Passport / vocal / wireless / in-ear setup guide. Singer mics are no longer muted while someone talks on them (worship leader praying after the sermon); pre/post-service music ducks under a welcome.
 
 ## Next, in order
 

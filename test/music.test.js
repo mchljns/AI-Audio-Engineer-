@@ -69,7 +69,7 @@ test('walk-in: one tap starts the playlist and fades up; one tap fades out and p
     bridge.stop();
     sim.stop();
   });
-  await until(() => bridge.status.connected && bridge.state.strips.aux.name === 'Walk-in');
+  await until(() => bridge.status.connected && bridge.state.strips.aux.name === 'Spotify');
   await wait(600);
 
   bridge.handleCommand({ type: 'addPlaylist', name: 'Bad', link: 'not a link' });

@@ -55,7 +55,7 @@ test('channel names are recognised', () => {
     'Ac Gtr': 'acoustic', AG: 'acoustic',
     'Keys L': 'keys', Piano: 'keys',
     'Trk 1': 'track', Tracks: 'track', Pads: 'track',
-    'Walk-in': 'walkin', 'Pre Service': 'walkin', Spotify: 'walkin',
+    'Walk-in': 'walkin', 'Pre Service': 'walkin', Spotify: 'walkin', 'Pre/Post': 'walkin', 'Post Service': 'walkin',
     Sarah: 'unknown',
     '': 'none', Ch01: 'none', 'CH 12': 'none',
   };

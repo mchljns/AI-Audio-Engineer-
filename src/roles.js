@@ -13,7 +13,7 @@ export const ROLES = {
   track: { label: 'Track (Prime stem)', group: 'tracks' },
   click: { label: 'Click', group: 'locked' },
   guide: { label: 'Guide / cues', group: 'locked' },
-  walkin: { label: 'Walk-in / pre-service music', group: 'playback' },
+  walkin: { label: 'Pre/post-service music', group: 'playback' },
   room: { label: 'Room / ambient mic', group: 'other' },
   unknown: { label: 'Unknown — please confirm', group: 'other' },
   none: { label: 'Unlabeled', group: 'other' },
@@ -26,7 +26,7 @@ export const LOCKED_ROLES = new Set(['click', 'guide']);
 const RULES = [
   ['click', /\b(click|clk|metro|metronome)\b/],
   ['guide', /\b(guide|gd|cues?)\b/],
-  ['walkin', /\b(walk ?in|pre ?service|preservice|bgm|spotify|playback|house music|music)\b/],
+  ['walkin', /\b(walk ?in|pre ?service|preservice|post ?service|postservice|pre ?post|pps|bgm|spotify|playback|house music|music)\b/],
   ['track', /\b(trk|tracks?|stems?|prime|loops?|mt|multitracks?|pads?)\b/],
   ['pastor', /\b(pastor|pstr|ptr|preach|preacher|sermon|pulpit|rev)\b/],
   ['speech', /\b(announce|announcements?|ann|podium|lectern|host|mc|speech|talk|wl)\b/],
