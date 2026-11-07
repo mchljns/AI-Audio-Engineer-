@@ -418,7 +418,8 @@ function renderAuto(a) {
     $('#mixNow').replaceChildren(...items);
     $('#setMixNow').replaceChildren(el('span', { class: 'mix-dot' }), ...now.slice(0, 3).map((t) => el('span', { text: t })));
   }
-  for (const b of document.querySelectorAll('#rideSeg .seg-btn')) b.classList.toggle('active', b.dataset.ride === (a.settings.ride ?? 'normal'));
+  $('#optFeedback').addEventListener('change', (e) => send({ type: 'options', catchFeedback: e.target.checked }));
+for (const b of document.querySelectorAll('#rideSeg .seg-btn')) b.classList.toggle('active', b.dataset.ride === (a.settings.ride ?? 'normal'));
 
   const lines = [];
   for (const c of a.channels) {
@@ -442,6 +443,7 @@ function renderAuto(a) {
   set('#optDuck', a.settings.duckMusic);
   set('#optSingers', a.settings.muteSingersWhenSpeaking);
   set('#optModes', a.settings.autoModes);
+  if (document.activeElement !== $('#optFeedback')) $('#optFeedback').checked = latest?.options?.catchFeedback !== false;
 }
 for (const b of document.querySelectorAll('#rideSeg .seg-btn')) b.addEventListener('click', () => send({ type: 'automix', settings: { ride: b.dataset.ride } }));
 for (const b of document.querySelectorAll('.mode')) b.addEventListener('click', () => send({ type: 'setMode', mode: b.dataset.mode }));

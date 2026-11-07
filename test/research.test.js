@@ -184,3 +184,48 @@ test('bass weeks on the mixer: keys low cut raised between songs, put back exact
   assert.ok(Math.abs(hz(sim.state.get('/ch/08/preamp/hpf').value) - 120) < 0.5, 'both sides');
   assert.match(bridge.snapshot().automix.now.join(' '), /Bass playing/);
 });
+
+test('feedback catcher: a ring is caught, the right mic comes down 3 dB and gets a narrow cut; music is left alone', async (t) => {
+  const { FeedbackDetector, bandHz } = await import('../src/feedback.js');
+  const spec = () => Array.from({ length: 100 }, (_, b) => -50 - b * 0.15 + (Math.random() - 0.5) * 6);
+  const d = new FeedbackDetector();
+  let hit = null;
+  let tt = 0;
+  for (let k = 0; k < 60; k++) {
+    const v = spec();
+    const L = Math.min(-10, -35 + k);
+    v[44] = L; // a sung note getting louder, with harmonics
+    v[54] = L - 4;
+    v[60] = L - 8;
+    hit = d.feed(v, (tt += 50)) ?? hit;
+  }
+  assert.equal(hit, null, 'a growing sung note is not feedback');
+  assert.ok(Math.abs(bandHz(69) - 2466) < 1);
+
+  const { XR18Simulator } = await import('../src/simulator/xr18-sim.js');
+  const { Bridge } = await import('../src/bridge.js');
+  const port = 20000 + Math.floor(Math.random() * 20000);
+  const sim = await new XR18Simulator({ port }).start();
+  const bridge = await new Bridge({
+    mixerHost: '127.0.0.1', mixerPort: port, httpPort: 0, walkinFadeSeconds: 1,
+    dataDir: fs.mkdtempSync(path.join(os.tmpdir(), 'mix-')), keepAwake: false, pin: false, trustLocalhost: true, protectedBuses: null,
+  }).start();
+  t.after(() => {
+    bridge.stop();
+    sim.stop();
+  });
+  await new Promise((r) => setTimeout(r, 3000));
+  const before = bridge.automix.ch.get('1')?.offsetDb ?? 0;
+  sim.ring = { hz: 2500, ch: '1', since: Date.now() };
+  for (let i = 0; i < 70 && !bridge.autoNotches?.get('1'); i++) await new Promise((r) => setTimeout(r, 150));
+  sim.ring = null;
+  const notch = bridge.autoNotches?.get('1')?.[0];
+  assert.ok(notch, 'cut added on the pastor');
+  assert.ok(Math.abs(notch.hz - 2466) < 30 && notch.db === -4);
+  await new Promise((r) => setTimeout(r, 600));
+  const g = sim.state.get(`/ch/01/eq/${notch.band}/g`).value;
+  assert.ok(Math.abs(g - 11 / 30) < 1e-6, '−4 dB on the mixer');
+  assert.ok((bridge.automix.ch.get('1')?.offsetDb ?? 0) < before - 1, 'pastor pulled down');
+  assert.match(bridge.snapshot().automix.now.join(' '), /Caught feedback at 2.5 kHz on Pastor/);
+  assert.ok(bridge.automix.ride.blocked.get('1') > Date.now(), 'no riding boost on it for a minute');
+});

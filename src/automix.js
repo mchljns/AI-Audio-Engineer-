@@ -172,6 +172,16 @@ export class AutoMix extends EventEmitter {
     );
   }
 
+  /**
+   * Feedback caught on a mic: pull it down for a short while and give it no vocal-riding boost
+   * for a minute.
+   */
+  feedbackPull(id, db = -3, ms = 10000, now = Date.now()) {
+    this.fbPull ??= new Map();
+    this.fbPull.set(String(id), { db, until: now + ms });
+    this.ride.blocked.set(String(id), now + 60000);
+  }
+
   /** The song section ProPresenter shows: 'light' (verse, intro…), 'full' (chorus, bridge…) or null. */
   setSection(kind, name = null) {
     this.section = kind === 'light' || kind === 'full' ? { kind, name } : null;
@@ -281,6 +291,14 @@ export class AutoMix extends EventEmitter {
           }
         }
       } else if (this.mode !== 'speaking' && this.pulled.size) this.#restoreSingers();
+    }
+
+    // Feedback pulls on top of everything else, for their few seconds.
+    if (this.fbPull?.size) {
+      for (const [id, p] of this.fbPull) {
+        if (now > p.until) this.fbPull.delete(id);
+        else if (this.ch.has(id)) this.ch.get(id).targetDb = Math.min(this.ch.get(id).targetDb, (this.ch.get(id).targetDb ?? 0) + p.db);
+      }
     }
 
     // Move faders toward their targets

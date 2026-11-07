@@ -31,6 +31,7 @@ import { TempoDetector, TEMPO_SOURCES } from './tempo.js';
 import { FxDesk, REVERB_TWEAKS } from './fxsetup.js';
 import { channelName } from './naming.js';
 import { BassWatch, BASS_LOW_CUT } from './basswatch.js';
+import { FeedbackDetector } from './feedback.js';
 import { ToneDesk, applyPops, applyGain, applyFix, applyComp, applyGate, freshModel, toneToSave, describeTone, FIXES, COMP_PRESETS } from './tone.js';
 import { CONNECTION_MODES, chooseMixer, hardwarePorts, kindLabel, pathTo } from './netpath.js';
 import { ROLES, LOCKED_ROLES } from './roles.js';
@@ -353,12 +354,15 @@ export class Bridge {
     });
 
     this.client.on('message', (msg) => this.state.apply(msg));
+    this.state.removeAllListeners('rta');
+    this.state.on('rta', (values, now) => this.#onRta(values, now));
     this.state.on('meters', () => {
       if (this.automix.enabled) {
         try {
           this.automix.tick();
           this.#listenForTempo();
           this.#watchBass();
+          this.#trackOpenMics();
           const am = this.automix;
           const talkers = (am.lastGroups?.vocal ?? []).filter((id) => Date.now() - (am.ch.get(id)?.lastActive ?? 0) < 400);
           this.effects?.tick({ mode: am.mode, activity: am.activity, talkers });
@@ -486,6 +490,7 @@ export class Bridge {
     }
     if (cmd.type === 'options') {
       if (typeof cmd.nameChannels === 'boolean') this.settings.nameChannels = cmd.nameChannels;
+      if (typeof cmd.catchFeedback === 'boolean') this.settings.catchFeedback = cmd.catchFeedback;
       this.#saveSettings();
       return;
     }
@@ -934,6 +939,108 @@ export class Bridge {
         this.alert({ level: 'info', source: 'effects', message: `Mix Assistant no longer changes FX${fx}'s settings. It stays as it is now.` });
         return;
       default:
+    }
+  }
+
+  // ---------- feedback catcher ----------
+
+  /** The last second of each speech and vocal mic's level, to tell which one is ringing. */
+  #trackOpenMics() {
+    this.micHist ??= new Map();
+    const now = Date.now();
+    const g = this.automix?.lastGroups;
+    for (const id of [...(g?.speech ?? []), ...(g?.vocal ?? [])]) {
+      const h = (this.micHist.get(id) ?? []).filter((x) => now - x.t <= 4000);
+      h.push({ t: now, db: this.state.strips[id]?.levelDb ?? -128 });
+      this.micHist.set(id, h);
+    }
+    this.#liftNotches(now);
+  }
+
+  #onRta(values, now = Date.now()) {
+    if (this.settings.catchFeedback === false || !this.status.connected || !this.tone) return;
+    this.fbDetector ??= new FeedbackDetector();
+    const hit = this.fbDetector.feed(values, now);
+    if (!hit || now - (this.fbLast ?? 0) < 3000) return;
+    this.fbLast = now;
+    this.fbDetector.reset();
+    this.#handleFeedback(hit, now).catch((e) => console.error('Feedback catcher:', e.message));
+  }
+
+  async #handleFeedback(hit, now) {
+    const am = this.automix;
+    const g = am?.lastGroups ?? { speech: [], vocal: [] };
+    const open = [...g.speech, ...g.vocal].filter((id) => this.state.strips[id]?.on && this.state.strips[id]?.fader > 0 && !am.pulled.has(id));
+    // The mic whose level jumped well above its own recent level with the ring. If no single mic
+    // stands out yet (the ring is still under their normal sound), pull every open mic 3 dB, which
+    // helps whichever it is; if it keeps ringing, the next catch will show which one.
+    // Feedback on a mic: its level is now well above where it was a few seconds ago, and steady
+    // (no gaps between syllables, as speech and singing have).
+    const med = (xs) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)];
+    const jump = (id) => {
+      const h = this.micHist?.get(id) ?? [];
+      const recent = h.filter((x) => now - x.t <= 500).map((x) => x.db);
+      const before = h.filter((x) => now - x.t >= 1500 && now - x.t <= 3500).map((x) => x.db);
+      if (recent.length < 3 || before.length < 3) return 0;
+      if (Math.max(...recent) - Math.min(...recent) > 4) return 0;
+      return med(recent) - med(before);
+    };
+    const ranked = [...open].sort((a, b) => jump(b) - jump(a));
+    const clear = ranked[0] && jump(ranked[0]) >= 6 && jump(ranked[0]) - (ranked[1] ? jump(ranked[1]) : -99) >= 4;
+    const at0 = hit.hz >= 1000 ? `${(hit.hz / 1000).toFixed(1)} kHz` : `${hit.hz} Hz`;
+    if (!clear) {
+      for (const m of open) am.feedbackPull(m, -3, 10000, now);
+      this.fbNote = { text: `Caught feedback at ${at0}: all open mics down 3 dB while it finds which one`, until: now + 30000 };
+      this.alert({ level: 'warn', source: 'feedback', message: `${this.fbNote.text}.` });
+      return;
+    }
+    const id = ranked[0];
+    am.feedbackPull(id, -3, 10000, now);
+    const who = this.library.songContext().names[id] || this.state.strips[id]?.name || `Ch ${id}`;
+    const at = hit.hz >= 1000 ? `${(hit.hz / 1000).toFixed(1)} kHz` : `${hit.hz} Hz`;
+    let cut = null;
+    if (/^([1-9]|1[0-6])$/.test(id)) {
+      const model = this.tone.model(id) ?? (await this.tone.read(id));
+      if (model) {
+        this.autoNotches ??= new Map();
+        const list = this.autoNotches.get(id) ?? [];
+        const same = list.find((n) => Math.abs(Math.log2(n.hz / hit.hz)) < 1 / 6);
+        let band;
+        let db;
+        if (same) {
+          band = same.band;
+          db = Math.max(-8, same.db - 2);
+        } else if (list.length < 3) {
+          band = [3, 2, 4, 1].find((b) => Math.abs(model[`b${b}`]?.db ?? 0) < 0.5 && !list.some((n) => n.band === b));
+          db = -4;
+        }
+        if (band) {
+          const next = { ...model, eqOn: true, [`b${band}`]: { type: 2, hz: same?.hz ?? hit.hz, q: 8, db } };
+          this.tone.write([id], next, `Feedback at ${at}: narrow cut ${db} dB`);
+          const entry = { band, hz: same?.hz ?? hit.hz, db, at: now, lifted: now };
+          this.autoNotches.set(id, [...list.filter((n) => n !== same), entry]);
+          cut = `${db} dB narrow cut at ${at}`;
+        }
+      }
+    }
+    this.fbNote = { text: `Caught feedback at ${at} on ${who}: pulled down 3 dB${cut ? ` and added a ${cut}` : ' (no free EQ band for a cut)'}`, until: now + 30000 };
+    this.alert({ level: 'warn', source: 'feedback', message: `${this.fbNote.text}. If it keeps happening, move the mic away from the speakers or turn it down.` });
+  }
+
+  /** A cut not needed for 5 minutes comes up 1 dB a minute, and is gone when it reaches 0 dB. */
+  #liftNotches(now) {
+    if (!this.autoNotches?.size || now - (this.fbLiftCheck ?? 0) < 5000) return;
+    this.fbLiftCheck = now;
+    for (const [id, list] of this.autoNotches) {
+      for (const n of list) {
+        if (now - n.at < 5 * 60000 || now - n.lifted < 60000) continue;
+        const model = this.tone.model(id);
+        if (!model) continue;
+        n.db = Math.min(0, n.db + 1);
+        n.lifted = now;
+        this.tone.write([id], { ...model, [`b${n.band}`]: { ...model[`b${n.band}`], db: n.db } }, n.db === 0 ? 'Feedback cut no longer needed: removed' : `Feedback cut lifted to ${n.db} dB`);
+      }
+      this.autoNotches.set(id, list.filter((n) => n.db < 0));
     }
   }
 
@@ -1436,9 +1543,9 @@ export class Bridge {
       unusedReady: this.state.settled(UNUSED_SETTLE_MS),
       unused: this.state.settled(UNUSED_SETTLE_MS) ? this.#unusedRows().map((r) => ({ id: r.id, label: r.label })) : [],
       clickGuard: this.guard ? this.guard.status() : { locked: [], allSafe: true, unsure: [], protectedBuses: [], buses: [] },
-      automix: this.automix ? { ...this.automix.status(), now: [...this.automix.describe(), ...(this.bass?.present ? ['Bass playing: keys and acoustic low end thinned'] : []), ...(this.effects?.describe(this.library.songContext().names) ?? [])].sort((x, y) => Number(/^Song mix on/.test(x)) - Number(/^Song mix on/.test(y))) } : null,
+      automix: this.automix ? { ...this.automix.status(), now: [...(this.fbNote && Date.now() < this.fbNote.until ? [this.fbNote.text] : []), ...this.automix.describe(), ...(this.bass?.present ? ['Bass playing: keys and acoustic low end thinned'] : []), ...(this.effects?.describe(this.library.songContext().names) ?? [])].sort((x, y) => Number(/^Song mix on/.test(x)) - Number(/^Song mix on/.test(y))) } : null,
       effects: this.effects ? { ...this.effects.status(), ask: this.fxAsk ?? null, note: this.fxNote ?? null, tweaks: Object.entries(REVERB_TWEAKS).map(([id, t]) => ({ id, label: t.label })) } : null,
-      options: { nameChannels: this.settings.nameChannels !== false },
+      options: { nameChannels: this.settings.nameChannels !== false, catchFeedback: this.settings.catchFeedback !== false },
       tempo: this.tempo?.result ? { ...this.tempo.result, label: TEMPO_SOURCES[this.tempo.result.source] } : null,
       dcas: Object.values(this.state.dcas),
       walkin: this.#walkinStrips().map((id) => ({ id, fading: !!this.fades?.isFading(id), on: this.state.strips[id].on })),

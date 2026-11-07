@@ -125,6 +125,7 @@ export class XAirClient extends EventEmitter {
   #keepalive() {
     this.send('/xremote'); // push parameter changes made from any other app
     this.send('/meters', [{ type: 's', value: '/meters/1' }]); // stream input meters
+    this.send('/meters', [{ type: 's', value: '/meters/4' }]); // stream the 100-band analyzer (feedback catcher)
   }
 
   #heartbeat() {

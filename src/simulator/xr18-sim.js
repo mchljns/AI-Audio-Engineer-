@@ -143,6 +143,8 @@ export class XR18Simulator {
     this.state = initialState();
     this.remoteSubs = new Map(); // "addr:port" -> expiry
     this.meterSubs = new Map();
+    this.rtaSubs = new Map();
+    this.ring = null; // tests: { hz, ch, since } — a mic starting to feed back
     this.forced = new Map(); // tests: channel -> dB, e.g. someone singing into a pack
     this.timers = [];
   }
@@ -156,7 +158,17 @@ export class XR18Simulator {
       setInterval(() => {
         const t = Date.now() - t0;
         const values = [];
-        for (let i = 1; i <= 16; i++) values.push(this.forced.has(String(i)) ? this.forced.get(String(i)) + (Math.random() - 0.5) * 3 : meterLevel(String(i), t, this.scenario));
+        // A ringing mic climbs ~1.2 dB per frame, up to near full scale.
+        const ringDb = this.ring ? Math.min(-6, -40 + ((Date.now() - this.ring.since) / 50) * 1.2) : null;
+        for (let i = 1; i <= 16; i++) {
+          if (this.ring && String(i) === String(this.ring.ch)) values.push(Math.max(meterLevel(String(i), t, this.scenario), ringDb));
+          else values.push(this.forced.has(String(i)) ? this.forced.get(String(i)) + (Math.random() - 0.5) * 3 : meterLevel(String(i), t, this.scenario));
+        }
+        // The analyzer: a music-like spectrum, plus the ring as one narrow peak.
+        const rta = [];
+        for (let b = 0; b < 100; b++) rta.push(-50 - b * 0.15 + (Math.random() - 0.5) * 6 + (b % 7 === 3 ? 6 : 0));
+        if (this.ring) rta[Math.round((99 * Math.log(this.ring.hz / 20)) / Math.log(1000))] = ringDb;
+        this.#broadcast(this.rtaSubs, encodeMessage('/meters/4', [encodeMeterBlob(rta)]));
         const aux = meterLevel('aux', t, this.scenario);
         values.push(aux, aux);
         while (values.length < 40) values.push(-128);
@@ -212,7 +224,8 @@ export class XR18Simulator {
       return;
     }
     if (msg.address === '/meters') {
-      this.meterSubs.set(key, Date.now() + SUB_TTL_MS);
+      if (msg.args[0]?.value === '/meters/4') this.rtaSubs.set(key, Date.now() + SUB_TTL_MS);
+      else this.meterSubs.set(key, Date.now() + SUB_TTL_MS);
       return;
     }
     if (!this.state.has(msg.address)) return; // unknown address: real mixer ignores it too

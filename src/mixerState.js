@@ -40,6 +40,12 @@ export class MixerState extends EventEmitter {
 
   /** Apply one OSC message. Returns true if it changed tracked state. */
   apply(msg, now = Date.now()) {
+    if (msg.address === '/meters/4') {
+      // The 100-band analyzer (RTA): dB per band, low to high.
+      const blob = msg.args[0]?.value;
+      if (Buffer.isBuffer(blob)) this.emit('rta', decodeMeterBlob(blob), now);
+      return false;
+    }
     if (msg.address === '/meters/1') {
       const blob = msg.args[0]?.value;
       if (Buffer.isBuffer(blob)) this.applyMeters(metersToStrips(decodeMeterBlob(blob)), now);
