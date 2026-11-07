@@ -8,7 +8,7 @@
 import dgram from 'node:dgram';
 import { pathToFileURL } from 'node:url';
 import { encodeMessage, decodeMessage } from '../osc.js';
-import { OSC_PORT, STRIP_IDS, DCA_COUNT, paths, fxSendBuses, encodeMeterBlob } from '../xair/addresses.js';
+import { OSC_PORT, STRIP_IDS, DCA_COUNT, AUX_BUSES, paths, fxSendBuses, encodeMeterBlob } from '../xair/addresses.js';
 import { dbToFloat } from '../xair/faderLaw.js';
 
 const SUB_TTL_MS = 10000;
@@ -32,6 +32,8 @@ const LAYOUT = {
   aux: { name: 'Walk-in', pattern: 'steady', db: -14 },
 };
 
+const BUS_NAMES = ['Keys IEM', 'Gtr IEM', 'Lead IEM', 'BGV IEM', 'Pastor Wedge', 'Stream'];
+
 function initialState() {
   const st = new Map();
   for (const id of STRIP_IDS) {
@@ -45,7 +47,10 @@ function initialState() {
     st.set(paths.dcaGroups(id), { type: 'i', value: 0 });
     st.set(paths.muteGroups(id), { type: 'i', value: 0 });
     for (const b of fxSendBuses) st.set(paths.send(id, b), { type: 'f', value: 0 });
+    // Click and guide feed the keys and guitar in-ears (aux 1-2), as they should.
+    for (const b of AUX_BUSES) st.set(paths.send(id, b), { type: 'f', value: isLocked && b <= 2 ? dbToFloat(-5) : 0 });
   }
+  BUS_NAMES.forEach((name, i) => st.set(paths.busName(i + 1), { type: 's', value: name }));
   for (let n = 1; n <= DCA_COUNT; n++) {
     st.set(paths.dcaName(n), { type: 's', value: ['Speech', 'Vocals', 'Band', 'Tracks'][n - 1] });
     st.set(paths.dcaFader(n), { type: 'f', value: dbToFloat(0) });
@@ -100,15 +105,14 @@ export class XR18Simulator {
       }, 50),
     );
     if (this.chaos) {
-      // Every 20 s pretend someone on another iPad routes the click to the house or to reverb.
-      let flip = false;
-      this.timers.push(
-        setInterval(() => {
-          flip = !flip;
-          if (flip) this.externalChange(paths.lr('15'), { type: 'i', value: 1 });
-          else this.externalChange(paths.send('16', fxSendBuses[0]), { type: 'f', value: 0.6 });
-        }, 20000),
-      );
+      // Every 20 s pretend someone on another iPad routes the click or guide somewhere it shouldn't go.
+      const mischief = [
+        () => this.externalChange(paths.lr('15'), { type: 'i', value: 1 }),
+        () => this.externalChange(paths.send('16', fxSendBuses[0]), { type: 'f', value: 0.6 }),
+        () => this.externalChange(paths.send('15', 6), { type: 'f', value: 0.5 }),
+      ];
+      let i = 0;
+      this.timers.push(setInterval(() => mischief[i++ % mischief.length](), 20000));
     }
     if (this.log) console.log(`XR18 simulator listening on ${this.host}:${this.port}${this.chaos ? ' (chaos mode)' : ''}`);
     return this;

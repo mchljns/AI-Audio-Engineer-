@@ -24,6 +24,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html, body { height: 100%; }
 body {
   margin: 0;
@@ -56,6 +57,7 @@ body {
 .pill-ok { background: rgba(60, 207, 122, 0.15); color: var(--ok); }
 .pill-warn { background: rgba(242, 179, 61, 0.15); color: var(--warn); }
 .pill-danger { background: rgba(255, 77, 77, 0.2); color: var(--danger); }
+.pill-info { background: rgba(90, 169, 255, 0.14); color: var(--accent); user-select: text; -webkit-user-select: text; }
 .muted { color: var(--muted); }
 .small { font-size: 12px; }
 
@@ -269,3 +271,38 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.6); }
   .topbar .brand { display: none; }
   .scale { display: none; }
 }
+
+/* ---------- PIN screen ---------- */
+.auth {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(8, 10, 13, 0.92);
+}
+.auth-card {
+  width: min(360px, 100%);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  padding: 24px;
+  border-radius: 14px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+}
+.auth-card > * { min-width: 0; }
+.auth-card h2 { margin: 0; }
+.auth-card input {
+  font: 700 28px/1 ui-monospace, Menlo, monospace;
+  letter-spacing: 0.3em;
+  text-align: center;
+  width: 100%;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--text);
+}
+.auth-msg { margin: 0; min-height: 1.2em; color: var(--warn); }

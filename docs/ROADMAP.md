@@ -1,7 +1,10 @@
 # Roadmap
 
-## Step 1: Foundation ✅ (this version)
-Mixer connection, channel inventory, click & guide lock, mute unused, walk-in fades, basic mixer view.
+## Step 1: Foundation ✅
+Mixer connection, channel inventory, click & guide lock, mute unused, walk-in fades, console-style mixer view.
+
+## Step 1.5: Hardening ✅ (0.2.0)
+Sticky click/guide lock and protected monitor buses, PIN for other devices, mixer search on every network, background service, stable release channel, network-blocked detection. See QA.md.
 
 **Still to verify on real hardware:** meter data layout (`/meters/1`), the address used for channel FX sends (`/ch/NN/mix/07..10/level`), and whether the XR18 echoes our own changes back. The simulator follows the community-documented X Air protocol; the first midweek test confirms it.
 
@@ -9,7 +12,8 @@ Mixer connection, channel inventory, click & guide lock, mute unused, walk-in fa
 - Modes: Walk-in, Worship, Speech over music (announcements/prayer), Sermon
 - Automatic mode detection from which mics are active, with a big manual override
 - Speech automix for pastor + announcements mics
-- Ducking the Band and Tracks DCAs under speech (smooth, plus EQ carve around 1–4 kHz), with the XR18's built-in duck mode as a backup
+- Ducking under speech done **by the mixer** (the XR18's built-in duck mode on band/track channels, keyed from the speech mics). The app sets it up and tunes it; it never holds the ducked state itself, so nothing is left stuck if the app stops (QA rule S7)
+- Optional EQ carve around 1–4 kHz while speech is active
 - Speech mics added to the band's monitors during speech-over-music
 - Set up DCA and mute group assignments from the inventory
 

@@ -41,7 +41,26 @@ function send(cmd) {
 function connect() {
   ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`);
   ws.onmessage = (e) => {
-    latest = JSON.parse(e.data);
+    const msg = JSON.parse(e.data);
+    if (msg.type === 'auth-required') {
+      const saved = loadPin();
+      if (saved) send({ type: 'auth', pin: saved });
+      else showAuth('');
+      return;
+    }
+    if (msg.type === 'auth-failed') {
+      savePin(null);
+      showAuth(msg.retryIn ? `Too many tries. Wait ${msg.retryIn} seconds, then try again.` : "That PIN didn't match. Check the booth Mac and try again.");
+      return;
+    }
+    if (msg.type === 'hello') {
+      if (pendingPin) savePin(pendingPin);
+      pendingPin = null;
+      $('#auth').hidden = true;
+      return;
+    }
+    if (msg.type !== 'state') return;
+    latest = msg;
     render(latest);
   };
   ws.onclose = () => {
@@ -49,6 +68,35 @@ function connect() {
     setTimeout(connect, 1500);
   };
 }
+// ---------- PIN ----------
+let pendingPin = null;
+function loadPin() {
+  try {
+    return localStorage.getItem('mixPin');
+  } catch {
+    return null;
+  }
+}
+function savePin(pin) {
+  try {
+    if (pin) localStorage.setItem('mixPin', pin);
+    else localStorage.removeItem('mixPin');
+  } catch {
+    /* private browsing: PIN just won't be remembered */
+  }
+}
+function showAuth(message) {
+  $('#auth').hidden = false;
+  $('#authMsg').textContent = message;
+  $('#pinInput').value = '';
+  $('#pinInput').focus();
+}
+$('#authForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  pendingPin = $('#pinInput').value.trim();
+  if (pendingPin) send({ type: 'auth', pin: pendingPin });
+});
+
 function setPill(el, kind, text) {
   el.className = `pill pill-${kind}`;
   el.textContent = text;
@@ -222,14 +270,28 @@ $('#dlgRole').addEventListener('change', (e) => send({ type: 'setRole', id: dlgI
 // ---------- page ----------
 function render(s) {
   const st = s.status;
+  $('#conn').title = `Mix Assistant ${st.version ?? ''}`;
   if (st.connected) setPill($('#conn'), 'ok', `Mixer: ${st.mixer?.name ?? 'connected'}`);
   else if (st.searching) setPill($('#conn'), 'warn', 'Looking for mixer…');
   else setPill($('#conn'), 'danger', 'Mixer offline');
 
   const g = s.clickGuard;
+  const renamed = g.locked.filter((l) => l.renamed);
   if (!g.locked.length) setPill($('#lock'), 'warn', 'No click/guide channel found');
-  else if (g.allSafe) setPill($('#lock'), 'ok', `🔒 ${g.locked.map((l) => l.name).join(' & ')} locked to monitors`);
-  else setPill($('#lock'), 'danger', 'Click/guide reaching house — fixing');
+  else if (!g.allSafe) setPill($('#lock'), 'danger', 'Click/guide reaching house — fixing');
+  else if (renamed.length) setPill($('#lock'), 'danger', `🔒 ${renamed.map((l) => `Ch ${l.id}`).join(', ')} renamed: still locked, please check`);
+  else setPill($('#lock'), 'ok', `🔒 ${g.locked.map((l) => l.name).join(' & ')} locked to monitors`);
+  $('#lock').title = g.protectedBuses?.length
+    ? `Also kept off: ${g.protectedBuses.map((b) => b.name).join(', ')}`
+    : 'Kept off the main speakers and effects';
+
+  // On the booth Mac itself, show how iPads connect.
+  if (s.pin || s.addresses?.length) {
+    const addr = s.addresses?.[0]?.replace('http://', '');
+    $('#share').hidden = false;
+    $('#share').textContent = [addr && `iPads: ${addr}`, s.pin && `PIN ${s.pin}`].filter(Boolean).join(' · ');
+    $('#share').title = s.addresses?.join('\n') ?? '';
+  } else $('#share').hidden = true;
 
   const inv = s.inventory;
   const c = inv.counts;

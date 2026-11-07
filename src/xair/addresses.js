@@ -29,7 +29,11 @@ export const paths = {
   dcaFader: (n) => `/dca/${n}/fader`,
   dcaOn: (n) => `/dca/${n}/on`,
   dcaName: (n) => `/dca/${n}/config/name`,
+  busName: (n) => `/bus/${n}/config/name`,
 };
+
+/** Aux buses 1..6 (monitor mixes, livestream feed, etc.). */
+export const AUX_BUSES = Array.from({ length: AUX_BUS_COUNT }, (_, i) => i + 1);
 
 export const fxSendBuses = Array.from({ length: FX_SEND_COUNT }, (_, i) => FX_SEND_FIRST + i);
 
@@ -44,6 +48,7 @@ export function stripQueryPaths(id) {
     paths.dcaGroups(id),
     paths.muteGroups(id),
     ...fxSendBuses.map((b) => paths.send(id, b)),
+    ...AUX_BUSES.map((b) => paths.send(id, b)),
   ];
 }
 
@@ -67,6 +72,8 @@ export function parseAddress(address) {
     if (s) return { id, field: 'send', bus: Number(s[1]) };
     return null;
   }
+  m = address.match(/^\/bus\/(\d)\/config\/name$/);
+  if (m) return { bus: Number(m[1]), field: 'name' };
   m = address.match(/^\/dca\/(\d)\/(fader|on|config\/name)$/);
   if (m) return { dca: Number(m[1]), field: m[2] === 'config/name' ? 'name' : m[2] };
   return null;

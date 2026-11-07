@@ -1,7 +1,8 @@
 import dgram from 'node:dgram';
+import os from 'node:os';
 import { EventEmitter } from 'node:events';
 import { encodeMessage, decodeMessage } from '../osc.js';
-import { OSC_PORT, STRIP_IDS, DCA_COUNT, paths, stripQueryPaths } from './addresses.js';
+import { OSC_PORT, STRIP_IDS, DCA_COUNT, AUX_BUSES, paths, stripQueryPaths } from './addresses.js';
 
 const KEEPALIVE_MS = 8000; // /xremote and /meters subscriptions expire after ~10 s
 const HEARTBEAT_MS = 2000;
@@ -45,7 +46,7 @@ export class XAirClient extends EventEmitter {
   send(address, args = []) {
     if (!this.socket || !this.host) return;
     const buf = encodeMessage(address, args);
-    this.socket.send(buf, this.port, this.host);
+    this.socket.send(buf, this.port, this.host, (err) => err && this.emit('error', err));
   }
 
   /** Ask the mixer for a value; the reply arrives as a 'message' event. */
@@ -66,6 +67,7 @@ export class XAirClient extends EventEmitter {
     const all = [];
     for (const id of STRIP_IDS) all.push(...stripQueryPaths(id));
     for (let n = 1; n <= DCA_COUNT; n++) all.push(paths.dcaName(n), paths.dcaFader(n), paths.dcaOn(n));
+    for (const b of AUX_BUSES) all.push(paths.busName(b));
     for (let i = 0; i < all.length; i++) {
       this.query(all[i]);
       if (i % 16 === 15) await new Promise((r) => setTimeout(r, 15));
@@ -111,8 +113,30 @@ export class XAirClient extends EventEmitter {
   }
 }
 
-/** Broadcast /xinfo on the local network and collect mixers that answer. */
-export async function discoverMixers({ timeoutMs = 1500, port = OSC_PORT } = {}) {
+/**
+ * Broadcast addresses for every IPv4 network this computer is on. A Mac with both
+ * Wi-Fi and Ethernet needs a probe on each, or the mixer on the other one is missed.
+ */
+export function broadcastAddresses(interfaces = os.networkInterfaces()) {
+  const out = new Set(['255.255.255.255']);
+  for (const addrs of Object.values(interfaces)) {
+    for (const a of addrs ?? []) {
+      if (a.family !== 'IPv4' && a.family !== 4) continue;
+      if (a.internal) continue;
+      const ip = a.address.split('.').map(Number);
+      const mask = a.netmask.split('.').map(Number);
+      if (ip.length !== 4 || mask.length !== 4) continue;
+      out.add(ip.map((b, i) => (b | (~mask[i] & 255)) & 255).join('.'));
+    }
+  }
+  return [...out];
+}
+
+/**
+ * Probe the local networks with /xinfo and collect mixers that answer.
+ * `extraHosts` adds specific addresses to probe (the dev runner passes 127.0.0.1).
+ */
+export async function discoverMixers({ timeoutMs = 1500, port = OSC_PORT, extraHosts = [], onSendError = () => {} } = {}) {
   const socket = dgram.createSocket('udp4');
   const found = new Map();
   socket.on('message', (buf, rinfo) => {
@@ -125,11 +149,13 @@ export async function discoverMixers({ timeoutMs = 1500, port = OSC_PORT } = {})
       /* ignore non-OSC traffic */
     }
   });
+  socket.on('error', () => {}); // an unreachable broadcast address must not crash the search
   await new Promise((r) => socket.bind(0, r));
   socket.setBroadcast(true);
   const probe = encodeMessage('/xinfo');
-  socket.send(probe, port, '255.255.255.255');
-  socket.send(probe, port, '127.0.0.1'); // finds the simulator too
+  for (const host of [...broadcastAddresses(), ...extraHosts]) {
+    socket.send(probe, port, host, (err) => err && onSendError(err, host));
+  }
   await new Promise((r) => setTimeout(r, timeoutMs));
   socket.close();
   return [...found.values()];

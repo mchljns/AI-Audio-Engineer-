@@ -4,17 +4,19 @@ An assistant for a Behringer XR18 at a small church. A small **bridge** program 
 
 It works alongside the Behringer X Air app, which stays available as a backup.
 
-## What step 1 does
+## What it does
 
 - **Connects to the XR18** automatically and keeps a live copy of every channel's name, mute, fader, main assign, FX sends and level.
 - **Channel inventory.** Reads the channel names and works out what each channel is (pastor, singer, keys, track, click…). Combined with live signal, it shows what's in use, what's named but silent (dead battery?), and what has signal but no name.
 - **Click & guide lock.** Channels named Click/Guide (or confirmed as such) are kept out of the house:
   - Main L/R assign is forced off.
   - Sends to FX1–4 are forced to zero, because effects returns feed the house.
+  - Sends to monitor buses that people outside the band hear are forced to zero. These are worked out from the bus names (Stream, Live, Rec, Lobby, Wedge, Pastor…) or listed in `config.json` as `"protectedBuses": [5, 6]`. The band's in-ear buses are left alone.
   - It watches for changes from any app or scene recall and undoes them within moments, with an alert.
-  - Monitor sends (aux 1–6) are left alone; that's where click and guide belong.
+  - **The lock is sticky.** If someone renames the Click channel, it stays protected and the volunteer is warned, until a person sets what the channel is now.
 - **Mute unused channels** with one tap. Only touches channels with no name and no signal, never click/guide. This helps the noise floor.
 - **Walk-in music.** Fade out smoothly when the service starts, and bring it back to its saved level afterwards. If someone grabs the fader during a fade, the fade stops and the person wins.
+- **PIN for other devices.** iPads and phones enter a 4-digit PIN once (shown at the top of the app on the booth Mac). Five wrong tries locks that device out for a minute. The booth Mac itself never needs it.
 - **Console-style mixer view**: side-by-side channel strips with fader, meter, mute, main (LR) assign and a colour-coded name strip, plus the 4 DCA groups at the right. Faders move relative to your finger, so touching one never makes it jump. Tap a name strip to see what the app thinks the channel is, or to change it. The pre-service check and alerts fold away above the strips.
 - **Confirm a channel's role** when the name is unclear (e.g. "Sarah"). The answer is remembered, but only while the channel keeps that name. Rename it, and the app reads the new name again.
 
@@ -27,7 +29,7 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:8080. This runs a simulated XR18 with the church layout. To watch the click lock work, run `npm run dev -- --chaos`: every 20 seconds the simulator pretends someone routed the click or guide into the house.
+Open http://localhost:8081. This runs a simulated XR18 with the church layout. To watch the click lock work, run `npm run dev -- --chaos`: every 20 seconds the simulator pretends someone routed the click or guide into the house.
 
 ```bash
 npm test
@@ -38,27 +40,33 @@ npm test
 Open **Terminal** (press ⌘-Space, type *Terminal*, press Return), paste this line and press Return:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/mchljns/AI-Audio-Engineer-/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/mchljns/AI-Audio-Engineer-/stable/install.sh | bash
 ```
 
 It takes a minute or two and needs no administrator password. It:
 - puts everything in a **MixAssistant** folder in your home folder, including its own copy of Node.js, so nothing else on the Mac is touched
+- runs Mix Assistant **in the background**, starting by itself whenever someone logs in to the Mac, and restarting itself if it ever crashes (macOS may show a "Background Items Added" notice)
 - adds two shortcuts to your **Desktop**:
-  - **Mix Assistant** — use with the real XR18
-  - **Mix Assistant (practice)** — try it with a pretend mixer
-- opens practice mode so you can look around
+  - **Mix Assistant** opens the app (use with the real XR18)
+  - **Mix Assistant (practice)** a pretend mixer for learning, on its own port so it never interferes
+- opens the app and practice mode so you can look around
 
-To **update** later, run the same line again. Your settings are kept.
+To **update** later, run the same line again. Your settings are kept. It installs the **stable** version: the last one tested on the real mixer. To try the newest work midweek, put `MIX_CHANNEL=main` before `bash` at the end of the line.
 
 ### Using it
 
 1. **Connect the Mac to the XR18.** Best: an Ethernet cable from the Mac to the XR18's Ethernet port (or both into the same router), and keep the Mac's Wi-Fi on the church internet. Or join the XR18's own Wi-Fi.
-2. **Double-click "Mix Assistant" on the Desktop.** A Terminal window opens (leave it open; closing it stops the app) and the app opens in the browser. It finds the mixer on its own.
-3. **On the iPad:** connect to the same network and open the address shown in the Terminal window, e.g. `http://192.168.1.20:8080`. Then **Share → Add to Home Screen**. Set the iPad's **Auto-Lock to Never** for services.
+   A direct cable with no router usually needs fixed IP addresses on both ends; a small router avoids that. Keep the mixer's network separate from guest Wi-Fi: the XR18 itself has no password.
+2. **Double-click "Mix Assistant" on the Desktop** to open the app. It's already running in the background and finds the mixer on its own.
+3. **On the iPad:** connect to the same network and open the address shown at the top of the app on the Mac (e.g. `192.168.1.20:8080`), then enter the PIN shown next to it. Tap **Share → Add to Home Screen**. Set the iPad's **Auto-Lock to Never** for services.
 
-If it can't find the mixer, create `~/MixAssistant/data/config.json` containing `{ "mixerHost": "192.168.1.50" }` with your XR18's address (shown in the X Air app's connection screen).
+If it can't find the mixer:
+- If the app shows that macOS is blocking network access, open **System Settings → Privacy & Security → Local Network** and turn on **node**.
+- Otherwise create `~/MixAssistant/data/config.json` containing `{ "mixerHost": "192.168.1.50" }` with your XR18's address (shown in the X Air app's connection screen).
 
-While it runs, it keeps the Mac awake.
+While it runs, it keeps the Mac from going to sleep on its own. Closing a laptop's lid still puts it to sleep. If the Mac restarts, Mix Assistant starts again once someone logs in, so consider turning on automatic login for the booth Mac.
+
+Logs are in `~/MixAssistant/logs/bridge.log`. To remove Mix Assistant completely, run `launchctl bootout gui/$(id -u)/com.mixassistant.bridge`, then delete `~/Library/LaunchAgents/com.mixassistant.bridge.plist`, the `~/MixAssistant` folder and the two Desktop shortcuts.
 
 ### Mac settings for services
 
@@ -82,12 +90,16 @@ The app reads names from the mixer, so consistent names make it work best. Sugge
 
 Keep the X Air app open as a backup.
 
-1. Start the bridge and open the web app. Check the mixer shows as connected.
+1. Open the app from the Desktop shortcut. Check the mixer shows as connected.
 2. Compare the inventory against reality. Are names and roles right? Does "In use" match what's plugged in and making sound?
 3. In the X Air app, turn **on** the main L/R assign for the click channel. The web app should turn it back off within a second or two and show an alert.
 4. In the X Air app, raise the click's send to FX1. Same result expected.
-5. Try **Fade out** and **Bring up** on the walk-in music.
-6. Note anything that looks wrong and send screenshots plus the Terminal output.
+5. If you have a livestream bus, name it "Stream" in the X Air app and send the click to it. It should be pulled back to zero. The click's in-ear sends should stay as they are.
+6. On an iPad, open the app, enter the PIN, and move a fader. Check the X Air app shows the same move.
+7. Try **Fade out** and **Bring up** on the walk-in music.
+8. Note anything that looks wrong and send screenshots plus `~/MixAssistant/logs/bridge.log`.
+
+When this passes, the version you tested gets promoted to `stable`.
 
 ## Layout
 
@@ -107,4 +119,4 @@ public/              the web app
 test/                tests (including end-to-end against the simulator)
 ```
 
-See [docs/ROADMAP.md](docs/ROADMAP.md) for what's next.
+See [docs/ROADMAP.md](docs/ROADMAP.md) for what's next and [docs/QA.md](docs/QA.md) for every failure mode reviewed and how it's handled.

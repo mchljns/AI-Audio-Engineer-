@@ -44,7 +44,8 @@ export function resolveRole(strip, roleStore) {
  * Build the channel inventory: what each channel is, whether it's live,
  * and what needs a volunteer's attention.
  */
-export function buildInventory(state, roleStore, now = Date.now()) {
+export function buildInventory(state, roleStore, now = Date.now(), lockedIds = []) {
+  const lockedSet = new Set(lockedIds);
   const rows = STRIP_IDS.map((id) => {
     const s = state.strips[id];
     const { role, source } = resolveRole(s, roleStore);
@@ -64,7 +65,7 @@ export function buildInventory(state, roleStore, now = Date.now()) {
       roleLabel: ROLES[role]?.label ?? role,
       roleSource: source,
       group: ROLES[role]?.group ?? 'other',
-      locked: LOCKED_ROLES.has(role),
+      locked: LOCKED_ROLES.has(role) || lockedSet.has(id),
       stereo: stereoSide(s.name),
       status,
       signal,

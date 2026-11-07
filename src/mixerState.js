@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events';
-import { STRIP_IDS, DCA_COUNT, parseAddress, decodeMeterBlob, metersToStrips } from './xair/addresses.js';
+import { STRIP_IDS, DCA_COUNT, AUX_BUSES, parseAddress, decodeMeterBlob, metersToStrips } from './xair/addresses.js';
 import { floatToDb } from './xair/faderLaw.js';
 
 const SIGNAL_THRESHOLD_DB = -50; // above this the channel counts as "has signal"
@@ -34,6 +34,7 @@ export class MixerState extends EventEmitter {
     this.dcas = Object.fromEntries(
       Array.from({ length: DCA_COUNT }, (_, i) => [i + 1, { n: i + 1, name: '', fader: 0, faderDb: -Infinity, on: true }]),
     );
+    this.buses = Object.fromEntries(AUX_BUSES.map((n) => [n, { n, name: '' }]));
   }
 
   /** Apply one OSC message. Returns true if it changed tracked state. */
@@ -46,6 +47,13 @@ export class MixerState extends EventEmitter {
     const p = parseAddress(msg.address);
     if (!p || msg.args.length === 0) return false;
     const v = msg.args[0].value;
+
+    if (p.bus && p.field === 'name' && !p.id) {
+      if (!this.buses[p.bus]) return false;
+      this.buses[p.bus].name = String(v).trim();
+      this.emit('change', { busName: p.bus });
+      return true;
+    }
 
     if (p.dca) {
       const d = this.dcas[p.dca];

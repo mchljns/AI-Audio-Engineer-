@@ -15,6 +15,7 @@
       <div class="brand">Mix Assistant</div>
       <div id="conn" class="pill pill-warn">Connecting…</div>
       <div id="lock" class="pill">Click &amp; guide: checking…</div>
+      <div id="share" class="pill pill-info" hidden></div>
       <div class="spacer"></div>
       <div class="walkin">
         <span id="walkinState" class="muted">Walk-in</span>
@@ -49,6 +50,16 @@
       <div class="bank-divider"></div>
       <div id="dcas" class="bank"></div>
     </main>
+
+    <div id="auth" class="auth" hidden>
+      <form id="authForm" class="auth-card">
+        <h2>Enter the PIN</h2>
+        <p class="muted">It's shown at the top of Mix Assistant on the booth Mac. You only need to enter it once on this device.</p>
+        <input id="pinInput" type="password" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="8" aria-label="PIN" />
+        <button class="btn btn-big" type="submit">Unlock</button>
+        <p id="authMsg" class="auth-msg" role="alert"></p>
+      </form>
+    </div>
 
     <dialog id="stripDialog">
       <form method="dialog" class="dialog-body">
