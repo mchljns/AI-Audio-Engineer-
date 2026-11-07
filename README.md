@@ -62,26 +62,26 @@ npm test
 
 ## Install on the booth Mac
 
-Open **Terminal** (press ⌘-Space, type *Terminal*, press Return), paste this line and press Return:
+**[Download Mix Assistant](https://github.com/mchljns/AI-Audio-Engineer-/raw/stable/dist/Mix-Assistant-Installer.zip)**, then double-click **Mix Assistant Installer** in Downloads and click **Install**. No Terminal needed.
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/mchljns/AI-Audio-Engineer-/stable/install.sh | bash
-```
+The first time, macOS says it can't verify the installer (it isn't signed with a paid Apple developer certificate). Click **Done**, open **System Settings → Privacy & Security**, click **Open Anyway** next to "Mix Assistant Installer", confirm, and click **Open**.
 
-It takes a minute or two and needs no administrator password. It:
+It takes about two minutes, needs the internet while installing, and needs no administrator password. It:
 - puts everything in a **MixAssistant** folder in your home folder, including its own copy of Node.js, so nothing else on the Mac is touched
 - runs Mix Assistant **in the background**, starting by itself whenever someone logs in to the Mac, and restarting itself if it ever crashes (macOS may show a "Background Items Added" notice)
-- adds two shortcuts to your **Desktop**:
-  - **Mix Assistant** opens the app (use with the real XR18)
-  - **Mix Assistant (practice)** a pretend mixer for learning, on its own port so it never interferes
-- opens the app and practice mode so you can look around
+- adds a **Mix Assistant** app (in Applications in your home folder, with a shortcut on the Desktop) that opens it
+- opens Mix Assistant when it's done
 
-To **update** later, run the same line again. Your settings are kept. It installs the **stable** version: the last one tested on the real mixer. To try the newest work midweek, put `MIX_CHANNEL=main` before `bash` at the end of the line.
+**Updates, practice mode and troubleshooting reports** are buttons in the app's **This Mac** card (shown only on the Mac itself). Running the installer again also updates. Settings are always kept. It installs the **stable** version: the last one tested on the real mixer.
+
+The download page can also be published as a website: in the repository's **Settings → Pages**, choose **Deploy from a branch**, branch **stable**, folder **/docs**. It then appears at https://mchljns.github.io/AI-Audio-Engineer-/.
+
+For developers, the same installer runs from Terminal: `curl -fsSL https://raw.githubusercontent.com/mchljns/AI-Audio-Engineer-/stable/install.sh | bash` (add `MIX_CHANNEL=main` before `bash` for untested work). After changing `install.sh` or `macos/installer-launch.sh`, run `scripts/build-mac-installer.sh` (a test checks the download is in sync).
 
 ### Using it
 
-1. **Put the Mac and the XR18 on the same network** without losing the Mac's internet for Spotify. See [docs/NETWORK.md](docs/NETWORK.md): either the XR18 joins the church Wi-Fi, or one Ethernet cable from the Mac to the XR18. Use the staff network, not guest Wi-Fi: the XR18 itself has no password.
-2. **Double-click "Mix Assistant" on the Desktop** to open the app. It's already running in the background and finds the mixer on its own.
+1. **Put the Mac and the iPad on the XR18's own Wi-Fi.** See [docs/NETWORK.md](docs/NETWORK.md) for the one-time setup (fixed Mac address, auto-join) and for keeping Spotify working with downloaded playlists.
+2. **Double-click the Mix Assistant app** (Desktop) to open it. It's already running in the background and finds the mixer on its own.
 3. **On the iPad:** connect to the same network and open the address shown at the top of the app on the Mac (e.g. `192.168.1.20:8080`), then enter the PIN shown next to it. Tap **Share → Add to Home Screen**. Set the iPad's **Auto-Lock to Never** for services.
 
 If it can't find the mixer:
@@ -90,13 +90,13 @@ If it can't find the mixer:
 
 While it runs, it keeps the Mac from going to sleep on its own. Closing a laptop's lid still puts it to sleep. If the Mac restarts, Mix Assistant starts again once someone logs in, so consider turning on automatic login for the booth Mac.
 
-Logs are in `~/MixAssistant/logs/bridge.log`. To remove Mix Assistant completely, run `launchctl bootout gui/$(id -u)/com.mixassistant.bridge`, then delete `~/Library/LaunchAgents/com.mixassistant.bridge.plist`, the `~/MixAssistant` folder and the two Desktop shortcuts.
+For troubleshooting, use **Save a report** in the app's This Mac card and send the file. (Logs are also in `~/MixAssistant/logs/bridge.log`.) To remove Mix Assistant completely: run `launchctl bootout gui/$(id -u)/com.mixassistant.bridge` in Terminal, then delete `~/Library/LaunchAgents/com.mixassistant.bridge.plist`, the `~/MixAssistant` folder, `~/Applications/Mix Assistant.app` and the Desktop shortcut.
 
 ### Mac settings for services
 
 - **System Settings → Sound → Alert sounds:** play through the Mac's built-in speakers, not the XR18. Otherwise notification dings go through the PA.
 - Turn on **Do Not Disturb** during services.
-- In **Audio MIDI Setup**, make sure the Mac's default output (Music/Spotify) goes to the XR18 USB channels that feed your pre/post-service music-in channel, not a track, click or guide channel.
+- In **Audio MIDI Setup**, make sure the Mac's default output (Music/Spotify) goes to the XR18 USB channels that feed your pre/post-service music channel, not a track, click or guide channel.
 
 ### Name your channels
 
@@ -114,7 +114,7 @@ The app reads names from the mixer, so consistent names make it work best. Sugge
 
 Keep the X Air app open as a backup.
 
-1. Open the app from the Desktop shortcut. Check the mixer shows as connected.
+1. Open the Mix Assistant app from the Desktop. Check the mixer shows as connected.
 2. Compare the inventory against reality. Are names and roles right? Does "In use" match what's plugged in and making sound?
 3. In the X Air app, turn **on** the main L/R assign for the click channel. The web app should turn it back off within a second or two and show an alert.
 4. In the X Air app, raise the click's send to FX1. Same result expected.
@@ -122,7 +122,7 @@ Keep the X Air app open as a backup.
 6. On an iPad, open the app, enter the PIN, and move a fader. Check the X Air app shows the same move.
 7. Save a pre-service playlist and try **Fade music in** and **Fade music out** from an iPad. The first time, allow "node" to control Spotify when macOS asks.
    Then, on the Auto screen, have someone talk on the pastor's mic, then the announcement mic: the other one should come down. Move a channel fader up and down: does its meter move with it? If it does, tell me (the meters are post-fader, and one setting needs changing).
-8. Note anything that looks wrong and send screenshots plus `~/MixAssistant/logs/bridge.log`.
+8. Note anything that looks wrong, then tap **Save a report for troubleshooting** in the This Mac card and send the file along with any screenshots.
 
 When this passes, the version you tested gets promoted to `stable`.
 

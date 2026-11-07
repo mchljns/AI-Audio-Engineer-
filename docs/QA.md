@@ -65,7 +65,11 @@ A running list of what could go wrong, what handles it, and how it's checked. Re
 | I2 | Node.js download corrupted or tampered with | Checked against nodejs.org's published SHA-256 | Test |
 | I3 | Update leaves a half-replaced app or a stopped service | Service is stopped before Node.js or the app is replaced, and the installer waits for macOS to let go of it before starting the new one, retrying (*fixed in 0.3.0*). A cut-off download can't run half the script | Test (Linux), Midweek (Mac) |
 | I4 | Settings lost on update | Settings, roles, locks and config live in `~/MixAssistant/data`, untouched by updates | Test |
-| I5 | Volunteer closes the Terminal window and the app stops | Runs as a background service; the Desktop shortcut just opens the page | Midweek |
+| I5 | Volunteer closes the Terminal window and the app stops | No Terminal anywhere: it runs as a background service, and the Mix Assistant app just opens the page (or starts it quietly if the service isn't running) | Test (Linux), Midweek |
+| I9 | Installing needs Terminal | A downloadable Mix Assistant Installer app wraps install.sh with dialogs. First open needs System Settings → Privacy & Security → Open Anyway, because it isn't signed with a paid Apple developer certificate | Test (Linux, stubbed dialogs), Midweek |
+| I10 | The download falls out of date with install.sh | A test unzips the download and compares it with install.sh and the launcher | Test |
+| I11 | An in-app update breaks the app | The new version is downloaded and installed beside the running one, swapped in only when complete, then the service restarts it; a failed update leaves the old version untouched (tested). Updates only from the Mac's own screen, with a second tap to confirm | Test |
+| I12 | An iPad starts practice mode, updates the app or downloads the report | Those controls and the report only work from the booth Mac's own screen | Test |
 | I6 | Mac sleeps during service | Bridge holds idle sleep off while running. **Closing the lid still sleeps** a laptop without an external display | Setup |
 | I7 | Mac restarts | Service starts at login. **The Mac must log in** (turn on automatic login, or someone logs in) | Setup |
 | I8 | Log file grows forever | Truncated on each install; the bridge logs little (search messages throttled to every 5 min) | Design |

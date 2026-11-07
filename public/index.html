@@ -98,6 +98,24 @@
         </details>
       </section>
 
+      <section class="auto-card mac-card" id="macCard" hidden>
+        <h2>This Mac</h2>
+        <p id="macVersion" class="muted"></p>
+        <div class="row">
+          <button id="updCheck" class="btn btn-ghost">Check for updates</button>
+          <button id="updInstall" class="btn" hidden>Update now</button>
+        </div>
+        <p id="updNote" class="muted small"></p>
+        <div class="row">
+          <button id="practiceBtn" class="btn btn-ghost">Start practice mode</button>
+          <a id="practiceLink" class="btn btn-ghost" href="http://localhost:8081" target="_blank" rel="noopener" hidden>Open practice mode</a>
+        </div>
+        <p class="muted small">Practice mode is a pretend mixer playing a pretend service, for learning. It never touches the real mixer or Spotify.</p>
+        <div class="row">
+          <a class="btn btn-ghost" href="/api/report" download>Save a report for troubleshooting</a>
+        </div>
+      </section>
+
       <section class="auto-card">
         <h2>Auto-mix settings</h2>
         <label class="switch"><input type="checkbox" id="optSpeech" /><span><b>Balance the speech mics</b><br /><small>The mic being talked into stays up, the others come down.</small></span></label>

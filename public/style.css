@@ -375,3 +375,9 @@ body.offline .strip, body.offline .auto button, body.offline .auto input { opaci
 .pl-form input { background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 10px; font: inherit; min-width: 0; }
 .pl-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; }
 .pl-list li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 8px; background: var(--strip); font-size: 14px; }
+
+/* ---------- this Mac ---------- */
+.mac-card { display: grid; gap: 10px; align-content: start; }
+.mac-card h2 { margin-bottom: 0; }
+.mac-card p { margin: 0; }
+a.btn { text-decoration: none; display: inline-flex; align-items: center; justify-content: center; }

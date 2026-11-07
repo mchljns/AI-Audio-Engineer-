@@ -351,6 +351,7 @@ function render(s) {
     $('#walkinState').textContent = 'No music channel found. Name the Spotify channel "Spotify" or "Pre/Post" in the X Air app.';
   }
   renderMusic(s);
+  renderMac(s);
 
   for (const r of inv.rows) updateChannel(r);
   for (const d of s.dcas) updateDca(d);
@@ -442,6 +443,48 @@ try {
 } catch {
   showTab('auto');
 }
+// ---------- this Mac (only shown on the booth Mac's own screen) ----------
+let confirmUpdate = false;
+function renderMac(s) {
+  const m = s.mac;
+  $('#macCard').hidden = !m;
+  if (!m) return;
+  const u = m.update ?? {};
+  $('#macVersion').textContent = `Mix Assistant ${u.current ?? ''}`;
+  $('#updCheck').disabled = !!u.checking || !!u.updating;
+  $('#updCheck').textContent = u.checking ? 'Checking…' : 'Check for updates';
+  $('#updInstall').hidden = !u.available || u.updating;
+  $('#updInstall').textContent = confirmUpdate ? `Tap again to update to ${u.latest}` : `Update to ${u.latest}`;
+  $('#updNote').textContent = u.updating
+    ? `${u.step ?? 'Updating'}… Mix Assistant restarts by itself; the mixer keeps running.`
+    : u.error
+      ? u.error
+      : u.available
+        ? "Updating takes about a minute and restarts Mix Assistant (the mixer keeps running). Don't update during a service."
+        : u.latest
+          ? 'Up to date.'
+          : '';
+  $('#practiceBtn').textContent = m.practice ? 'Stop practice mode' : 'Start practice mode';
+  $('#practiceLink').hidden = !m.practice;
+  $('#practiceLink').href = `http://localhost:${m.practicePort ?? 8081}`;
+}
+$('#updCheck').addEventListener('click', () => send({ type: 'checkUpdate' }));
+$('#updInstall').addEventListener('click', () => {
+  if (!confirmUpdate) {
+    confirmUpdate = true;
+    setTimeout(() => (confirmUpdate = false), 5000);
+    if (latest) renderMac(latest);
+    return;
+  }
+  confirmUpdate = false;
+  send({ type: 'installUpdate' });
+});
+$('#practiceBtn').addEventListener('click', () => {
+  const on = !latest?.mac?.practice;
+  send({ type: 'practice', on });
+  if (on) setTimeout(() => window.open(`http://localhost:${latest?.mac?.practicePort ?? 8081}`, '_blank'), 2500);
+});
+
 // ---------- walk-in player ----------
 let plKey = '';
 function renderMusic(s) {

@@ -21,6 +21,7 @@ import { ClickGuard, LockStore } from './clickGuard.js';
 import { FadeEngine } from './fades.js';
 import { AutoMix } from './automix.js';
 import { MusicController, toSpotifyUri } from './music.js';
+import { Updater } from './updater.js';
 import { ROLES } from './roles.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -130,6 +131,16 @@ export class Bridge {
   }
 
   async start() {
+    this.updater = new Updater({
+      appDir: ROOT,
+      currentVersion: VERSION,
+      source: this.config.updateSource,
+      exit: this.config.updateExit ?? (() => {
+        this.stop();
+        process.exit(0);
+      }),
+      onAlert: (a) => this.alert(a),
+    });
     this.music = new MusicController({
       appKey: this.config.musicApp,
       ...(this.config.musicRunner ? { runner: this.config.musicRunner, checkInternet: async () => true } : {}),
@@ -153,6 +164,7 @@ export class Bridge {
     this.automix?.stop();
     this.music?.stop();
     clearTimeout(this.pauseTimer);
+    this.#stopPractice();
     this.client?.stop();
     for (const ws of this.wss?.clients ?? []) ws.terminate();
     this.wss?.close();
@@ -321,8 +333,15 @@ export class Bridge {
 
   // ---------- commands from the web app ----------
 
-  handleCommand(cmd) {
+  handleCommand(cmd, { local = true } = {}) {
     if (!cmd || typeof cmd !== 'object' || typeof cmd.type !== 'string') return;
+    // Things only the booth Mac's own screen can do (not iPads).
+    if (cmd.type === 'checkUpdate' || cmd.type === 'installUpdate' || cmd.type === 'practice') {
+      if (!local) return;
+      if (cmd.type === 'checkUpdate') return this.updater.check();
+      if (cmd.type === 'installUpdate') return this.updater.install();
+      return cmd.on ? this.#startPractice() : this.#stopPractice();
+    }
     // Never act on a mixer we can't reach: the screen would show changes that didn't happen.
     // Commands that don't need the mixer.
     const offlineOk = new Set(['dismissAlert', 'clearAlerts', 'music', 'addPlaylist', 'removePlaylist']);
@@ -450,6 +469,61 @@ export class Bridge {
     }
   }
 
+  // ---------- practice mode (a pretend mixer, started from the app) ----------
+
+  #startPractice() {
+    if (this.practice) return;
+    const port = String(this.config.practicePort ?? 8081);
+    this.practice = spawn(process.execPath, [path.join(ROOT, 'src', 'dev.js')], {
+      cwd: ROOT,
+      env: { ...process.env, PORT: port, SIM_PORT: String(this.config.practiceSimPort ?? 10124), DATA_DIR: '' },
+      stdio: 'ignore',
+    });
+    this.practice.on('exit', () => {
+      this.practice = null;
+    });
+    this.practice.on('error', () => {
+      this.practice = null;
+    });
+    this.alert({ level: 'info', source: 'practice', message: `Practice mode started. It opens at http://localhost:${port}` });
+  }
+
+  #stopPractice() {
+    if (!this.practice) return;
+    this.practice.kill();
+    this.practice = null;
+  }
+
+  /** Plain-text report for troubleshooting: what the app sees, recent alerts and the end of the log. */
+  report() {
+    const snap = this.snapshot({ local: false });
+    const lines = [];
+    lines.push(`Mix Assistant ${VERSION} report, ${new Date().toString()}`);
+    lines.push(`Mac: ${os.hostname()} · macOS/Node ${process.platform} ${process.version}`);
+    lines.push(`Mixer: ${snap.status.connected ? 'connected' : 'NOT connected'} ${snap.status.mixer ? JSON.stringify(snap.status.mixer) : ''} host ${snap.status.host ?? '-'}`);
+    lines.push(`Addresses: ${lanAddresses().join(', ') || 'none'}`);
+    lines.push('', 'Channels (id · name · role · status · on · fader dB · pan · LR · level dB):');
+    for (const r of snap.inventory.rows) {
+      lines.push(`  ${r.label} · ${r.name || '-'} · ${r.role} · ${r.status} · ${r.on ? 'on' : 'MUTED'} · ${r.faderDb === -Infinity ? '-inf' : r.faderDb.toFixed(1)} · ${r.pan?.toFixed(2)} · ${r.lr ? 'LR' : '-'} · ${Number(r.levelDb).toFixed(1)}`);
+    }
+    if (snap.automix) {
+      lines.push('', `Auto-mix: mode ${snap.automix.mode}${snap.automix.modeLocked ? ' (set by a person)' : ''} · ${JSON.stringify(snap.automix.settings)}`);
+      for (const c of snap.automix.channels) lines.push(`  ${c.name || c.id}: ${c.offsetDb} dB${c.mutedByAuto ? ' · down for sermon' : ''}`);
+    }
+    lines.push('', `Click lock: ${JSON.stringify(snap.clickGuard.locked)}`);
+    lines.push(`Music: ${JSON.stringify(snap.music)}`);
+    lines.push('', 'Recent alerts:');
+    for (const a of this.alerts.slice(0, 30)) lines.push(`  ${new Date(a.at).toLocaleTimeString()} [${a.level}] ${a.message}`);
+    const logFile = this.config.logFile ?? path.join(path.dirname(this.config.dataDir), 'logs', 'bridge.log');
+    try {
+      const text = fs.readFileSync(logFile, 'utf8').split('\n');
+      lines.push('', `Last ${Math.min(300, text.length)} lines of ${logFile}:`, ...text.slice(-300));
+    } catch {
+      lines.push('', '(No log file found.)');
+    }
+    return lines.join('\n');
+  }
+
   #label(id) {
     return id === 'aux' ? 'Aux 17/18' : `Ch ${id}`;
   }
@@ -575,6 +649,7 @@ export class Bridge {
       roles: Object.fromEntries(Object.entries(ROLES).map(([k, v]) => [k, v.label])),
       // Only this computer's own screen is shown the PIN, so volunteers can read it off the Mac.
       pin: local ? this.pin : undefined,
+      mac: local ? { update: this.updater?.status(), practice: !!this.practice, practicePort: this.config.practicePort ?? 8081 } : undefined,
       addresses: local && this.boundPort ? this.#addressesForIpads().map((ip) => `http://${ip}:${this.boundPort}`) : undefined,
       // The Mac's Bonjour name (e.g. booth-mac.local) doesn't change week to week the way an address can.
       localName: local && this.boundPort ? `http://${macLocalName()}:${this.boundPort}` : undefined,
@@ -694,7 +769,7 @@ export class Bridge {
         }
         if (!ws.authed) return;
         try {
-          this.handleCommand(cmd);
+          this.handleCommand(cmd, { local: ws.isLocal });
         } catch (err) {
           console.error('Command failed:', err.message);
         }
@@ -728,6 +803,17 @@ export class Bridge {
       }
       res.writeHead(200, { 'content-type': 'application/json' });
       res.end(this.#json(this.snapshot({ local })));
+      return;
+    }
+    if (url.pathname === '/api/report') {
+      if (!(this.config.trustLocalhost && isLoopback(req.socket.remoteAddress))) {
+        res.writeHead(403);
+        res.end('Reports can only be saved on the booth Mac.');
+        return;
+      }
+      const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
+      res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8', 'content-disposition': `attachment; filename="mix-assistant-report-${stamp}.txt"` });
+      res.end(this.report());
       return;
     }
     if (url.pathname === '/healthz') {

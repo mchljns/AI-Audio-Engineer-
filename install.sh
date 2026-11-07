@@ -8,8 +8,8 @@
 #   ~/MixAssistant/app    the Mix Assistant code
 #   ~/MixAssistant/data   your saved settings (kept when you update)
 #   ~/MixAssistant/logs   what it's been doing, for troubleshooting
-# runs Mix Assistant as a background service that starts when you log in, and puts two
-# shortcuts on the Desktop. Running it again updates to the latest tested ("stable") version.
+# runs Mix Assistant as a background service that starts when you log in, and adds a
+# Mix Assistant app (in ~/Applications, with a Desktop shortcut). Running it again updates to the latest tested ("stable") version.
 #
 # MIX_CHANNEL=main  installs the newest untested work instead (for midweek testing only).
 
@@ -126,52 +126,58 @@ PLIST_END
   done
   if [ "$SERVICE" != yes ] && launchctl load -w "$PLIST" 2>/dev/null; then SERVICE=yes; fi
   if [ "$SERVICE" != yes ]; then
-    echo "Couldn't start the background service. The Desktop shortcut will run it in a Terminal window instead."
+    echo "Couldn't start the background service. The Mix Assistant app will start it when opened."
   fi
 fi
 
-# ---- Desktop shortcuts ----
-say "Adding shortcuts to your Desktop…"
-mkdir -p "$DESKTOP"
-MAIN_CMD="$DESKTOP/Mix Assistant.command"
-PRACTICE_CMD="$DESKTOP/Mix Assistant (practice).command"
-
-cat > "$MAIN_CMD" <<LAUNCH_END
+# ---- the Mix Assistant app (no Terminal needed) ----
+say "Adding the Mix Assistant app…"
+APPS_DIR="${MIX_APPS:-$HOME/Applications}"
+APP="$APPS_DIR/Mix Assistant.app"
+mkdir -p "$APPS_DIR" "$DESKTOP"
+rm -rf "$APP"
+mkdir -p "$APP/Contents/MacOS"
+cat > "$APP/Contents/Info.plist" <<INFO_END
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleName</key><string>Mix Assistant</string>
+  <key>CFBundleDisplayName</key><string>Mix Assistant</string>
+  <key>CFBundleIdentifier</key><string>com.mixassistant.launcher</string>
+  <key>CFBundleExecutable</key><string>launch</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleShortVersionString</key><string>1.0</string>
+  <key>LSMinimumSystemVersion</key><string>11.0</string>
+</dict>
+</plist>
+INFO_END
+cat > "$APP/Contents/MacOS/launch" <<LAUNCH_END
 #!/bin/bash
-# Mix Assistant: opens the app. It normally runs in the background already.
+# Opens Mix Assistant. It normally runs in the background already; if not, this starts it quietly.
 PORT="\$(grep -o '"httpPort": *[0-9]*' "$HOME_DIR/data/config.json" 2>/dev/null | grep -o '[0-9]*\$' || true)"
 URL="http://localhost:\${PORT:-8080}"
 up() { curl -fs "\$URL/healthz" >/dev/null 2>&1; }
 if ! up && [ -f "$PLIST" ]; then
-  echo "Starting Mix Assistant…"
   launchctl kickstart -k "gui/\$(id -u)/$LABEL" >/dev/null 2>&1 || launchctl load -w "$PLIST" >/dev/null 2>&1
-  for i in \$(seq 1 20); do up && break; sleep 0.5; done
+  for i in \$(seq 1 30); do up && break; sleep 0.5; done
+fi
+if ! up; then
+  # No background service: start it in the background, without a Terminal window.
+  cd "$HOME_DIR/app" && DATA_DIR="$HOME_DIR/data" nohup "$HOME_DIR/node/bin/node" src/bridge.js >> "$HOME_DIR/logs/bridge.log" 2>&1 &
+  for i in \$(seq 1 30); do up && break; sleep 0.5; done
 fi
 if up; then
   open "\$URL"
-  exit 0
+else
+  osascript -e 'display dialog "Mix Assistant didn'"'"'t start. Run the Mix Assistant Installer again, or send the file MixAssistant/logs/bridge.log from your home folder." buttons {"OK"} default button "OK" with icon caution with title "Mix Assistant"' >/dev/null 2>&1
 fi
-# No background service: run it in this window instead.
-echo "Running Mix Assistant in this window. Keep it open; closing it stops the app."
-export PATH="$HOME_DIR/node/bin:\$PATH" DATA_DIR="$HOME_DIR/data"
-cd "$HOME_DIR/app"
-( sleep 3; open "\$URL" ) &
-exec node src/bridge.js
 LAUNCH_END
+chmod +x "$APP/Contents/MacOS/launch"
 
-cat > "$PRACTICE_CMD" <<LAUNCH_END
-#!/bin/bash
-# Mix Assistant practice mode: a pretend mixer for learning and testing.
-# Close this window (or press Ctrl+C) to stop practice mode. The real Mix Assistant isn't affected.
-export PATH="$HOME_DIR/node/bin:\$PATH"
-URL="http://localhost:8081"
-if curl -fs "\$URL/healthz" >/dev/null 2>&1; then open "\$URL"; exit 0; fi
-cd "$HOME_DIR/app"
-echo "Starting practice mode (pretend mixer)…"
-( sleep 3; open "\$URL" ) &
-exec node src/dev.js
-LAUNCH_END
-chmod +x "$MAIN_CMD" "$PRACTICE_CMD"
+# A Desktop shortcut to the app, and remove the old Terminal-based shortcuts.
+rm -f "$DESKTOP/Mix Assistant.command" "$DESKTOP/Mix Assistant (practice).command" "$DESKTOP/Mix Assistant"
+ln -sfn "$APP" "$DESKTOP/Mix Assistant"
 
 say "Done!"
 VERSION="$(grep -m1 '"version"' "$HOME_DIR/app/package.json" | sed -E 's/.*"([0-9.]+)".*/\1/')"
@@ -183,25 +189,17 @@ if [ "$SERVICE" = yes ]; then
 fi
 cat <<DONE_END
 
-  On your Desktop:
-    • Mix Assistant             opens the app (use with the real XR18)
-    • Mix Assistant (practice)  a pretend mixer for learning
+  Open it any time with the Mix Assistant app (Desktop, or Applications in your home folder).
+  Practice mode, updates and troubleshooting reports are buttons inside the app.
 
   iPads and phones: open the address shown at the top of the app on this Mac,
   then enter the PIN shown next to it.
 
-  To update later, run the same install command again. Your settings are kept.
-
 DONE_END
 
 if [ "$OS" = "Darwin" ] && [ -z "${MIX_NO_LAUNCH:-}" ]; then
-  if [ "$SERVICE" = yes ]; then
-    echo "Opening Mix Assistant…"
-    sleep 2
-    open "http://localhost:8080"
-  fi
-  echo "Opening practice mode so you can look around…"
-  open "$PRACTICE_CMD"
+  echo "Opening Mix Assistant…"
+  open "$APP"
 fi
 }
 
