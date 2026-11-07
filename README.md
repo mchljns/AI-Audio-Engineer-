@@ -131,6 +131,6 @@ public/              the web app
 test/                tests (including end-to-end against the simulator)
 ```
 
-Setup guides: [docs/NETWORK.md](docs/NETWORK.md) (no new hardware, Spotify keeps working) and [docs/PA-GAIN-STAGING.md](docs/PA-GAIN-STAGING.md) (your XR18 → PRX ONE → Passport chain, vocal chain, wireless, Helix click routing).
+Setup guides: [docs/NETWORK.md](docs/NETWORK.md) (no new hardware, Spotify keeps working) and [docs/PA-GAIN-STAGING.md](docs/PA-GAIN-STAGING.md) (your XR18 → PRX ONE → Passport chain, vocal chain, wireless and in-ears).
 
 See [docs/ROADMAP.md](docs/ROADMAP.md) for what's next and [docs/QA.md](docs/QA.md) for every failure mode reviewed and how it's handled.

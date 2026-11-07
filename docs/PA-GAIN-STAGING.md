@@ -6,8 +6,7 @@ Written for this setup:
 XR18 main out ──► JBL PRX ONE (stage right, built-in sub)
                      └─ XLR pass-thru ──► Fender Passport Venue (one speaker, fill on the other side)
 
-Helix Stadium ◄─USB-C─ iPad (Loop Community Prime)
-   └─ Matrix Mixer: FOH outputs, monitor/click outputs ──► XR18 inputs
+Tracks, click and guide (Loop Community Prime) ──► XR18 inputs
 NUX Stageman Floor (acoustic DI) ──► XR18
 Phenyx Pro PTU-7000-4H (4 mics), Shure BLX14R (pastor) ──► XR18
 XR18 aux buses ──► 2× Phenyx Pro PTM-10 ──► in-ears
@@ -74,27 +73,18 @@ Your PTU-7000 routine is the right one: scan each channel by itself with everyth
 - **Do the scan with the PTM-10 in-ear transmitters switched on and transmitting.** In-ear transmitters in the same rack are the most likely thing to interfere with the mic receivers.
 - **Keep the in-ear transmitter antennas away from the mic receiver antennas.** At least 1–2 feet apart if possible, and not side by side on the same plate. The transmitters are loud, close-by RF sources for the receivers.
 
-## 7. Helix Stadium: keep the click out of the guitar channel
-
-The click lock works on the XR18 channel named Click. It **can't** remove a click that the Helix has mixed into the *guitar* output: on the XR18 that's just the guitar channel.
-
-- In the Helix **Matrix Mixer**, make sure the click and guide go **only** to the monitor/click outputs, never to the FOH outputs.
-- Save that routing with the preset or setlist, so a preset change can't undo it.
-- **Check at every soundcheck:** start a Prime song with the guitar silent and listen to the XR18 guitar channel (solo it in the X Air app, or watch its meter). Any meter movement means click is leaking into FOH.
-- Name the XR18 input channels clearly: "Helix L", "Helix R", "Click", "Guide", "Trk 1". Mix Assistant recognises Helix, HX and Stadium as guitar.
-
-## 8. NUX Stageman Floor
+## 7. NUX Stageman Floor
 
 - Power: **9 V DC, centre-negative, at least 180 mA**, ideally from an isolated pedal supply. A noisy or shared supply is a common cause of hum.
 - XLR out to the XR18 with **phantom power off** on that channel.
 - If you hear a hum that stops when the cable is unplugged from the NUX, use its **ground lift**.
 
-## 9. In-ear buses
+## 8. In-ear buses
 
 Name each XR18 aux bus that feeds a PTM-10 in the X Air app, for example "IEM Vocals" and "IEM Band". Mix Assistant then knows they're in-ear mixes, where the click is allowed. An unnamed bus with click on it shows a warning until you name it.
 
 ## Still to confirm
 
 - **Is one XR18 main output wired to the PRX ONE, or both (L and R)?**
-- **Which Helix outputs go into which XR18 channels?** In particular, do the click and guide come into the XR18 on their own channels, so everyone's in-ears get them from the XR18?
+- Do the click and guide come into the XR18 on their own channels (so everyone's in-ears get them from the XR18 and the click lock can protect them)?
 - **Are the PTM-10s in stereo or mono mode?** That decides whether you have 2 or 4 in-ear mixes.

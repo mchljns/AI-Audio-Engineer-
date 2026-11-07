@@ -34,7 +34,7 @@ const RULES = [
   ['acoustic', /\b(ag|ac ?gtr|acgtr|acc|acoustic|nux|stageman)\b/],
   ['keys', /\b(keys?|kbd|piano|pno|synth|nord|organ|rhodes)\b/],
   ['bass', /\b(bass|bs|bgtr)\b/],
-  ['guitar', /\b(eg|gtr|guitar|elec|helix|hx|line 6|stadium)\b/],
+  ['guitar', /\b(eg|gtr|guitar|elec)\b/],
   ['drums', /\b(drums?|kick|kik|snare|snr|oh|tom|hat|hh|cajon)\b/],
   ['room', /\b(room|amb|ambient|crowd|audience)\b/],
 ];
