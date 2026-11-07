@@ -25,7 +25,7 @@ export const PROFILES = {
     label: 'Vocal plate',
     type: 5, // PLAT
     params: {
-      preDelay: { n: 1, scale: lin(0, 200), unit: 'ms', label: 'Pre-delay', min: 0, max: 80, start: 30 },
+      preDelay: { n: 1, scale: lin(0, 200), unit: 'ms', label: 'Pre-delay', min: 20, max: 110, start: 60 },
       decay: { n: 2, scale: log(0.5, 10), unit: 's', label: 'Decay', min: 0.8, max: 3, start: 1.6 },
       loCut: { n: 7, scale: log(10, 500), unit: 'Hz', label: 'Low cut', min: 80, max: 500, start: 250 },
       hiCut: { n: 8, scale: log(200, 20000), unit: 'Hz', label: 'High cut', min: 3000, max: 12000, start: 6500 },

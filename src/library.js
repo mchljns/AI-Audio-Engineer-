@@ -410,6 +410,10 @@ export class Library {
     // A lead who isn't on a vocal mic this week (only playing) doesn't count: leave the singers alone.
     const onMic = (pid) => this.data.slots.some((x) => x.instrument === 'vocal' && set.lineup[x.id] === pid);
     const lead = song.lead && onMic(song.lead) ? song.lead : null;
+    // A bigger harmony group sums louder: each harmony comes down 3 dB per doubling of singers
+    // (−10·log10 N), so three harmonies sit where one would.
+    const nHarm = song.harmonies.filter((h) => h !== lead && onMic(h)).length;
+    const groupComp = nHarm > 1 ? -10 * Math.log10(nHarm) : 0;
     for (const slot of this.data.slots) {
       const pid = set.lineup[slot.id];
       if (!pid) continue;
@@ -417,7 +421,7 @@ export class Library {
       if (slot.instrument === 'vocal') {
         if (!lead) db = 0; // no lead chosen (or not singing this week): leave the singers alone
         else if (pid === lead) db = 0;
-        else if (song.harmonies.includes(pid)) db = harmonyDb;
+        else if (song.harmonies.includes(pid)) db = Math.round((harmonyDb + groupComp) * 10) / 10;
         else db = otherVocalDb;
       } else if (song.leadInstrument) {
         db = slot.id === song.leadInstrument ? 0 : otherInstrumentDb;

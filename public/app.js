@@ -766,7 +766,7 @@ function renderSoundcheck(s) {
     const parts = [];
     if (live) parts.push(`Hearing ${Math.round(live.bpm)} BPM from ${live.label}`);
     else if (song.bpm) parts.push(`${song.bpm} BPM`);
-    if (song.delay && ms) parts.push(E.delaySetMs ? `delay set to ${E.delaySetMs} ms ✓` : `delay time ${ms} ms (set it in X Air, or let Mix Assistant: Effects)`);
+    if (song.delay && ms) parts.push(E.delaySetMs ? `${E.delayNoteNow ?? ''} delay set to ${E.delaySetMs} ms ✓` : `${E.delayNoteNow ?? ''} delay time ${ms} ms (set it in X Air, or let Mix Assistant: Effects)`);
     if (!bpm) parts.push(song.delay ? 'Listening for the tempo… or tap along' : '');
     $('#scTempo').textContent = parts.filter(Boolean).join(' · ');
   }

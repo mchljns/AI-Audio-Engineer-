@@ -356,7 +356,9 @@ export class Bridge {
         try {
           this.automix.tick();
           this.#listenForTempo();
-          this.effects?.tick({ mode: this.automix.mode, activity: this.automix.activity });
+          const am = this.automix;
+          const talkers = (am.lastGroups?.vocal ?? []).filter((id) => Date.now() - (am.ch.get(id)?.lastActive ?? 0) < 400);
+          this.effects?.tick({ mode: am.mode, activity: am.activity, talkers });
         } catch (err) {
           console.error('Auto-mix error:', err.message);
         }
@@ -910,11 +912,17 @@ export class Bridge {
         const conf = E.conf('reverb');
         if (!conf || !REVERB_TWEAKS[cmd.id]) return;
         this.fxNote = this.fxdesk.tweak(conf, cmd.id);
+        E.keepVerbFix();
+        save();
         return;
       }
       case 'fxUndo': {
         const conf = E.conf('reverb');
-        if (conf && this.fxdesk.undoTweak(conf)) this.fxNote = 'Undone';
+        if (conf && this.fxdesk.undoTweak(conf)) {
+          this.fxNote = 'Undone';
+          E.keepVerbFix();
+          save();
+        }
         return;
       }
       case 'fxForget':

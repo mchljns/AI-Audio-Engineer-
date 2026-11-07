@@ -62,7 +62,7 @@ test('compression from their loudest singing, and a gentle gate from the hiss', 
   r = applyComp(r.model, 'off');
   assert.equal(r.model.comp.on, false);
   const g = applyGate(freshModel('vocal'), true, -62);
-  assert.deepEqual([g.model.gate.on, g.model.gate.thr, g.model.gate.range, g.model.gate.mode], [true, -54, 12, 3]);
+  assert.deepEqual([g.model.gate.on, g.model.gate.thr, g.model.gate.mode, g.model.gate.hold], [true, -52, 0, 300], 'gentle EXP2 expander, 300 ms hold');
   assert.equal(applyGate(g.model, false).model.gate.on, false);
 });
 

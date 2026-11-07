@@ -266,10 +266,12 @@ export function applyGate(model, on, floorDb) {
     return { model: m, note: 'Gate off' };
   }
   if (!Number.isFinite(floorDb)) return { model, note: null };
-  const thr = clamp(round(floorDb + 8), -75, -30);
-  // Mode 3 = gate; only 12 dB of range, so it softens hiss rather than chopping words.
-  Object.assign(m.gate, { on: true, mode: 3, thr, range: 12, attack: 2, hold: 60, release: 250 });
-  return { model: m, note: `Gate on: hiss below ${thr} dB comes down 12 dB between lines` };
+  const thr = clamp(round(floorDb + 10), -75, -30);
+  // A gentle 1:2 expander (mode 0 = EXP2), not a hard gate: below the threshold the hiss fades
+  // down smoothly (10 dB of hiss below it comes down another 10 dB), with a 300 ms hold so word
+  // endings and breaths aren't chopped.
+  Object.assign(m.gate, { on: true, mode: 0, thr, range: 30, attack: 5, hold: 300, release: 300 });
+  return { model: m, note: `Hiss expander on: below ${thr} dB the hiss fades down smoothly between lines` };
 }
 
 /** A clean starting point: EQ flat, a sensible low cut, no compressor or gate. */
@@ -309,7 +311,7 @@ export function describeTone(m) {
   if (m.comp?.on && m.comp.keyOn && m.comp.keyType === 3) parts.push(`Pop guard from ${round(m.comp.thr)} dB`);
   else if (m.comp?.on) parts.push(`Compression ${RATIOS[m.comp.ratio] ?? '?'}:1 from ${round(m.comp.thr)} dB`);
   else parts.push('No compression');
-  if (m.gate?.on) parts.push(`Gate below ${round(m.gate.thr)} dB`);
+  if (m.gate?.on) parts.push(`${m.gate.mode === 0 ? 'Hiss expander' : 'Gate'} below ${round(m.gate.thr)} dB`);
   return parts.join(' · ');
 }
 

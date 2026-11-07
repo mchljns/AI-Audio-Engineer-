@@ -56,7 +56,7 @@ test('delay time: set from the live tempo once the app runs the delay; small wob
   client.setFloat = (a, v) => sent.push([a, v]);
   client.setInt = (a, v) => sent.push([a, v]);
   client.query = () => {};
-  const fx = new Effects({ state, client, roleStore: new RoleStore(null) });
+  const fx = new Effects({ state, client, roleStore: new RoleStore(null), settings: { delayNote: 'dotted8', delayNoteChosen: true } });
   fx.desk = new FxDesk({ client });
   fx.setSong({ delay: true, lead: [], bpm: 70 });
   fx.tick({ mode: 'worship' });
@@ -66,7 +66,9 @@ test('delay time: set from the live tempo once the app runs the delay; small wob
   fx.tick({ mode: 'worship' });
   const ms = delayMsFor(112, 'dotted8');
   assert.equal(ms, 402);
-  assert.ok(Math.abs(sent.at(-1)[1] - Math.log(ms) / Math.log(3000)) < 1e-9 && sent.at(-1)[0] === '/fx/2/par/02', 'Time (parameter 2) set to 402 ms');
+  const time = sent.filter(([a]) => a === '/fx/2/par/02').at(-1);
+  assert.ok(time && Math.abs(time[1] - Math.log(ms) / Math.log(3000)) < 1e-9, 'Time (parameter 2) set to 402 ms');
+  assert.ok(Math.abs(sent.filter(([a]) => a === '/fx/2/par/10').at(-1)[1] - 21 / 99) < 1e-9, 'feedback 22% for a dotted-1/8 throw');
   const n = sent.length;
   fx.setLive({ bpm: 112.6, source: 'click', label: 'the click' });
   fx.tick({ mode: 'worship' });
@@ -97,5 +99,5 @@ test("bridge: hears the simulator's 120 BPM click and remembers it as the song's
   assert.ok(snap.tempo && Math.abs(snap.tempo.bpm - 120) <= 1, `heard ${snap.tempo?.bpm}`);
   assert.equal(snap.tempo.source, 'click');
   assert.ok(Math.abs(snap.setlist.current.songs[0].bpm - 120) <= 1, 'remembered for the song');
-  assert.ok(Math.abs(snap.effects.delayMs - 375) <= 2, `dotted eighth at 120: ${snap.effects.delayMs}`);
+  assert.ok(Math.abs(snap.effects.delayMs - 125) <= 2, `auto: a 1/16 at 120 BPM: ${snap.effects.delayMs}`);
 });

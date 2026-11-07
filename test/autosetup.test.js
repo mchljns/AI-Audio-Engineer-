@@ -61,11 +61,11 @@ test('effect setup: tries, and "No" puts back exactly what was there', async () 
   const conf = desk.confirm('reverb');
   assert.deepEqual(conf, { fx: 1, attempt: 0 });
   assert.ok(Math.abs(desk.value('reverb', conf, 'decay') - 1.6) < 1e-6);
-  assert.match(desk.tweak(conf, 'washy'), /Decay 1.4 s, Pre-delay 38 ms/);
+  assert.match(desk.tweak(conf, 'washy'), /Decay 1.4 s, Pre-delay 68 ms/);
   for (let i = 0; i < 10; i++) desk.tweak(conf, 'cave');
   assert.ok(Math.abs(desk.value('reverb', conf, 'decay') - PROFILES.plate.params.decay.min) < 1e-6, 'never shorter than the limit');
   assert.ok(desk.undoTweak(conf));
-  assert.match(desk.describe('reverb', conf), /Pre-delay 38 ms · Decay/);
+  assert.match(desk.describe('reverb', conf), /Pre-delay 68 ms · Decay/);
 });
 
 test('bridge: gain set, channels named, reverb set up and confirmed, delay time follows the tempo', async (t) => {
@@ -120,7 +120,7 @@ test('bridge: gain set, channels named, reverb set up and confirmed, delay time 
   await cmd({ type: 'setSongDelay', index: 0, delay: true, bpm: 120 });
   await cmd({ type: 'playSong', index: 0 });
   for (let i = 0; i < 30 && !bridge.snapshot().effects.delaySetMs; i++) await wait(200);
-  assert.ok(Math.abs(bridge.snapshot().effects.delaySetMs - 375) <= 3, `delay set to ${bridge.snapshot().effects.delaySetMs} ms`);
+  assert.ok(Math.abs(bridge.snapshot().effects.delaySetMs - 125) <= 3, `auto 1/16 at 120 BPM: ${bridge.snapshot().effects.delaySetMs} ms`);
 });
 
 test('write guard: in-ear mixes, snapshots, phantom and setup can never be written', async () => {

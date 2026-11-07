@@ -34,17 +34,42 @@ export const EFFECT_DEFAULTS = {
   speechDry: true, // announcement mics dry too (the pastor is always dry)
   talkDb: 6, // returns down this much while someone talks between songs / over music
   quietDb: 15, // and this much for the sermon and pre/post-service music
-  delayNote: 'dotted8', // delay time: dotted eighth (the usual worship delay), quarter or eighth
+  delayNote: 'auto', // auto by tempo (1/16 on fast songs, dotted 1/8 on slow), or a fixed note
   // Effects Mix Assistant runs itself, after a person confirmed the one-tap setup in X Air:
   // { reverb: { fx, attempt } | null, delay: { fx, attempt } | null }
   fxConf: { reverb: null, delay: null },
+  verbOffsets: { decay: 0, preDelay: 0 }, // a person's reverb fixes, kept on top of each song's timing
 };
 
-export const DELAY_NOTES = { dotted8: { label: 'Dotted 1/8', factor: 0.75 }, quarter: { label: '1/4', factor: 1 }, eighth: { label: '1/8', factor: 0.5 } };
-export function delayMsFor(bpm, note = 'dotted8') {
+/**
+ * Reverb timed to the song: decay about a half note (1.2–2 s), lead pre-delay about a 1/32 note
+ * (40–80 ms), so the tail clears before the next phrase and each word lands dry first.
+ */
+export function reverbTiming(bpm) {
+  const b = Number(bpm);
+  if (!Number.isFinite(b) || b < 40 || b > 220) return { decay: 1.6, preDelay: 60 };
+  const beat = 60000 / b;
+  return { decay: Math.round(Math.max(1.2, Math.min(2.0, (2 * beat) / 1000)) * 10) / 10, preDelay: Math.round(Math.max(40, Math.min(80, beat / 8))) };
+}
+
+export const DELAY_NOTES = {
+  auto: { label: 'Auto by tempo' },
+  dotted8: { label: 'Dotted 1/8', factor: 0.75, feedback: 22 },
+  quarter: { label: '1/4', factor: 1, feedback: 22 },
+  eighth: { label: '1/8', factor: 0.5, feedback: 18 },
+  sixteenth: { label: '1/16', factor: 0.25, feedback: 10 },
+};
+// Auto: fast songs get a short 1/16 "thickening" delay with little feedback; slower songs get a
+// dotted-1/8 throw (the usual worship delay).
+export const AUTO_FAST_BPM = 100;
+export function delayNoteFor(bpm, note = 'auto') {
+  if (note !== 'auto') return DELAY_NOTES[note] ? note : 'dotted8';
+  return Number(bpm) >= AUTO_FAST_BPM ? 'sixteenth' : 'dotted8';
+}
+export function delayMsFor(bpm, note = 'auto') {
   const b = Number(bpm);
   if (!Number.isFinite(b) || b < 40 || b > 220) return null;
-  return Math.round(Math.round(60000 / b) * (DELAY_NOTES[note]?.factor ?? 0.75));
+  return Math.round(Math.round(60000 / b) * DELAY_NOTES[delayNoteFor(b, note)].factor);
 }
 
 // Reverb send amounts per person (dB on the channel's send to the reverb). Delay amounts likewise.
@@ -68,6 +93,8 @@ export class Effects {
     this.stateFile = stateFile;
     this.onAlert = onAlert;
     this.settings = { ...EFFECT_DEFAULTS, ...settings, fxConf: { ...EFFECT_DEFAULTS.fxConf, ...(settings.fxConf ?? {}) } };
+    // Earlier versions saved the old default (dotted 1/8) without anyone choosing it.
+    if (!this.settings.delayNoteChosen) this.settings.delayNote = 'auto';
     this.returns = new Map(); // fx number -> { home, offsetDb, targetDb, lastSent, known }
     this.song = { delay: false, lead: [], amounts: {}, bpm: null, title: null };
     this.mode = 'idle';
@@ -89,7 +116,10 @@ export class Effects {
 
   update(partial = {}) {
     for (const k of ['follow', 'speechDry']) if (typeof partial[k] === 'boolean') this.settings[k] = partial[k];
-    if (DELAY_NOTES[partial.delayNote]) this.settings.delayNote = partial.delayNote;
+    if (DELAY_NOTES[partial.delayNote]) {
+      this.settings.delayNote = partial.delayNote;
+      this.settings.delayNoteChosen = true;
+    }
     if (partial.forget === 'reverb' || partial.forget === 'delay') this.settings.fxConf = { ...this.settings.fxConf, [partial.forget]: null };
     for (const k of ['reverbFx', 'delayFx']) {
       if (partial[k] === null || partial[k] === 0) this.settings[k] = null;
@@ -122,6 +152,30 @@ export class Effects {
     return c && c.fx === fx ? c : null;
   }
 
+  #timeReverb() {
+    const conf = this.conf('reverb');
+    if (!conf || !this.desk) return;
+    const base = reverbTiming(this.tempo());
+    const off = this.settings.verbOffsets ?? { decay: 0, preDelay: 0 };
+    const want = { decay: Math.round((base.decay + off.decay) * 10) / 10, preDelay: Math.round(base.preDelay + off.preDelay) };
+    const last = this.lastVerb ?? {};
+    // Only real changes: a new song, or a tempo change big enough to matter.
+    if (Math.abs((last.decay ?? -9) - want.decay) < 0.1 && Math.abs((last.preDelay ?? -99) - want.preDelay) < 3) return;
+    this.lastVerb = { decay: this.desk.set('reverb', conf, 'decay', want.decay), preDelay: this.desk.set('reverb', conf, 'preDelay', want.preDelay) };
+  }
+
+  /** After a person's reverb fix: keep what they did as an adjustment on top of song timing. */
+  keepVerbFix() {
+    const conf = this.conf('reverb');
+    if (!conf || !this.desk) return;
+    const base = reverbTiming(this.tempo());
+    this.settings.verbOffsets = {
+      decay: Math.round((this.desk.value('reverb', conf, 'decay') - base.decay) * 10) / 10,
+      preDelay: Math.round(this.desk.value('reverb', conf, 'preDelay') - base.preDelay),
+    };
+    this.lastVerb = { decay: this.desk.value('reverb', conf, 'decay'), preDelay: this.desk.value('reverb', conf, 'preDelay') };
+  }
+
   #setDelayTime() {
     const conf = this.conf('delay');
     if (!conf || !this.desk || !this.song.delay) return;
@@ -131,6 +185,13 @@ export class Effects {
     if (this.lastDelayMs && Math.abs(ms - this.lastDelayMs) / this.lastDelayMs < 0.02) return;
     this.lastDelayMs = ms;
     this.desk.set('delay', conf, 'time', ms);
+    // Feedback to suit the note: a short thickening delay barely repeats; a throw repeats 2–3 times.
+    const fb = DELAY_NOTES[delayNoteFor(this.tempo(), this.settings.delayNote)].feedback;
+    if (fb !== this.lastFeedback) {
+      this.lastFeedback = fb;
+      this.desk.set('delay', conf, 'feedL', fb);
+      this.desk.set('delay', conf, 'feedR', fb);
+    }
   }
 
   /** A person nudged the reverb (or delay) level in the room: change where it sits for worship. */
@@ -169,11 +230,13 @@ export class Effects {
   }
 
   /** Call on every meter update, after the auto-mix has decided the mode. */
-  tick({ mode, activity = {} }) {
+  tick({ mode, activity = {}, talkers = [] }) {
     this.mode = mode;
     this.#keepSpeechDry();
-    this.#manageDelaySends(mode);
+    this.#manageDelaySends(activity.vocalTalking ? 'talking' : mode);
+    this.#dryTalkingSingers(mode, activity, talkers);
     this.#setDelayTime();
+    this.#timeReverb();
 
     // Effects follow the service.
     let target = 0;
@@ -221,6 +284,40 @@ export class Effects {
           }
         }
       }
+    }
+  }
+
+  /**
+   * A singer who talks (between songs, praying, over the pad) has their reverb send taken to zero
+   * at once, and put back when the singing starts again. Their in-ear reverb of their own voice
+   * goes dry while they talk, which is what you want for speech anyway.
+   */
+  #dryTalkingSingers(mode, activity, talkers) {
+    this.driedSingers ??= new Map(); // channel -> reverb send level to put back
+    const fx = this.settings.reverbFx;
+    if (!fx) return;
+    const bus = fxSendBus(fx);
+    const talking = mode === 'talkover' || mode === 'speaking' || activity.vocalTalking;
+    if (talking) {
+      for (const id of talkers) {
+        const s = this.state.strips[id];
+        if (!s || this.driedSingers.has(id) || resolveRole(s, this.roleStore).role !== 'vocal') continue;
+        const was = s.sends?.[bus] ?? 0;
+        if (!(was > 0)) continue;
+        this.driedSingers.set(id, was);
+        s.sends[bus] = 0;
+        this.client.setFloat(paths.send(id, bus), 0);
+      }
+    } else if (mode === 'worship' && this.driedSingers.size) {
+      for (const [id, was] of this.driedSingers) {
+        const s = this.state.strips[id];
+        // Put it back only if nobody has set it since.
+        if (s && (s.sends?.[bus] ?? 0) === 0) {
+          s.sends[bus] = was;
+          this.client.setFloat(paths.send(id, bus), was);
+        }
+      }
+      this.driedSingers.clear();
     }
   }
 
@@ -284,6 +381,7 @@ export class Effects {
 
   describe(names = {}) {
     const out = [];
+    if (this.driedSingers?.size) out.push(`${[...this.driedSingers.keys()].map((id) => names[id] || `Ch ${id}`).join(', ')} talking: no reverb on ${this.driedSingers.size > 1 ? 'them' : 'their voice'}`);
     const rv = this.returns.get(this.settings.reverbFx);
     if (rv && rv.offsetDb < -1 && this.reason) out.push(`Reverb ${Math.round(rv.offsetDb)} dB ${this.reason}`);
     if (this.mode === 'worship' && this.song.delay && this.settings.delayFx) {
@@ -304,6 +402,8 @@ export class Effects {
       song: { delay: this.song.delay, bpm: this.song.bpm, times: delayTimes(this.song.bpm) },
       live: this.live ?? null,
       delayMs: delayMsFor(this.tempo(), this.settings.delayNote),
+      reverbTiming: this.conf('reverb') ? { ...reverbTiming(this.tempo()), offsets: this.settings.verbOffsets } : null,
+      delayNoteNow: this.tempo() ? DELAY_NOTES[delayNoteFor(this.tempo(), this.settings.delayNote)].label : null,
       delaySetMs: this.conf('delay') ? (this.lastDelayMs ?? null) : null,
       running: {
         reverb: this.conf('reverb') ? this.desk?.describe('reverb', this.conf('reverb')) : null,
