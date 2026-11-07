@@ -1,0 +1,17 @@
+{
+  "name": "church-mix-assistant",
+  "version": "0.1.0",
+  "description": "AI mix assistant for a Behringer XR18: booth bridge + web app",
+  "type": "module",
+  "private": true,
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "start": "node src/bridge.js",
+    "dev": "node src/dev.js",
+    "sim": "node src/simulator/xr18-sim.js",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

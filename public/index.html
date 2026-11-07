@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="theme-color" content="#111418" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="stylesheet" href="style.css" />
+    <title>Mix Assistant</title>
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">Mix Assistant</div>
+      <div id="conn" class="pill pill-warn">Connecting…</div>
+      <div id="lock" class="pill">Click &amp; guide: checking…</div>
+    </header>
+
+    <main>
+      <section class="card" id="check">
+        <h2>Pre-service check</h2>
+        <p id="summary" class="summary">Waiting for the mixer…</p>
+        <ul id="issues" class="issues"></ul>
+        <div class="actions">
+          <button id="muteUnused" class="btn">Mute unused channels</button>
+        </div>
+      </section>
+
+      <section class="card" id="walkinCard">
+        <h2>Walk-in music</h2>
+        <p id="walkinState" class="muted">No walk-in channel found.</p>
+        <div class="actions">
+          <button id="walkinOut" class="btn btn-big">Fade out</button>
+          <button id="walkinIn" class="btn btn-big btn-ghost">Bring up</button>
+        </div>
+      </section>
+
+      <section class="card" id="alertsCard">
+        <div class="card-head">
+          <h2>Alerts</h2>
+          <button id="clearAlerts" class="btn btn-small btn-ghost">Clear</button>
+        </div>
+        <ul id="alerts" class="alerts"></ul>
+      </section>
+
+      <section class="card wide">
+        <h2>DCA groups</h2>
+        <div id="dcas" class="dcas"></div>
+      </section>
+
+      <section class="card wide">
+        <h2>Channels</h2>
+        <div id="strips" class="strips"></div>
+      </section>
+    </main>
+
+    <script src="app.js" type="module"></script>
+  </body>
+</html>

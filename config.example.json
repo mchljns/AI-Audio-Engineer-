@@ -1,0 +1,7 @@
+{
+  "mixerHost": "auto",
+  "mixerPort": 10024,
+  "httpPort": 8080,
+  "walkinFadeSeconds": 8,
+  "keepAwake": true
+}
