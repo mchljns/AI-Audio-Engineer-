@@ -22,6 +22,7 @@ export const paths = {
   color: (id) => `${stripBase(id)}/config/color`,
   on: (id) => `${stripBase(id)}/mix/on`, // 1 = unmuted, 0 = muted
   fader: (id) => `${stripBase(id)}/mix/fader`,
+  pan: (id) => `${stripBase(id)}/mix/pan`, // 0..1, 0.5 = centre
   lr: (id) => `${stripBase(id)}/mix/lr`, // 1 = assigned to main L/R
   send: (id, bus) => `${stripBase(id)}/mix/${pad2(bus)}/level`,
   dcaGroups: (id) => `${stripBase(id)}/grp/dca`, // bitmask
@@ -45,6 +46,7 @@ export function stripQueryPaths(id) {
     paths.on(id),
     paths.fader(id),
     paths.lr(id),
+    paths.pan(id),
     paths.dcaGroups(id),
     paths.muteGroups(id),
     ...fxSendBuses.map((b) => paths.send(id, b)),
@@ -66,6 +68,7 @@ export function parseAddress(address) {
     if (rest === 'mix/on') return { id, field: 'on' };
     if (rest === 'mix/fader') return { id, field: 'fader' };
     if (rest === 'mix/lr') return { id, field: 'lr' };
+    if (rest === 'mix/pan') return { id, field: 'pan' };
     if (rest === 'grp/dca') return { id, field: 'dcaGroups' };
     if (rest === 'grp/mute') return { id, field: 'muteGroups' };
     const s = rest.match(/^mix\/(\d\d)\/level$/);

@@ -134,3 +134,14 @@ test('web server refuses paths outside the app', async (t) => {
   }
   assert.equal((await fetch(`http://127.0.0.1:${bridge.boundPort}/`)).status, 200);
 });
+
+test('mono PA: channels panned off-centre are flagged', async (t) => {
+  const { sim, bridge } = await rig(t);
+  await until(() => bridge.state.strips['7'].pan === 0);
+  const rows = Object.fromEntries(bridge.snapshot().inventory.rows.map((r) => [r.id, r]));
+  assert.equal(rows['7'].offCenter, true, 'Keys L hard left');
+  assert.equal(rows['8'].offCenter, true, 'Keys R hard right');
+  assert.equal(rows['1'].offCenter, false, 'pastor centred');
+  sim.externalChange(paths.pan('7'), { type: 'f', value: 0.5 });
+  assert.ok(await until(() => !bridge.snapshot().inventory.rows.find((r) => r.id === '7').offCenter));
+});

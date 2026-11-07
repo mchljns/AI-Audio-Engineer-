@@ -61,6 +61,8 @@ export function loadConfig() {
     monitorBuses: Array.isArray(file.monitorBuses) ? file.monitorBuses : null,
     allowedHosts: Array.isArray(file.allowedHosts) ? file.allowedHosts : [],
     automix: typeof file.automix === 'object' && file.automix ? file.automix : {},
+    // Both speakers get the same feed (XR18 main → PRX ONE → pass-thru → Passport), so warn about panning.
+    monoPA: file.monoPA !== false,
   };
 }
 
@@ -298,7 +300,7 @@ export class Bridge {
   }
 
   #unusedRows() {
-    const inv = buildInventory(this.state, this.roleStore, Date.now(), this.#lockedIds());
+    const inv = buildInventory(this.state, this.roleStore, Date.now(), this.#lockedIds(), { monoPA: this.config.monoPA });
     return inv.rows.filter((r) => r.status === 'unused' && r.on && !r.locked);
   }
 
@@ -480,7 +482,7 @@ export class Bridge {
 
   snapshot({ local = false } = {}) {
     const lockedIds = this.#lockedIds();
-    const inv = buildInventory(this.state, this.roleStore, Date.now(), lockedIds);
+    const inv = buildInventory(this.state, this.roleStore, Date.now(), lockedIds, { monoPA: this.config.monoPA !== false });
     return {
       type: 'state',
       status: this.status,

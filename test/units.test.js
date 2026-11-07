@@ -74,3 +74,9 @@ test('default names and stereo sides', () => {
   assert.equal(stereoSide('Keys R'), 'R');
   assert.equal(stereoSide('Vox 1'), null);
 });
+
+test('your gear names are recognised', async () => {
+  const { classifyName } = await import('../src/roles.js');
+  for (const [n, r] of [['Helix L', 'guitar'], ['HX Stadium', 'guitar'], ['NUX AG', 'acoustic'], ['Stageman', 'acoustic'], ['Helix Trk', 'track'], ['Helix Click', 'click']]) assert.equal(classifyName(n), r, n);
+  assert.deepEqual(parseAddress('/ch/07/mix/pan'), { id: '7', field: 'pan' });
+});

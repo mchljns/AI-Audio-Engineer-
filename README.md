@@ -94,7 +94,7 @@ The app reads names from the mixer, so consistent names make it work best. Sugge
 | 1 | Pastor | | 9–11 | Trk 1, Trk 2, Trk 3 |
 | 2 | Announce | | 12–14 | (spare) |
 | 3–5 | Vox 1, Vox 2, Vox 3 | | 15 | **Click** |
-| 6 | Ac Gtr | | 16 | **Guide** |
+| 6 | Ac Gtr (NUX) | | 16 | **Guide** |
 | 7–8 | Keys L, Keys R | | Aux 17/18 | Walk-in |
 
 ## First test on the real mixer (midweek, not Sunday)
@@ -131,6 +131,6 @@ public/              the web app
 test/                tests (including end-to-end against the simulator)
 ```
 
-Setup guides: [docs/NETWORK.md](docs/NETWORK.md) (no new hardware, Spotify keeps working) and [docs/PA-GAIN-STAGING.md](docs/PA-GAIN-STAGING.md) (XR18 into the PRX ONE and Passport).
+Setup guides: [docs/NETWORK.md](docs/NETWORK.md) (no new hardware, Spotify keeps working) and [docs/PA-GAIN-STAGING.md](docs/PA-GAIN-STAGING.md) (your XR18 → PRX ONE → Passport chain, vocal chain, wireless, Helix click routing).
 
 See [docs/ROADMAP.md](docs/ROADMAP.md) for what's next and [docs/QA.md](docs/QA.md) for every failure mode reviewed and how it's handled.

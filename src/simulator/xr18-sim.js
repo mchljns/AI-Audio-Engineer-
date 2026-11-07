@@ -44,6 +44,8 @@ function initialState() {
     st.set(paths.on(id), { type: 'i', value: 1 });
     st.set(paths.fader(id), { type: 'f', value: l.name ? dbToFloat(-5) : 0 });
     st.set(paths.lr(id), { type: 'i', value: isLocked ? 0 : 1 });
+    // Stereo keys arrive panned hard left/right, as they often do.
+    st.set(paths.pan(id), { type: 'f', value: id === '7' ? 0 : id === '8' ? 1 : 0.5 });
     st.set(paths.dcaGroups(id), { type: 'i', value: 0 });
     st.set(paths.muteGroups(id), { type: 'i', value: 0 });
     for (const b of fxSendBuses) st.set(paths.send(id, b), { type: 'f', value: 0 });

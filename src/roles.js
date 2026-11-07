@@ -31,10 +31,10 @@ const RULES = [
   ['pastor', /\b(pastor|pstr|ptr|preach|preacher|sermon|pulpit|rev)\b/],
   ['speech', /\b(announce|announcements?|ann|podium|lectern|host|mc|speech|talk|wl)\b/],
   ['vocal', /\b(vox|vocals?|voc|vo|lead|ld|bv|bgv|sing|singer|choir|harmony|alto|sop|soprano|tenor)\b/],
-  ['acoustic', /\b(ag|ac ?gtr|acgtr|acc|acoustic)\b/],
+  ['acoustic', /\b(ag|ac ?gtr|acgtr|acc|acoustic|nux|stageman)\b/],
   ['keys', /\b(keys?|kbd|piano|pno|synth|nord|organ|rhodes)\b/],
   ['bass', /\b(bass|bs|bgtr)\b/],
-  ['guitar', /\b(eg|gtr|guitar|elec)\b/],
+  ['guitar', /\b(eg|gtr|guitar|elec|helix|hx|line 6|stadium)\b/],
   ['drums', /\b(drums?|kick|kik|snare|snr|oh|tom|hat|hh|cajon)\b/],
   ['room', /\b(room|amb|ambient|crowd|audience)\b/],
 ];

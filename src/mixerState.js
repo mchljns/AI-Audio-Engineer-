@@ -14,6 +14,7 @@ function emptyStrip(id) {
     fader: 0,
     faderDb: -Infinity,
     lr: null, // unknown until the mixer reports it
+    pan: 0.5,
     dcaGroups: 0,
     muteGroups: 0,
     sends: {}, // bus number -> float level
@@ -48,7 +49,7 @@ export class MixerState extends EventEmitter {
     if (!p || msg.args.length === 0) return false;
     const v = msg.args[0].value;
     // Ignore replies with the wrong kind of value rather than storing nonsense.
-    const numeric = ['fader', 'on', 'lr', 'dcaGroups', 'muteGroups', 'send', 'color'];
+    const numeric = ['fader', 'on', 'lr', 'pan', 'dcaGroups', 'muteGroups', 'send', 'color'];
     if (numeric.includes(p.field) && !Number.isFinite(v)) return false;
     if (p.field === 'name' && typeof v !== 'string') return false;
 
@@ -91,6 +92,9 @@ export class MixerState extends EventEmitter {
         break;
       case 'lr':
         s.lr = v === 1;
+        break;
+      case 'pan':
+        s.pan = Math.min(1, Math.max(0, v));
         break;
       case 'dcaGroups':
         s.dcaGroups = v;

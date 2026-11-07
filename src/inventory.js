@@ -44,7 +44,7 @@ export function resolveRole(strip, roleStore) {
  * Build the channel inventory: what each channel is, whether it's live,
  * and what needs a volunteer's attention.
  */
-export function buildInventory(state, roleStore, now = Date.now(), lockedIds = []) {
+export function buildInventory(state, roleStore, now = Date.now(), lockedIds = [], { monoPA = false } = {}) {
   const lockedSet = new Set(lockedIds);
   const rows = STRIP_IDS.map((id) => {
     const s = state.strips[id];
@@ -74,6 +74,10 @@ export function buildInventory(state, roleStore, now = Date.now(), lockedIds = [
       fader: s.fader,
       faderDb: s.faderDb,
       lr: s.lr === true,
+      pan: s.pan,
+      // In a mono PA, a channel panned well off-centre loses part of its level (or all of it,
+      // if only one XR18 main output is wired).
+      offCenter: monoPA && s.lr === true && labeled && Math.abs(s.pan - 0.5) > 0.15 && !LOCKED_ROLES.has(role) && !lockedSet.has(id),
       fxSends: fxSendBuses.map((b) => s.sends[b] ?? 0),
       needsConfirm: role === 'unknown' || status === 'unlabeled-signal',
     };
