@@ -79,10 +79,17 @@ Your PTU-7000 routine is the right one: scan each channel by itself with everyth
 - XLR out to the XR18 with **phantom power off** on that channel.
 - If you hear a hum that stops when the cable is unplugged from the NUX, use its **ground lift**.
 
-## 8. In-ear buses
+## 8. In-ears: two mono mixes
 
-Name each XR18 aux bus that feeds a PTM-10 in the X Air app, for example "IEM Vocals" and "IEM Band". Mix Assistant then knows they're in-ear mixes, where the click is allowed. An unnamed bus with click on it shows a warning until you name it.
+The two PTM-10s run in mono mode, so you have **two in-ear mixes**, one per transmitter. Any number of bodypacks can listen to the same transmitter, so people share a mix.
 
-## Still to confirm
+| XR18 bus | Name it | Feeds | Suggested contents |
+|---|---|---|---|
+| Aux 1 | **IEM Band** | PTM-10 #1 | Click and guide up front, tracks, keys and acoustic, a little of each vocal |
+| Aux 2 | **IEM Vocals** | PTM-10 #2 | Vocals up front, keys and acoustic for pitch, guide, click lower (or off for singers who don't want it) |
+| Aux 3–6 | (free) | | If you ever add a livestream or recording feed, name that bus "Stream" or "Recording" so Mix Assistant keeps the click off it |
 
-- **Are the PTM-10s in stereo or mono mode?** That decides whether you have 2 or 4 in-ear mixes.
+- **Use pre-fader sends** for both buses, so the auto-mix turning channels down for the house never changes what anyone hears in their ears.
+- Use the transmitter input the PTM-10 manual names for mono, and set the aux bus master so the transmitter's input meter is strong but not clipping.
+- **Name the buses exactly like this** (anything with "IEM" in it works). Mix Assistant then knows click and guide belong there and won't warn about them.
+- The pastor's earset and the walk-in music stay out of both in-ear mixes unless the band asks for them.
