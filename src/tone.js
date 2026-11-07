@@ -47,6 +47,11 @@ const PARAMS = [
   ['comp.attack', 'dyn/attack', lin(0, 120), 'f'],
   ['comp.release', 'dyn/release', log(5, 4000), 'f'],
   ['comp.auto', 'dyn/auto', bool, 'i'],
+  // The compressor's key filter: what it listens to. Pops mode listens only below ~150 Hz.
+  // Filter types follow the X32 list (0 LC6, 1 LC12, 2 HC6, 3 HC12, 4–8 band): QA P14.
+  ['comp.keyOn', 'dyn/filter/on', bool, 'i'],
+  ['comp.keyType', 'dyn/filter/type', int, 'i'],
+  ['comp.keyHz', 'dyn/filter/f', log(20, 20000), 'f'],
   ['gate.on', 'gate/on', bool, 'i'],
   ['gate.mode', 'gate/mode', int, 'i'],
   ['gate.thr', 'gate/thr', lin(-80, 0), 'f'],
@@ -204,7 +209,7 @@ export function applyComp(model, preset, loudDb) {
   const ratioIndex = RATIOS.indexOf(p.ratio);
   // Gain reduction = (level − threshold) × (1 − 1/ratio)  →  threshold for the target squeeze.
   const thr = clamp(round(loudDb - p.squeeze / (1 - 1 / p.ratio)), -50, -5);
-  Object.assign(m.comp, { on: true, mode: 0, thr, ratio: ratioIndex, knee: 2, mgain: round(p.squeeze / 2), attack: p.attack, release: 150, auto: true });
+  Object.assign(m.comp, { on: true, mode: 0, thr, ratio: ratioIndex, knee: 2, mgain: round(p.squeeze / 2), attack: p.attack, release: 150, auto: true, keyOn: false });
   return { model: m, note: `Compression ${p.label.toLowerCase()}: ${p.ratio}:1, threshold ${thr} dB, about ${p.squeeze} dB off the loudest lines` };
 }
 
@@ -229,6 +234,28 @@ export function applyGain(model, loudDb) {
     model: m,
     note: `Gain ${moved > 0 ? 'up' : 'down'} ${Math.abs(moved)} dB to ${next > 0 ? '+' : ''}${next} dB${atEdge ? ' (the end of the range: check the wireless receiver or DI output level)' : ''}`,
   };
+}
+
+/**
+ * Pop guard: the compressor listens only to the lows (below about 150 Hz), reacts in about a
+ * millisecond and lets go quickly, so a "p" or "b" burst ducks the channel for an instant while
+ * normal singing (which has little energy down there) passes untouched. It replaces the
+ * person's normal compression: a channel has one compressor.
+ * loudDb is their loudest normal singing; nudge: −3 = catch more, +3 = catch less.
+ */
+export function applyPops(model, loudDb, nudge = 0) {
+  const m = clone(model);
+  if (loudDb === 'off') {
+    m.comp.on = false;
+    m.comp.keyOn = false;
+    return { model: m, note: 'Pop guard off' };
+  }
+  let thr;
+  if (nudge && m.comp?.keyOn && Number.isFinite(m.comp.thr)) thr = clamp(round(m.comp.thr + nudge), -50, -5);
+  else if (Number.isFinite(loudDb)) thr = clamp(round(loudDb - 6), -50, -5);
+  else return { model, note: null };
+  Object.assign(m.comp, { on: true, mode: 0, thr, ratio: RATIOS.indexOf(4), knee: 0, mgain: 0, attack: 1, release: 80, auto: false, keyOn: true, keyType: 3, keyHz: 150 });
+  return { model: m, note: nudge ? `Pop guard ${nudge < 0 ? 'catches more' : 'catches less'}: threshold ${thr} dB` : `Pop guard on: the compressor listens below 150 Hz and ducks "p" and "b" bursts (threshold ${thr} dB)` };
 }
 
 /** Gentle gate for hiss between lines, from the measured quiet level (pack hiss, room). */
@@ -279,7 +306,8 @@ export function describeTone(m) {
       parts.push(`${b.db > 0 ? '+' : ''}${round(b.db)} dB ${b.type === 1 ? 'below' : b.type === 4 ? 'above' : 'at'} ${fmtHz(b.hz)}`);
     }
   } else parts.push('EQ off');
-  if (m.comp?.on) parts.push(`Compression ${RATIOS[m.comp.ratio] ?? '?'}:1 from ${round(m.comp.thr)} dB`);
+  if (m.comp?.on && m.comp.keyOn && m.comp.keyType === 3) parts.push(`Pop guard from ${round(m.comp.thr)} dB`);
+  else if (m.comp?.on) parts.push(`Compression ${RATIOS[m.comp.ratio] ?? '?'}:1 from ${round(m.comp.thr)} dB`);
   else parts.push('No compression');
   if (m.gate?.on) parts.push(`Gate below ${round(m.gate.thr)} dB`);
   return parts.join(' · ');
@@ -297,7 +325,7 @@ export function toneToSave(m) {
     b2: pick(m.b2, ['type', 'hz', 'db', 'q']),
     b3: pick(m.b3, ['type', 'hz', 'db', 'q']),
     b4: pick(m.b4, ['type', 'hz', 'db', 'q']),
-    comp: pick(m.comp, ['on', 'mode', 'thr', 'ratio', 'knee', 'mgain', 'attack', 'release', 'auto']),
+    comp: pick(m.comp, ['on', 'mode', 'thr', 'ratio', 'knee', 'mgain', 'attack', 'release', 'auto', 'keyOn', 'keyType', 'keyHz']),
     gate: pick(m.gate, ['on', 'mode', 'thr', 'range', 'attack', 'hold', 'release']),
   };
 }

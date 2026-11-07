@@ -122,3 +122,28 @@ test('bridge: gain set, channels named, reverb set up and confirmed, delay time 
   for (let i = 0; i < 30 && !bridge.snapshot().effects.delaySetMs; i++) await wait(200);
   assert.ok(Math.abs(bridge.snapshot().effects.delaySetMs - 375) <= 3, `delay set to ${bridge.snapshot().effects.delaySetMs} ms`);
 });
+
+test('write guard: in-ear mixes, snapshots, phantom and setup can never be written', async () => {
+  const { blockedWrite } = await import('../src/xair/client.js');
+  for (const a of ['/ch/03/mix/01/level', '/ch/16/mix/06/level', '/rtn/aux/mix/02/level', '/rtn/1/mix/04/level', '/bus/1/mix/fader', '/bus/2/eq/1/g', '/-snap/load', '/snap/01/name', '/config/linkcfg/hadly', '/headamp/03/phantom', '/-action/initall']) {
+    assert.equal(blockedWrite(a), true, a);
+  }
+  for (const a of ['/ch/03/mix/fader', '/ch/03/mix/07/level', '/ch/03/mix/10/level', '/rtn/1/mix/fader', '/ch/03/eq/1/g', '/headamp/03/gain', '/fx/2/par/02', '/ch/03/config/name', '/ch/03/mix/on']) {
+    assert.equal(blockedWrite(a), false, a);
+  }
+  assert.equal(blockedWrite('/ch/15/mix/05/level', [5]), false, 'a bus explicitly listed as protected in config');
+  assert.equal(blockedWrite('/ch/15/mix/04/level', [5]), true);
+});
+
+test('pop guard: compressor keyed below 150 Hz, fast; nudges; off; replaces normal compression', async () => {
+  const { applyPops, applyComp, describeTone, freshModel, RATIOS } = await import('../src/tone.js');
+  let r = applyPops(freshModel('vocal'), -12);
+  assert.deepEqual([r.model.comp.on, r.model.comp.keyOn, r.model.comp.keyType, r.model.comp.keyHz, r.model.comp.thr, RATIOS[r.model.comp.ratio], r.model.comp.attack], [true, true, 3, 150, -18, 4, 1]);
+  assert.match(describeTone(r.model), /Pop guard from -18 dB/);
+  r = applyPops(r.model, null, -3);
+  assert.equal(r.model.comp.thr, -21, 'still popping: catches more');
+  r = applyComp(r.model, 'medium', -12);
+  assert.equal(r.model.comp.keyOn, false, 'normal compression listens to everything again');
+  r = applyPops(r.model, 'off');
+  assert.equal(r.model.comp.on, false);
+});

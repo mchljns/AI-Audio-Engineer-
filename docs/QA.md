@@ -57,6 +57,8 @@ A running list of what could go wrong, what handles it, and how it's checked. Re
 
 | # | Assumption | Status |
 |---|---|---|
+| P14 | Compressor key filter: /ch/NN/dyn/filter/on, type (3 = HC12 assumed, X32 list), f (20 Hz–20 kHz log) | Midweek: Catch pops on a spare channel and check X Air shows the dynamics key filter on, high cut ~150 Hz |  Midweek |
+| M23 | A bug writes to an in-ear mix, a snapshot or phantom | One write guard in the OSC client drops any such write and alerts; tested against every pattern | Test |
 | P12 | FX algorithm numbers and parameters (X32 layout assumed: Plate = type 5 with pre-delay 1, decay 2, low cut 7, high cut 8; Stereo Delay = type 10 with mix 1, time 2, low cut 7, high cut 8, feedback 10/12) | One-tap setup reads the effect first, writes, and asks the person to confirm in X Air what it should show; "No" tries the next way, then restores the effect exactly; nothing is adjusted later unless confirmed. Midweek: run both setups on FX1/FX2 | Midweek |
 | P13 | Input gain /headamp/NN/gain, −12..+60 dB linear; phantom /headamp/NN/phantom never sent | Companion module code (bitfocus) | Midweek: Set gain on a spare channel, check X Air's gain |
 | M22 | Automatic gain or names cause trouble | Gain only on a person's Set gain press at soundcheck, 12 dB max per press, compressor/gate follow; names only on Channels are set, checked to read back as the same role, never click/guide, never a channel used twice; switch to turn naming off | Tests, Browser |

@@ -30,7 +30,7 @@ import { Effects, VERB_LEVELS, DELAY_LEVELS, fxSendBus } from './effects.js';
 import { TempoDetector, TEMPO_SOURCES } from './tempo.js';
 import { FxDesk, REVERB_TWEAKS } from './fxsetup.js';
 import { channelName } from './naming.js';
-import { ToneDesk, applyGain, applyFix, applyComp, applyGate, freshModel, toneToSave, describeTone, FIXES, COMP_PRESETS } from './tone.js';
+import { ToneDesk, applyPops, applyGain, applyFix, applyComp, applyGate, freshModel, toneToSave, describeTone, FIXES, COMP_PRESETS } from './tone.js';
 import { CONNECTION_MODES, chooseMixer, hardwarePorts, kindLabel, pathTo } from './netpath.js';
 import { ROLES, LOCKED_ROLES } from './roles.js';
 
@@ -49,7 +49,7 @@ const PIN_MAX_TRIES = 5;
 const PIN_LOCKOUT_MS = 60 * 1000;
 const UNUSED_SETTLE_MS = 15000;
 
-const TONE_COMMANDS = new Set(['toneGain', 'toneRead', 'toneFix', 'toneComp', 'toneGate', 'toneFresh', 'toneUndo', 'toneSave', 'toneLoad', 'toneVerb', 'toneDelay']);
+const TONE_COMMANDS = new Set(['tonePops', 'toneGain', 'toneRead', 'toneFix', 'toneComp', 'toneGate', 'toneFresh', 'toneUndo', 'toneSave', 'toneLoad', 'toneVerb', 'toneDelay']);
 const LIBRARY_COMMANDS = new Set([
   'saveSlot', 'deleteSlot', 'savePerson', 'deletePerson',
   'newSet', 'openSet', 'deleteSet', 'setLineup',
@@ -301,6 +301,14 @@ export class Bridge {
     this.status.host = host;
 
     this.client = new XAirClient({ host, port: this.config.mixerPort });
+    this.client.allowedAuxBuses = Array.isArray(this.config.protectedBuses) ? this.config.protectedBuses : [];
+    this.client.on('blocked', (address) => {
+      console.error(`Blocked a write to ${address}: the app never changes in-ear mixes, snapshots, phantom or mixer setup.`);
+      if (Date.now() - (this.lastBlockedAlert ?? 0) > 60000) {
+        this.lastBlockedAlert = Date.now();
+        this.alert({ level: 'warn', source: 'safety', message: `Mix Assistant stopped itself changing ${address}. In-ear mixes, snapshots and phantom are never changed by the app. Please save a troubleshooting report.` });
+      }
+    });
     this.guard = new ClickGuard({
       state: this.state,
       client: this.client,
@@ -708,6 +716,9 @@ export class Bridge {
       case 'toneFix':
         if (!FIXES[t.instrument]?.[cmd.fix] && !FIXES.vocal[cmd.fix]) return;
         r = applyFix(t.model, t.instrument, String(cmd.fix));
+        break;
+      case 'tonePops':
+        r = cmd.off ? applyPops(t.model, 'off') : applyPops(t.model, Math.max(-60, Math.min(0, Number(cmd.loudDb))), [-3, 3].includes(Number(cmd.nudge)) ? Number(cmd.nudge) : 0);
         break;
       case 'toneGain':
         r = applyGain(t.model, Math.max(-60, Math.min(0, Number(cmd.loudDb))));

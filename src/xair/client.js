@@ -14,6 +14,22 @@ const TIMEOUT_MS = 6000;
  * UDP OSC client for an XR18.
  * Events: 'message' ({address,args}), 'connected' (info), 'disconnected', 'error'.
  */
+/**
+ * Writes the app must never make (reads are always fine):
+ *   - anything on an aux bus (/bus/…): the in-ear mixes' levels, EQ, dynamics, setup
+ *   - a channel's, aux-in's or FX return's send to aux buses 1–6 (the in-ear mixes), except a
+ *     bus explicitly listed as protected in config.json, which the click guard keeps clear
+ *   - loading or saving mixer snapshots, mixer configuration, phantom power
+ */
+export function blockedWrite(address, allowedAuxBuses = []) {
+  if (/^\/bus\//.test(address)) return true;
+  const send = address.match(/^\/(?:ch\/\d\d|rtn\/(?:aux|[1-4]))\/mix\/0([1-6])(?:\/|$)/);
+  if (send) return !(allowedAuxBuses ?? []).map(Number).includes(Number(send[1]));
+  if (/^\/-?snap/.test(address) || /^\/-?config\//.test(address) || /^\/-?action\//.test(address)) return true;
+  if (/^\/headamp\/\d\d\/phantom$/.test(address)) return true;
+  return false;
+}
+
 export class XAirClient extends EventEmitter {
   constructor({ host, port = OSC_PORT, localPort = 0 } = {}) {
     super();
@@ -71,6 +87,12 @@ export class XAirClient extends EventEmitter {
 
   send(address, args = []) {
     if (!this.socket || !this.host) return;
+    if (args.length && blockedWrite(address, this.allowedAuxBuses)) {
+      // The one place every write passes: in-ear mixes, snapshots, phantom and mixer setup can
+      // never be changed by the app, whatever any other code asks for.
+      this.emit('blocked', address);
+      return;
+    }
     const buf = encodeMessage(address, args);
     this.socket.send(buf, this.port, this.hostIp ?? this.host, (err) => err && this.emit('error', err));
   }

@@ -23,7 +23,7 @@ test('tone: values convert to and from the mixer exactly', () => {
   assert.ok(Math.abs(back.hpHz - 100) < 0.01 && back.hpOn === true);
   assert.ok(Math.abs(back.comp.thr + 22) < 1e-6 && back.comp.on === true && RATIOS[back.comp.ratio] === 3);
   assert.deepEqual(messagesFor('3', m, back), [], 'nothing changed: nothing sent');
-  assert.equal(tonePaths('3').length, 36, 'gain + low cut + EQ + compressor + gate');
+  assert.equal(tonePaths('3').length, 39, 'gain + low cut + EQ + compressor (with key filter) + gate');
 });
 
 test('fix buttons: small steps on the right frequency, bounded, low cut in steps', () => {

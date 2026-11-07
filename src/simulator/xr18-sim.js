@@ -69,6 +69,9 @@ function initialState() {
     });
     for (const [k, v] of [['on', 0], ['mode', 0], ['ratio', 3], ['auto', 0]]) n(`dyn/${k}`, v);
     for (const [k, v] of [['thr', 0.6], ['knee', 0.4], ['mgain', 0], ['attack', 0.1], ['release', 0.5]]) f(`dyn/${k}`, v);
+    n('dyn/filter/on', 0);
+    n('dyn/filter/type', 0);
+    f('dyn/filter/f', 0.5);
     for (const [k, v] of [['on', 0], ['mode', 3]]) n(`gate/${k}`, v);
     for (const [k, v] of [['thr', 0.3], ['range', 0.3], ['attack', 0], ['hold', 0.5], ['release', 0.5]]) f(`gate/${k}`, v);
   }

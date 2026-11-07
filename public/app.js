@@ -1043,6 +1043,10 @@ for (const b of document.querySelectorAll('#toneComp .seg-btn')) {
 for (const b of document.querySelectorAll('#toneVerb .seg-btn')) b.addEventListener('click', () => toneSend({ type: 'toneVerb', level: b.dataset.verb }));
 for (const b of document.querySelectorAll('#toneDelay .seg-btn')) b.addEventListener('click', () => toneSend({ type: 'toneDelay', level: b.dataset.delay }));
 $('#toneGateOn').addEventListener('click', () => (toneListen = { kind: 'gate', until: Date.now() + 4000, samples: [] }));
+$('#tonePops').addEventListener('click', () => (toneListen = { kind: 'pops', until: Date.now() + 7000, samples: [] }));
+$('#tonePopsMore').addEventListener('click', () => toneSend({ type: 'tonePops', nudge: -3 }));
+$('#tonePopsLess').addEventListener('click', () => toneSend({ type: 'tonePops', nudge: 3 }));
+$('#tonePopsOff').addEventListener('click', () => toneSend({ type: 'tonePops', off: true }));
 $('#toneGainBtn').addEventListener('click', () => (toneListen = { kind: 'gain', until: Date.now() + 7000, samples: [] }));
 $('#toneGateOff').addEventListener('click', () => toneSend({ type: 'toneGate', on: false }));
 
@@ -1071,7 +1075,11 @@ function renderTone(s) {
   $('#toneSave').textContent = `Save to ${first}`;
   const comp = T.model?.comp;
   const ratio = comp?.on ? [1.1, 1.3, 1.5, 2, 2.5, 3, 4, 5, 7, 10, 20, 100][comp.ratio] : null;
-  const compNow = !comp?.on ? 'off' : ratio <= 2 ? 'light' : ratio <= 3 ? 'medium' : 'firm';
+  const popsOn = !!(comp?.on && comp.keyOn && comp.keyType === 3);
+  const compNow = popsOn ? null : !comp?.on ? 'off' : ratio <= 2 ? 'light' : ratio <= 3 ? 'medium' : 'firm';
+  $('#tonePopsBox').hidden = slot.instrument !== 'vocal';
+  $('#tonePops').textContent = popsOn ? 'Catch pops again' : 'Catch pops';
+  for (const id of ['#tonePopsMore', '#tonePopsLess', '#tonePopsOff']) $(id).hidden = !popsOn;
   for (const b of document.querySelectorAll('#toneComp .seg-btn')) b.classList.toggle('active', b.dataset.comp === compNow);
 
   const fxOn = !!s.effects?.settings.reverbFx;
@@ -1104,7 +1112,7 @@ function renderTone(s) {
   toneListen.samples.push(db);
   const left = Math.max(0, Math.ceil((toneListen.until - Date.now()) / 1000));
   box.textContent =
-    toneListen.kind === 'comp' || toneListen.kind === 'gain'
+    toneListen.kind === 'comp' || toneListen.kind === 'gain' || toneListen.kind === 'pops'
       ? `Have ${first} ${slot.instrument === 'vocal' ? 'sing' : 'play'} the loudest part of a song… ${left}s`
       : `Quiet please: nobody on ${first}'s ${slot.instrument === 'vocal' ? 'mic' : slot.name.toLowerCase()} for ${left}s (measuring its hiss)`;
   if (Date.now() < toneListen.until) return;
@@ -1120,6 +1128,15 @@ function renderTone(s) {
       return;
     }
     toneSend({ type: 'toneGain', loudDb: loud[Math.floor(loud.length * 0.95)] });
+  } else if (L0.kind === 'pops') {
+    const loud = xs.filter((x) => x > -50);
+    if (loud.length < 10) {
+      box.hidden = false;
+      box.textContent = `Didn't hear ${first} loud enough. Try again while they sing out.`;
+      setTimeout(() => !toneListen && (box.hidden = true), 4000);
+      return;
+    }
+    toneSend({ type: 'tonePops', loudDb: loud[Math.floor(loud.length * 0.9)] });
   } else if (L0.kind === 'comp') {
     const loud = xs.filter((x) => x > -50);
     if (loud.length < 10) {
