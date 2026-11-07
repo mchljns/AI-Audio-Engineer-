@@ -158,7 +158,7 @@ export class Bridge {
       case 'setFader': {
         if (!s) return;
         this.fades.cancel(cmd.id);
-        const v = dbToFloat(cmd.db);
+        const v = typeof cmd.value === 'number' ? Math.min(1, Math.max(0, cmd.value)) : dbToFloat(cmd.db);
         s.fader = v;
         s.faderDb = floatToDb(v);
         this.client.setFloat(paths.fader(cmd.id), v);
@@ -206,7 +206,7 @@ export class Bridge {
       case 'setDcaFader': {
         const d = this.state.dcas[cmd.n];
         if (!d) return;
-        d.fader = dbToFloat(cmd.db);
+        d.fader = typeof cmd.value === 'number' ? Math.min(1, Math.max(0, cmd.value)) : dbToFloat(cmd.db);
         d.faderDb = floatToDb(d.fader);
         this.client.setFloat(paths.dcaFader(cmd.n), d.fader);
         return;

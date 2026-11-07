@@ -70,6 +70,7 @@ export function buildInventory(state, roleStore, now = Date.now()) {
       signal,
       levelDb: s.levelDb,
       on: s.on,
+      fader: s.fader,
       faderDb: s.faderDb,
       lr: s.lr === true,
       fxSends: fxSendBuses.map((b) => s.sends[b] ?? 0),

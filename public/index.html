@@ -2,10 +2,10 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="theme-color" content="#111418" />
+    <meta name="theme-color" content="#0e1013" />
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="stylesheet" href="style.css" />
     <title>Mix Assistant</title>
@@ -15,45 +15,55 @@
       <div class="brand">Mix Assistant</div>
       <div id="conn" class="pill pill-warn">Connecting…</div>
       <div id="lock" class="pill">Click &amp; guide: checking…</div>
+      <div class="spacer"></div>
+      <div class="walkin">
+        <span id="walkinState" class="muted">Walk-in</span>
+        <button id="walkinOut" class="btn">Fade out walk-in</button>
+        <button id="walkinIn" class="btn btn-ghost">Bring up</button>
+      </div>
     </header>
 
-    <main>
-      <section class="card" id="check">
-        <h2>Pre-service check</h2>
-        <p id="summary" class="summary">Waiting for the mixer…</p>
-        <ul id="issues" class="issues"></ul>
-        <div class="actions">
+    <details id="checkPanel" class="panel">
+      <summary>
+        <span class="panel-title">Pre-service check</span>
+        <span id="summary" class="summary">Waiting for the mixer…</span>
+        <span id="issueCount" class="issue-count"></span>
+      </summary>
+      <div class="panel-body">
+        <div class="panel-col">
+          <ul id="issues" class="list"></ul>
           <button id="muteUnused" class="btn">Mute unused channels</button>
         </div>
-      </section>
-
-      <section class="card" id="walkinCard">
-        <h2>Walk-in music</h2>
-        <p id="walkinState" class="muted">No walk-in channel found.</p>
-        <div class="actions">
-          <button id="walkinOut" class="btn btn-big">Fade out</button>
-          <button id="walkinIn" class="btn btn-big btn-ghost">Bring up</button>
+        <div class="panel-col">
+          <div class="panel-head">
+            <strong>Alerts</strong>
+            <button id="clearAlerts" class="btn btn-small btn-ghost">Clear</button>
+          </div>
+          <ul id="alerts" class="list"></ul>
         </div>
-      </section>
+      </div>
+    </details>
 
-      <section class="card" id="alertsCard">
-        <div class="card-head">
-          <h2>Alerts</h2>
-          <button id="clearAlerts" class="btn btn-small btn-ghost">Clear</button>
-        </div>
-        <ul id="alerts" class="alerts"></ul>
-      </section>
-
-      <section class="card wide">
-        <h2>DCA groups</h2>
-        <div id="dcas" class="dcas"></div>
-      </section>
-
-      <section class="card wide">
-        <h2>Channels</h2>
-        <div id="strips" class="strips"></div>
-      </section>
+    <main class="console" id="console">
+      <div id="strips" class="bank"></div>
+      <div class="bank-divider"></div>
+      <div id="dcas" class="bank"></div>
     </main>
+
+    <dialog id="stripDialog">
+      <form method="dialog" class="dialog-body">
+        <h3 id="dlgTitle"></h3>
+        <p id="dlgStatus" class="muted"></p>
+        <label>
+          What is this channel?
+          <select id="dlgRole"></select>
+        </label>
+        <p class="muted small">"Auto" works it out from the channel name on the mixer. A choice here is remembered until the channel is renamed.</p>
+        <div class="dialog-actions">
+          <button value="close" class="btn">Done</button>
+        </div>
+      </form>
+    </dialog>
 
     <script src="app.js" type="module"></script>
   </body>

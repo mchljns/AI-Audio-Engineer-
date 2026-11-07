@@ -15,12 +15,12 @@ It works alongside the Behringer X Air app, which stays available as a backup.
   - Monitor sends (aux 1–6) are left alone; that's where click and guide belong.
 - **Mute unused channels** with one tap. Only touches channels with no name and no signal, never click/guide. This helps the noise floor.
 - **Walk-in music.** Fade out smoothly when the service starts, and bring it back to its saved level afterwards. If someone grabs the fader during a fade, the fade stops and the person wins.
-- **Basic mixer view**: faders, mutes, main assign and the 4 DCA groups.
+- **Console-style mixer view**: side-by-side channel strips with fader, meter, mute, main (LR) assign and a colour-coded name strip, plus the 4 DCA groups at the right. Faders move relative to your finger, so touching one never makes it jump. Tap a name strip to see what the app thinks the channel is, or to change it. The pre-service check and alerts fold away above the strips.
 - **Confirm a channel's role** when the name is unclear (e.g. "Sarah"). The answer is remembered, but only while the channel keeps that name. Rename it, and the app reads the new name again.
 
 ## Try it without the mixer
 
-You need [Node.js](https://nodejs.org) 20 or newer.
+You need [Node.js](https://nodejs.org) 20 or newer (runs natively on Apple silicon Macs).
 
 ```bash
 npm install
