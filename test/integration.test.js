@@ -82,7 +82,15 @@ test('bridge against simulator', async (t) => {
   });
 
   await t.test('mute unused mutes only blank, silent, unlocked channels', async () => {
-    bridge.handleCommand({ type: 'muteUnused' });
+    bridge.handleCommand({ type: 'muteUnused', ids: ['13'] });
+    await wait(100);
+    assert.equal(sim.get(paths.on('13')), 1, 'refused until channels have settled');
+    // Pretend meters have been flowing long enough.
+    bridge.state.metersSince = Date.now() - 20000;
+    const snap = bridge.snapshot();
+    assert.ok(snap.unusedReady);
+    assert.deepEqual(snap.unused.map((u) => u.id), ['13']);
+    bridge.handleCommand({ type: 'muteUnused', ids: ['13', '4', '12', '15'] });
     assert.ok(await until(() => sim.get(paths.on('13')) === 0));
     assert.equal(sim.get(paths.on('4')), 1, 'named-but-silent Vox 2 left alone');
     assert.equal(sim.get(paths.on('12')), 1, 'channel with signal left alone');

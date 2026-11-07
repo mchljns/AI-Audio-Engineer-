@@ -84,9 +84,9 @@ export function parseAddress(address) {
  * in 1/256 dB. /meters/1 order: 16 channels, aux L/R, FX returns, buses, ...
  */
 export function decodeMeterBlob(blob) {
-  if (blob.length < 4) return [];
+  if (!Buffer.isBuffer(blob) || blob.length < 4) return [];
   const count = blob.readInt32LE(0);
-  const n = Math.min(count, Math.floor((blob.length - 4) / 2));
+  const n = Math.max(0, Math.min(count, Math.floor((blob.length - 4) / 2), 256));
   const out = new Array(n);
   for (let i = 0; i < n; i++) out[i] = blob.readInt16LE(4 + i * 2) / 256;
   return out;

@@ -94,7 +94,12 @@ function showAuth(message) {
 $('#authForm').addEventListener('submit', (e) => {
   e.preventDefault();
   pendingPin = $('#pinInput').value.trim();
-  if (pendingPin) send({ type: 'auth', pin: pendingPin });
+  if (!pendingPin) return;
+  if (ws?.readyState !== 1) {
+    $('#authMsg').textContent = "Can't reach the booth Mac yet. Check this device is on the same Wi-Fi; it will keep trying.";
+    return;
+  }
+  send({ type: 'auth', pin: pendingPin });
 });
 
 function setPill(el, kind, text) {
@@ -263,13 +268,25 @@ function openDialog(id) {
   sel.replaceChildren(el('option', { value: '', text: 'Auto (from name)' }));
   for (const [k, label] of Object.entries(latest.roles)) if (k !== 'none' && k !== 'unknown') sel.append(el('option', { value: k, text: label }));
   sel.value = r.roleSource === 'confirmed' ? r.role : '';
+  $('#dlgLock').hidden = !r.locked;
   $('#stripDialog').showModal();
 }
 $('#dlgRole').addEventListener('change', (e) => send({ type: 'setRole', id: dlgId, role: e.target.value || null }));
+$('#dlgRelease').addEventListener('click', () => {
+  send({ type: 'releaseLock', id: dlgId });
+  $('#stripDialog').close();
+});
 
 // ---------- page ----------
 function render(s) {
   const st = s.status;
+  document.body.classList.toggle('offline', !st.connected);
+  $('#offlineBar').hidden = st.connected || st.searching;
+  if (st.searching) {
+    $('#offlineBar').hidden = false;
+    $('#offlineBar').textContent = 'Looking for the mixer. Make sure the XR18 is on and this Mac is on the same network.';
+  } else $('#offlineBar').textContent = "The mixer isn't connected. Controls are paused until it's back.";
+  if (s.automix) renderAuto(s.automix);
   $('#conn').title = `Mix Assistant ${st.version ?? ''}`;
   if (st.connected) setPill($('#conn'), 'ok', `Mixer: ${st.mixer?.name ?? 'connected'}`);
   else if (st.searching) setPill($('#conn'), 'warn', 'Looking for mixer…');
@@ -279,7 +296,8 @@ function render(s) {
   const renamed = g.locked.filter((l) => l.renamed);
   if (!g.locked.length) setPill($('#lock'), 'warn', 'No click/guide channel found');
   else if (!g.allSafe) setPill($('#lock'), 'danger', 'Click/guide reaching house — fixing');
-  else if (renamed.length) setPill($('#lock'), 'danger', `🔒 ${renamed.map((l) => `Ch ${l.id}`).join(', ')} renamed: still locked, please check`);
+  else if (renamed.length) setPill($('#lock'), 'danger', `🔒 ${renamed.map((l) => (l.id === 'aux' ? 'Aux 17/18' : `Ch ${l.id}`)).join(', ')} renamed: still locked, please check`);
+  else if (g.unsure?.length) setPill($('#lock'), 'warn', `🔒 Locked, but aux ${[...new Set(g.unsure.map((u) => u.bus))].join(', ')} needs a name`);
   else setPill($('#lock'), 'ok', `🔒 ${g.locked.map((l) => l.name).join(' & ')} locked to monitors`);
   $('#lock').title = g.protectedBuses?.length
     ? `Also kept off: ${g.protectedBuses.map((b) => b.name).join(', ')}`
@@ -325,7 +343,8 @@ function render(s) {
   if (s.walkin.length) {
     const fading = s.walkin.some((w) => w.fading);
     const on = s.walkin.some((w) => w.on);
-    $('#walkinState').textContent = fading ? 'Walk-in: fading…' : on ? 'Walk-in: playing' : 'Walk-in: off';
+    const sound = s.walkin.some((w) => s.inventory.rows.find((r) => r.id === w.id)?.signal);
+    $('#walkinState').textContent = fading ? 'Fading…' : !on ? 'Off.' : sound ? 'Playing in the house.' : 'On, but no music is coming in. Check Spotify or Music on the Mac.';
   } else {
     $('#walkinState').textContent = 'No walk-in channel';
   }
@@ -334,7 +353,92 @@ function render(s) {
   for (const d of s.dcas) updateDca(d);
 }
 
-$('#muteUnused').addEventListener('click', () => send({ type: 'muteUnused' }));
+$('#muteUnused').addEventListener('click', () => {
+  const ready = latest?.unusedReady;
+  const list = latest?.unused ?? [];
+  if (!ready) $('#unusedText').textContent = 'Still checking which channels are in use. Give it about 15 seconds after the mixer connects.';
+  else if (!list.length) $('#unusedText').textContent = 'Every channel without a name is already muted.';
+  else $('#unusedText').textContent = `These have no name and no sound: ${list.map((u) => u.label).join(', ')}. Muting them cuts their hiss.`;
+  $('#unusedConfirm').hidden = !ready || !list.length;
+  $('#unusedDialog').dataset.ids = JSON.stringify(list.map((u) => u.id));
+  $('#unusedDialog').showModal();
+});
+$('#unusedDialog').addEventListener('close', () => {
+  if ($('#unusedDialog').returnValue === 'mute') send({ type: 'muteUnused', ids: JSON.parse($('#unusedDialog').dataset.ids || '[]') });
+});
+
+// ---------- Auto view ----------
+const MODE_LABEL = { walkin: 'Walk-in', worship: 'Worship', talkover: 'Talking over music', speaking: 'Speaking', idle: 'Quiet' };
+function renderAuto(a) {
+  for (const b of document.querySelectorAll('.mode')) {
+    const m = b.dataset.mode;
+    b.classList.toggle('now', a.mode === m && !a.modeLocked);
+    b.classList.toggle('picked', a.modeLocked === m);
+  }
+  const autoOn = !a.modeLocked && a.settings.autoModes;
+  $('#modeAuto').classList.toggle('on', autoOn);
+  $('#modeAuto').textContent = autoOn ? 'Automatic ✓' : 'Go automatic';
+  $('#modeNote').textContent = a.modeLocked
+    ? `You set ${MODE_LABEL[a.modeLocked]}. It stays there until you tap "Go automatic".`
+    : !a.settings.autoModes
+      ? 'Automatic mode changes are off. Tap a mode to set it.'
+      : a.candidate && a.candidate !== a.mode
+        ? `Listening… looks like ${MODE_LABEL[a.candidate]}.`
+        : 'Changes by itself from what it hears. Tap a mode to set it yourself.';
+
+  const lines = [];
+  for (const c of a.channels) {
+    const role = latest.inventory.rows.find((r) => r.id === c.id)?.group;
+    if (c.mutedByAuto) lines.push(['down', c.name, 'muted for the sermon']);
+    else if (role === 'speech' && a.settings.speechAutomix) {
+      if (c.offsetDb > -1) lines.push(['up', c.name, c.active ? 'up · talking' : 'up']);
+      else lines.push(['down', c.name, `${c.offsetDb.toFixed(0)} dB · waiting`]);
+    }
+  }
+  const ducked = a.channels.filter((c) => ['band', 'tracks'].includes(latest.inventory.rows.find((r) => r.id === c.id)?.group) && c.offsetDb < -1);
+  if (ducked.length) lines.push(['down', 'Band and tracks', `${Math.round(Math.min(...ducked.map((c) => c.offsetDb)))} dB under talking`]);
+  if (!lines.length) lines.push(['', 'Nothing to adjust right now', '']);
+  $('#doing').replaceChildren(
+    ...lines.map(([k, name, v]) => el('li', { class: k }, [el('span', { text: name }), el('span', { class: 'v', text: v })])),
+  );
+  const set = (sel, v) => {
+    if (document.activeElement !== $(sel)) $(sel).checked = !!v;
+  };
+  set('#optSpeech', a.settings.speechAutomix);
+  set('#optDuck', a.settings.duckMusic);
+  set('#optSingers', a.settings.muteSingersWhenSpeaking);
+  set('#optModes', a.settings.autoModes);
+}
+for (const b of document.querySelectorAll('.mode')) b.addEventListener('click', () => send({ type: 'setMode', mode: b.dataset.mode }));
+$('#modeAuto').addEventListener('click', () => {
+  send({ type: 'setMode', mode: 'auto' });
+  if (!latest?.automix?.settings.autoModes) send({ type: 'automix', settings: { autoModes: true } });
+});
+for (const [sel, key] of [['#optSpeech', 'speechAutomix'], ['#optDuck', 'duckMusic'], ['#optSingers', 'muteSingersWhenSpeaking'], ['#optModes', 'autoModes']]) {
+  $(sel).addEventListener('change', (e) => send({ type: 'automix', settings: { [key]: e.target.checked } }));
+}
+
+// ---------- tabs ----------
+function showTab(name) {
+  $('#autoView').hidden = name !== 'auto';
+  $('#console').hidden = name !== 'mixer';
+  $('#tabAuto').classList.toggle('active', name === 'auto');
+  $('#tabMixer').classList.toggle('active', name === 'mixer');
+  $('#tabAuto').setAttribute('aria-selected', String(name === 'auto'));
+  $('#tabMixer').setAttribute('aria-selected', String(name === 'mixer'));
+  try {
+    localStorage.setItem('mixTab', name);
+  } catch {
+    /* fine */
+  }
+}
+$('#tabAuto').addEventListener('click', () => showTab('auto'));
+$('#tabMixer').addEventListener('click', () => showTab('mixer'));
+try {
+  showTab(localStorage.getItem('mixTab') === 'mixer' ? 'mixer' : 'auto');
+} catch {
+  showTab('auto');
+}
 $('#walkinOut').addEventListener('click', () => send({ type: 'walkin', action: 'out' }));
 $('#walkinIn').addEventListener('click', () => send({ type: 'walkin', action: 'in' }));
 $('#clearAlerts').addEventListener('click', () => send({ type: 'clearAlerts' }));

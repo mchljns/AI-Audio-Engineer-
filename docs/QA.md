@@ -2,27 +2,33 @@
 
 A running list of what could go wrong, what handles it, and how it's checked. Reviewed before each release. "Test" means an automated test in `test/`; "Midweek" means it can only be confirmed on the real XR18.
 
+**0.3.0:** an independent review of 0.2.0 found that several claims below didn't hold (marked *fixed in 0.3.0*). Each finding now has a regression test in `test/review-fixes.test.js`.
+
 ## Safety: what reaches the congregation
 
 | # | Failure | What handles it | Check |
 |---|---|---|---|
-| S1 | Click or guide assigned to the main speakers (by another app, a scene recall or a mistake) | Click guard turns main L/R off within moments of the mixer reporting it, and alerts | Test, Midweek |
+| S1 | Click or guide assigned to the main speakers (by another app, a scene recall or a mistake) | Click guard turns main L/R off within moments of the mixer reporting it, and alerts. Commands from the app are checked against the lock however the channel is written (*fixed in 0.3.0: `id: 15` as a number slipped past*) | Test, Midweek |
+| S1b | A fake "mixer" message on the network makes the app think click is safe | Only packets from the mixer's own address and port are accepted (*fixed in 0.3.0*) | Test |
 | S2 | Click or guide sent to an effect (reverb/delay returns feed the house) | Guard zeroes FX1–4 sends | Test, Midweek |
-| S3 | Click or guide sent to a monitor bus people outside the band hear (livestream, lobby, pastor wedge) | Guard zeroes sends to "protected" buses, worked out from bus names or set in `config.json` (`protectedBuses`). In-ear buses are left alone | Test |
-| S4 | Click channel renamed, so it's no longer recognised by name | Lock is sticky: the channel stays protected and the volunteer is warned until a person sets what the channel is now | Test |
+| S3 | Click or guide sent to a monitor bus people outside the band hear (livestream, lobby, pastor wedge) | Buses are sorted by name into protected (Stream, Recording, Lobby, Wedge, Main…), monitor (IEM, Mon, Keys…) and unknown. Sends to protected buses are zeroed; sends to unknown or unnamed buses raise a warning telling the volunteer what to name the bus (zeroing them blindly could cut a musician's click mid-song). `protectedBuses` / `monitorBuses` in `config.json` add to the names. *Fixed in 0.3.0: "Recording", "Streaming", unnamed buses were missed* | Test |
+| S4 | Click channel renamed, so it's no longer recognised by name | Lock is sticky: the channel stays protected and the volunteer is warned. A "release the lock" button in the channel dialog hands it back when a person says it's not the click any more. *Fixed in 0.3.0: there was no way to release it* | Test |
 | S5 | Click lands on a channel that was never named Click (Prime routing changed) | **Open.** Mixer setup is the first defence (LR off and recall-safe on click/guide). Recognising the click by sound is planned with audio analysis | — |
 | S6 | Mix Assistant stops (crash, Mac asleep, update) | Audio never passes through it; the mixer keeps its current settings. The background service restarts it within ~10 s | Midweek |
 | S7 | App stops mid-fade | Fade stops where it is. Harmless for walk-in. **Rule for future automation:** anything the app holds (ducking) must be done by the mixer itself, so nothing is left stuck if the app stops | Design rule |
 | S8 | Someone moves a fader the app is fading | The fade stops; the person wins | Test |
-| S9 | "Mute unused" mutes something in use | Only mutes channels with no name, no signal in the last 15 s, and never click/guide | Test |
+| S9 | "Mute unused" mutes something in use | Refused until every channel name has loaded and meters have flowed 15 s; shows the exact list and asks first; never click/guide. *Fixed in 0.3.0: right after a restart everything looked unused* | Test |
 | S10 | Bringing walk-in back up blasts at the old level | Starts from silence and fades to the saved level | Test |
 
 ## Access
 
 | # | Failure | What handles it | Check |
 |---|---|---|---|
-| A1 | Someone on the church Wi-Fi opens the app and changes the mix | 4-digit PIN for every device except the booth Mac itself; shown only on the Mac's own screen; remembered per device | Test |
-| A2 | PIN guessed by trying many | 5 wrong tries locks that device out for a minute | Test |
+| A1 | Someone on the church Wi-Fi opens the app and changes the mix | 6-digit PIN for every device except the booth Mac itself; shown only on the Mac's own screen; remembered per device | Test |
+| A1b | Another website open in a browser on the booth Mac connects to the app | WebSocket only accepts this app's own pages (Origin check); requests must name this computer (Host check, stops DNS rebinding). *Fixed in 0.3.0* | Test |
+| A2 | PIN guessed by trying many | 5 wrong tries locks that device out for a minute; 6 digits. The PIN is a deterrent: keep the mixer network off guest Wi-Fi | Test |
+| A5 | Anyone on the network crashes the app (bad web request, oversized message, bad meter data, a fader set to "not a number") | All rejected or handled without crashing. *Fixed in 0.3.0: three crashes found* | Test |
+| A6 | App shows a change that never reached the mixer | Controls are refused and greyed out while the mixer is offline (*fixed in 0.3.0*) | Test |
 | A3 | The XR18 itself has no password; anyone on its network can use the X Air app | **Network design:** keep the mixer and booth on their own network, not the guest Wi-Fi | Setup |
 | A4 | Web server serves files outside the app folder | Paths are resolved and confined to `public/`; malformed addresses return 404 | Test |
 
@@ -35,6 +41,8 @@ A running list of what could go wrong, what handles it, and how it's checked. Re
 | C3 | Two XR18s answer | Uses `mixerName` from `config.json` if set, else the first, and logs all of them | Manual |
 | C4 | macOS blocks local network access (Local Network privacy) | Detected from the error and shown as an alert with the exact setting to turn on | Midweek |
 | C5 | Mixer drops off the network | Shown within ~6 s, fades stop, reconnects and re-reads everything | Test (sim) |
+| C5b | Mixer comes back with a new address from the router | After 20 s offline the app searches again and follows it (*fixed in 0.3.0*) | Design |
+| C8 | Click warnings on startup before bus names arrive | Bus names load first; the guard doesn't judge a bus until its name is known | Manual |
 | C6 | A change pushed by the mixer is missed | Everything is re-read every 30 s and the lock re-checked | Design |
 | C7 | Direct Mac-to-XR18 cable gets no IP address | **Setup:** use a router, or set fixed addresses. Documented | Setup |
 
@@ -55,13 +63,26 @@ A running list of what could go wrong, what handles it, and how it's checked. Re
 |---|---|---|---|
 | I1 | An untested change reaches a Sunday | Installer installs the `stable` branch only; new work goes to `main` and is promoted after a midweek test | Process |
 | I2 | Node.js download corrupted or tampered with | Checked against nodejs.org's published SHA-256 | Test |
-| I3 | Update leaves a half-replaced app | New copy is fully installed before the old one is swapped out; service stopped first | Test |
+| I3 | Update leaves a half-replaced app or a stopped service | Service is stopped before Node.js or the app is replaced, and the installer waits for macOS to let go of it before starting the new one, retrying (*fixed in 0.3.0*). A cut-off download can't run half the script | Test (Linux), Midweek (Mac) |
 | I4 | Settings lost on update | Settings, roles, locks and config live in `~/MixAssistant/data`, untouched by updates | Test |
 | I5 | Volunteer closes the Terminal window and the app stops | Runs as a background service; the Desktop shortcut just opens the page | Midweek |
 | I6 | Mac sleeps during service | Bridge holds idle sleep off while running. **Closing the lid still sleeps** a laptop without an external display | Setup |
 | I7 | Mac restarts | Service starts at login. **The Mac must log in** (turn on automatic login, or someone logs in) | Setup |
 | I8 | Log file grows forever | Truncated on each install; the bridge logs little (search messages throttled to every 5 min) | Design |
 
+## Auto-mix
+
+| # | Failure | What handles it | Check |
+|---|---|---|---|
+| M1 | Auto-mix adds feedback | It only ever turns channels down from where a person set them, never up. Gain sharing keeps the total speech gain constant | Test |
+| M2 | Auto-mix fights a volunteer | Any fader move (this app, X Air app) becomes that channel's new level; unmuting a singer it muted hands that singer back until the mode changes; each feature has an off switch that hands channels straight back | Test |
+| M3 | App stops with the band ducked or singers muted | State saved every second; on restart it puts faders back and unmutes singers before carrying on (only if nobody moved them meanwhile). If the Mac itself dies, cuts are at most 15 dB (speech) / 8 dB (music) and singer mutes are visible in the X Air app | Test |
+| M4 | A pause between songs flips the service mode | Hold times: worship needs 2.5 s, talking-over-music 1.5 s after singing stops, speaking 6 s after music stops (about 10 s in all); singers are only muted after 20 s of speaking | Test |
+| M5 | A long steady pad counts as silence | Noise floor creeps up very slowly and is capped at -60 dB | Test |
+| M6 | Duck still on when the next song starts | Ducking applies only while music is actually playing, and releases fast when worship starts | Test |
+| M7 | Meters are post-fader on the real mixer, so turning a mic down makes the auto-mix turn it down further | Assumed pre-fader (P2). If midweek shows otherwise, set `"automix": { "metersPostFader": true }` in config.json | Midweek |
+| M8 | Speech mic picks up loud music and counts as "talking" | Possible with omni earsets near the band. Watch for it midweek; tune `activeAboveFloorDb` | Midweek |
+
 ## Not yet built (tracked in ROADMAP.md)
 
-Service modes and ducking (must follow S7), profiles, soundcheck assistant, feedback detection (needs a native macOS audio helper and microphone permission), effects control, plain-English assistant.
+Profiles, soundcheck assistant, feedback detection (needs a native macOS audio helper and microphone permission), effects control, vocal riding during worship, plain-English assistant.

@@ -34,23 +34,28 @@ export class MixerState extends EventEmitter {
     this.dcas = Object.fromEntries(
       Array.from({ length: DCA_COUNT }, (_, i) => [i + 1, { n: i + 1, name: '', fader: 0, faderDb: -Infinity, on: true }]),
     );
-    this.buses = Object.fromEntries(AUX_BUSES.map((n) => [n, { n, name: '' }]));
+    this.buses = Object.fromEntries(AUX_BUSES.map((n) => [n, { n, name: '', synced: false }]));
   }
 
   /** Apply one OSC message. Returns true if it changed tracked state. */
   apply(msg, now = Date.now()) {
     if (msg.address === '/meters/1') {
       const blob = msg.args[0]?.value;
-      if (blob) this.applyMeters(metersToStrips(decodeMeterBlob(blob)), now);
+      if (Buffer.isBuffer(blob)) this.applyMeters(metersToStrips(decodeMeterBlob(blob)), now);
       return true;
     }
     const p = parseAddress(msg.address);
     if (!p || msg.args.length === 0) return false;
     const v = msg.args[0].value;
+    // Ignore replies with the wrong kind of value rather than storing nonsense.
+    const numeric = ['fader', 'on', 'lr', 'dcaGroups', 'muteGroups', 'send', 'color'];
+    if (numeric.includes(p.field) && !Number.isFinite(v)) return false;
+    if (p.field === 'name' && typeof v !== 'string') return false;
 
     if (p.bus && p.field === 'name' && !p.id) {
       if (!this.buses[p.bus]) return false;
       this.buses[p.bus].name = String(v).trim();
+      this.buses[p.bus].synced = true;
       this.emit('change', { busName: p.bus });
       return true;
     }
@@ -104,13 +109,23 @@ export class MixerState extends EventEmitter {
   }
 
   applyMeters(levels, now = Date.now()) {
+    if (!this.metersSince) this.metersSince = now;
+    this.lastMetersAt = now;
     for (const [id, db] of Object.entries(levels)) {
+      if (!Number.isFinite(db)) continue;
       const s = this.strips[id];
       if (!s) continue;
       s.levelDb = db;
       if (db > SIGNAL_THRESHOLD_DB) s.lastSignalAt = now;
     }
     this.emit('meters');
+  }
+
+  /** True once every channel name has arrived and meters have flowed for `ms`. */
+  settled(ms = 15000, now = Date.now()) {
+    const named = Object.values(this.strips).every((s) => s.synced);
+    const metersFresh = this.lastMetersAt && now - this.lastMetersAt < 2000;
+    return named && metersFresh && now - this.metersSince >= ms;
   }
 
   hasSignal(id, now = Date.now()) {

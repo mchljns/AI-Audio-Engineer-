@@ -59,8 +59,32 @@ function initialState() {
   return st;
 }
 
-function meterLevel(id, t) {
+// A pretend Sunday, on a loop, for practice mode: which channels are making sound in each part.
+export const SERVICE = [
+  { part: 'walkin', secs: 40, live: ['aux'] },
+  { part: 'worship', secs: 70, live: ['3', '5', '6', '7', '8', '9', '10', '11', '15', '16'] },
+  { part: 'announcements', secs: 45, live: ['2', '7', '8'], quiet: ['7', '8'] },
+  { part: 'sermon', secs: 70, live: ['1'] },
+  { part: 'worship', secs: 50, live: ['3', '5', '6', '7', '8', '9', '10', '11', '15', '16'] },
+];
+const SERVICE_TOTAL = SERVICE.reduce((n, p) => n + p.secs, 0) * 1000;
+
+export function servicePart(t) {
+  let at = t % SERVICE_TOTAL;
+  for (const p of SERVICE) {
+    if (at < p.secs * 1000) return p;
+    at -= p.secs * 1000;
+  }
+  return SERVICE[0];
+}
+
+function meterLevel(id, t, scenario) {
   const l = LAYOUT[id];
+  if (scenario === 'service' && l) {
+    const part = servicePart(t);
+    if (!part.live.includes(id)) return -85 + Math.random() * 4;
+    if (part.quiet?.includes(id)) return l.db - 10 + (Math.random() - 0.5) * 3;
+  }
   const noise = -85 + Math.random() * 4;
   if (!l || l.pattern === 'silent') return noise;
   const jitter = (Math.random() - 0.5) * 4;
@@ -77,7 +101,8 @@ function meterLevel(id, t) {
 }
 
 export class XR18Simulator {
-  constructor({ port = OSC_PORT, host = '127.0.0.1', chaos = false, log = false } = {}) {
+  constructor({ port = OSC_PORT, host = '127.0.0.1', chaos = false, log = false, scenario = 'steady' } = {}) {
+    this.scenario = scenario;
     this.port = port;
     this.host = host;
     this.chaos = chaos;
@@ -97,8 +122,8 @@ export class XR18Simulator {
       setInterval(() => {
         const t = Date.now() - t0;
         const values = [];
-        for (let i = 1; i <= 16; i++) values.push(meterLevel(String(i), t));
-        const aux = meterLevel('aux', t);
+        for (let i = 1; i <= 16; i++) values.push(meterLevel(String(i), t, this.scenario));
+        const aux = meterLevel('aux', t, this.scenario);
         values.push(aux, aux);
         while (values.length < 40) values.push(-128);
         this.#broadcast(this.meterSubs, encodeMessage('/meters/1', [encodeMeterBlob(values)]));

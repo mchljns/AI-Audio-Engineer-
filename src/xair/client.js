@@ -1,5 +1,7 @@
 import dgram from 'node:dgram';
 import os from 'node:os';
+import net from 'node:net';
+import dns from 'node:dns/promises';
 import { EventEmitter } from 'node:events';
 import { encodeMessage, decodeMessage } from '../osc.js';
 import { OSC_PORT, STRIP_IDS, DCA_COUNT, AUX_BUSES, paths, stripQueryPaths } from './addresses.js';
@@ -25,8 +27,13 @@ export class XAirClient extends EventEmitter {
   }
 
   async start() {
+    await this.#resolveHost();
     this.socket = dgram.createSocket('udp4');
-    this.socket.on('message', (buf) => this.#onPacket(buf));
+    this.socket.on('message', (buf, rinfo) => {
+      // Only the mixer may talk to us. Anything else on the network is ignored.
+      if (rinfo.address !== this.hostIp || rinfo.port !== this.port) return;
+      this.#onPacket(buf);
+    });
     this.socket.on('error', (err) => this.emit('error', err));
     await new Promise((resolve) => this.socket.bind(this.localPort, resolve));
 
@@ -34,6 +41,25 @@ export class XAirClient extends EventEmitter {
     this.timers.push(setInterval(() => this.#keepalive(), KEEPALIVE_MS));
     this.timers.push(setInterval(() => this.#heartbeat(), HEARTBEAT_MS));
     this.#heartbeat();
+  }
+
+  async #resolveHost() {
+    if (!this.host || net.isIP(this.host)) {
+      this.hostIp = this.host;
+      return;
+    }
+    try {
+      this.hostIp = (await dns.lookup(this.host, { family: 4 })).address;
+    } catch {
+      this.hostIp = this.host;
+    }
+  }
+
+  /** Point at a different mixer address (e.g. the XR18 got a new DHCP address). */
+  async setHost(host) {
+    this.host = host;
+    this.connected = false;
+    await this.#resolveHost();
   }
 
   stop() {
@@ -46,7 +72,7 @@ export class XAirClient extends EventEmitter {
   send(address, args = []) {
     if (!this.socket || !this.host) return;
     const buf = encodeMessage(address, args);
-    this.socket.send(buf, this.port, this.host, (err) => err && this.emit('error', err));
+    this.socket.send(buf, this.port, this.hostIp ?? this.host, (err) => err && this.emit('error', err));
   }
 
   /** Ask the mixer for a value; the reply arrives as a 'message' event. */
@@ -64,10 +90,10 @@ export class XAirClient extends EventEmitter {
 
   /** Query the full state the app tracks, paced so the mixer isn't flooded. */
   async syncAll() {
-    const all = [];
+    // Bus names first, so the click guard knows which mixes are in-ears before it sees any sends.
+    const all = AUX_BUSES.map((b) => paths.busName(b));
     for (const id of STRIP_IDS) all.push(...stripQueryPaths(id));
     for (let n = 1; n <= DCA_COUNT; n++) all.push(paths.dcaName(n), paths.dcaFader(n), paths.dcaOn(n));
-    for (const b of AUX_BUSES) all.push(paths.busName(b));
     for (let i = 0; i < all.length; i++) {
       this.query(all[i]);
       if (i % 16 === 15) await new Promise((r) => setTimeout(r, 15));
@@ -97,7 +123,7 @@ export class XAirClient extends EventEmitter {
     }
     this.lastReply = Date.now();
     if (msg.address === '/xinfo') {
-      const [ip, name, model, firmware] = msg.args.map((a) => a.value);
+      const [ip, name, model, firmware] = msg.args.map((a) => String(a.value));
       this.info = { ip, name, model, firmware };
       if (!this.connected) {
         this.connected = true;
@@ -109,7 +135,11 @@ export class XAirClient extends EventEmitter {
       this.connected = true;
       this.emit('connected', this.info);
     }
-    this.emit('message', msg);
+    try {
+      this.emit('message', msg);
+    } catch (err) {
+      this.emit('error', err);
+    }
   }
 }
 

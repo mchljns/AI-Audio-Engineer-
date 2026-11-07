@@ -4,7 +4,19 @@ An assistant for a Behringer XR18 at a small church. A small **bridge** program 
 
 It works alongside the Behringer X Air app, which stays available as a backup.
 
-## What it does
+## The auto-mix
+
+The app opens on the **Auto** screen. It listens to the channel meters and mixes the service by itself:
+
+- **Balances the speech mics.** Whoever is talking (pastor, announcements) stays up; the other speech mic comes down, so there's less hiss and less feedback. Between sentences the last talker stays up.
+- **Knows where the service is.** Walk-in → Worship → Talking over music → Speaking, worked out from which channels are making sound. Big buttons let a volunteer set the mode instead.
+- **Turns the band and tracks down under talking** during announcements and prayer over music, and brings them back smoothly.
+- **Mutes singer mics during the sermon** (after 20 seconds of speaking), and unmutes them the moment music starts.
+- It only ever turns things **down** from where a person set them, never up. Moving any fader (here or in the X Air app) sets that channel's new level. Each feature has its own off switch. If the app restarts, it puts everything back first.
+
+A **Mixer** tab has the full console view for anything else.
+
+## What else it does
 
 - **Connects to the XR18** automatically and keeps a live copy of every channel's name, mute, fader, main assign, FX sends and level.
 - **Channel inventory.** Reads the channel names and works out what each channel is (pastor, singer, keys, track, click…). Combined with live signal, it shows what's in use, what's named but silent (dead battery?), and what has signal but no name.
@@ -29,7 +41,7 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:8081. This runs a simulated XR18 with the church layout. To watch the click lock work, run `npm run dev -- --chaos`: every 20 seconds the simulator pretends someone routed the click or guide into the house.
+Open http://localhost:8081. This runs a simulated XR18 with the church layout, playing a pretend service on a loop (walk-in, worship, announcements, sermon) so you can watch the auto-mix work. To watch the click lock work, run `npm run dev -- --chaos`: every 20 seconds the simulator pretends someone routed the click or guide into the house.
 
 ```bash
 npm test
@@ -55,8 +67,7 @@ To **update** later, run the same line again. Your settings are kept. It install
 
 ### Using it
 
-1. **Connect the Mac to the XR18.** Best: an Ethernet cable from the Mac to the XR18's Ethernet port (or both into the same router), and keep the Mac's Wi-Fi on the church internet. Or join the XR18's own Wi-Fi.
-   A direct cable with no router usually needs fixed IP addresses on both ends; a small router avoids that. Keep the mixer's network separate from guest Wi-Fi: the XR18 itself has no password.
+1. **Put the Mac and the XR18 on the same network** without losing the Mac's internet for Spotify. See [docs/NETWORK.md](docs/NETWORK.md): either the XR18 joins the church Wi-Fi, or one Ethernet cable from the Mac to the XR18. Use the staff network, not guest Wi-Fi: the XR18 itself has no password.
 2. **Double-click "Mix Assistant" on the Desktop** to open the app. It's already running in the background and finds the mixer on its own.
 3. **On the iPad:** connect to the same network and open the address shown at the top of the app on the Mac (e.g. `192.168.1.20:8080`), then enter the PIN shown next to it. Tap **Share → Add to Home Screen**. Set the iPad's **Auto-Lock to Never** for services.
 
@@ -97,6 +108,7 @@ Keep the X Air app open as a backup.
 5. If you have a livestream bus, name it "Stream" in the X Air app and send the click to it. It should be pulled back to zero. The click's in-ear sends should stay as they are.
 6. On an iPad, open the app, enter the PIN, and move a fader. Check the X Air app shows the same move.
 7. Try **Fade out** and **Bring up** on the walk-in music.
+   Then, on the Auto screen, have someone talk on the pastor's mic, then the announcement mic: the other one should come down. Move a channel fader up and down: does its meter move with it? If it does, tell me (the meters are post-fader, and one setting needs changing).
 8. Note anything that looks wrong and send screenshots plus `~/MixAssistant/logs/bridge.log`.
 
 When this passes, the version you tested gets promoted to `stable`.
@@ -118,5 +130,7 @@ src/
 public/              the web app
 test/                tests (including end-to-end against the simulator)
 ```
+
+Setup guides: [docs/NETWORK.md](docs/NETWORK.md) (no new hardware, Spotify keeps working) and [docs/PA-GAIN-STAGING.md](docs/PA-GAIN-STAGING.md) (XR18 into the PRX ONE and Passport).
 
 See [docs/ROADMAP.md](docs/ROADMAP.md) for what's next and [docs/QA.md](docs/QA.md) for every failure mode reviewed and how it's handled.

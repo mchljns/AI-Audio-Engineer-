@@ -15,6 +15,10 @@
 
 set -euo pipefail
 
+# Everything is inside main(), called on the last line, so a download that's cut off
+# part-way through can never run half an installer.
+main() {
+
 REPO="mchljns/AI-Audio-Engineer-"
 BRANCH="${MIX_CHANNEL:-stable}"
 NODE_LINE="latest-v22.x"
@@ -44,6 +48,9 @@ sha256() { if command -v shasum >/dev/null; then shasum -a 256 "$1"; else sha256
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 mkdir -p "$HOME_DIR/data" "$HOME_DIR/logs"
+
+# Stop the running copy before replacing anything it uses (Node.js or the app).
+stop_service
 
 # ---- Node.js ----
 say "Getting Node.js ($NODE_OS-$NODE_ARCH)…"
@@ -76,8 +83,6 @@ tar -xzf "$TMP/app.tgz" -C "$TMP/app" --strip-components=1
 say "Installing…"
 (cd "$TMP/app" && npm ci --omit=dev --no-audit --no-fund --loglevel=error) || fail "Installing the app's parts failed."
 
-# Stop the running copy before swapping files under it.
-if [ "$OS" = "Darwin" ]; then launchctl bootout "gui/$(id -u)/$LABEL" >/dev/null 2>&1 || true; fi
 rm -rf "$HOME_DIR/app.old"
 [ -d "$HOME_DIR/app" ] && mv "$HOME_DIR/app" "$HOME_DIR/app.old"
 mv "$TMP/app" "$HOME_DIR/app"
@@ -109,14 +114,18 @@ if [ "$OS" = "Darwin" ] && [ -z "${MIX_NO_SERVICE:-}" ]; then
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
   <key>ThrottleInterval</key><integer>10</integer>
+  <key>ProcessType</key><string>Interactive</string>
   <key>StandardOutPath</key><string>$HOME_DIR/logs/bridge.log</string>
   <key>StandardErrorPath</key><string>$HOME_DIR/logs/bridge.log</string>
 </dict>
 </plist>
 PLIST_END
-  if launchctl bootstrap "gui/$(id -u)" "$PLIST" 2>/dev/null || launchctl load -w "$PLIST" 2>/dev/null; then
-    SERVICE=yes
-  else
+  for attempt in 1 2 3 4 5; do
+    if launchctl bootstrap "gui/$(id -u)" "$PLIST" 2>/dev/null; then SERVICE=yes; break; fi
+    sleep 1
+  done
+  if [ "$SERVICE" != yes ] && launchctl load -w "$PLIST" 2>/dev/null; then SERVICE=yes; fi
+  if [ "$SERVICE" != yes ]; then
     echo "Couldn't start the background service. The Desktop shortcut will run it in a Terminal window instead."
   fi
 fi
@@ -130,8 +139,9 @@ PRACTICE_CMD="$DESKTOP/Mix Assistant (practice).command"
 cat > "$MAIN_CMD" <<LAUNCH_END
 #!/bin/bash
 # Mix Assistant: opens the app. It normally runs in the background already.
-URL="http://localhost:8080"
-up() { curl -fs "\$URL/api/state" >/dev/null 2>&1; }
+PORT="\$(grep -o '"httpPort": *[0-9]*' "$HOME_DIR/data/config.json" 2>/dev/null | grep -o '[0-9]*\$' || true)"
+URL="http://localhost:\${PORT:-8080}"
+up() { curl -fs "\$URL/healthz" >/dev/null 2>&1; }
 if ! up && [ -f "$PLIST" ]; then
   echo "Starting Mix Assistant…"
   launchctl kickstart -k "gui/\$(id -u)/$LABEL" >/dev/null 2>&1 || launchctl load -w "$PLIST" >/dev/null 2>&1
@@ -155,7 +165,7 @@ cat > "$PRACTICE_CMD" <<LAUNCH_END
 # Close this window (or press Ctrl+C) to stop practice mode. The real Mix Assistant isn't affected.
 export PATH="$HOME_DIR/node/bin:\$PATH"
 URL="http://localhost:8081"
-if curl -fs "\$URL/api/state" >/dev/null 2>&1; then open "\$URL"; exit 0; fi
+if curl -fs "\$URL/healthz" >/dev/null 2>&1; then open "\$URL"; exit 0; fi
 cd "$HOME_DIR/app"
 echo "Starting practice mode (pretend mixer)…"
 ( sleep 3; open "\$URL" ) &
@@ -193,3 +203,16 @@ if [ "$OS" = "Darwin" ] && [ -z "${MIX_NO_LAUNCH:-}" ]; then
   echo "Opening practice mode so you can look around…"
   open "$PRACTICE_CMD"
 fi
+}
+
+# Stop the background service and wait until macOS has really let go of it.
+stop_service() {
+  [ "$OS" = "Darwin" ] || return 0
+  launchctl bootout "gui/$(id -u)/$LABEL" >/dev/null 2>&1 || return 0
+  for i in $(seq 1 20); do
+    launchctl print "gui/$(id -u)/$LABEL" >/dev/null 2>&1 || return 0
+    sleep 0.5
+  done
+}
+
+main "$@"

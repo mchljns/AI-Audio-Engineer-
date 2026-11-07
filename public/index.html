@@ -17,12 +17,12 @@
       <div id="lock" class="pill">Click &amp; guide: checking…</div>
       <div id="share" class="pill pill-info" hidden></div>
       <div class="spacer"></div>
-      <div class="walkin">
-        <span id="walkinState" class="muted">Walk-in</span>
-        <button id="walkinOut" class="btn">Fade out walk-in</button>
-        <button id="walkinIn" class="btn btn-ghost">Bring up</button>
-      </div>
+      <nav class="tabs" role="tablist">
+        <button id="tabAuto" class="tab active" role="tab" aria-selected="true">Auto</button>
+        <button id="tabMixer" class="tab" role="tab" aria-selected="false">Mixer</button>
+      </nav>
     </header>
+    <div id="offlineBar" class="offline-bar" hidden>The mixer isn't connected. Controls are paused until it's back.</div>
 
     <details id="checkPanel" class="panel">
       <summary>
@@ -45,7 +45,45 @@
       </div>
     </details>
 
-    <main class="console" id="console">
+    <main class="auto" id="autoView">
+      <section class="auto-modes">
+        <div class="auto-head">
+          <h2>Service</h2>
+          <button id="modeAuto" class="chip-btn">Automatic</button>
+        </div>
+        <div class="modes" id="modes">
+          <button class="mode" data-mode="walkin"><b>Walk-in</b><span>Music before the service</span></button>
+          <button class="mode" data-mode="worship"><b>Worship</b><span>Band and singers</span></button>
+          <button class="mode" data-mode="talkover"><b>Talking over music</b><span>Announcements, prayer</span></button>
+          <button class="mode" data-mode="speaking"><b>Speaking</b><span>Sermon</span></button>
+        </div>
+        <p id="modeNote" class="muted small"></p>
+      </section>
+
+      <section class="auto-card">
+        <h2>What the auto-mix is doing</h2>
+        <ul id="doing" class="doing"></ul>
+      </section>
+
+      <section class="auto-card">
+        <h2>Walk-in music</h2>
+        <p id="walkinState" class="muted">No walk-in channel found.</p>
+        <div class="row">
+          <button id="walkinOut" class="btn btn-big">Fade out</button>
+          <button id="walkinIn" class="btn btn-big btn-ghost">Bring up</button>
+        </div>
+      </section>
+
+      <section class="auto-card">
+        <h2>Auto-mix settings</h2>
+        <label class="switch"><input type="checkbox" id="optSpeech" /><span><b>Balance the speech mics</b><br /><small>The mic being talked into stays up, the others come down.</small></span></label>
+        <label class="switch"><input type="checkbox" id="optDuck" /><span><b>Turn the music down under talking</b><br /><small>During announcements and prayer over music.</small></span></label>
+        <label class="switch"><input type="checkbox" id="optSingers" /><span><b>Mute singer mics during the sermon</b><br /><small>Cuts their hiss and feedback risk. Back on as soon as music starts.</small></span></label>
+        <label class="switch"><input type="checkbox" id="optModes" /><span><b>Change modes automatically</b><br /><small>Off: you pick the mode with the buttons above.</small></span></label>
+      </section>
+    </main>
+
+    <main class="console" id="console" hidden>
       <div id="strips" class="bank"></div>
       <div class="bank-divider"></div>
       <div id="dcas" class="bank"></div>
@@ -61,6 +99,17 @@
       </form>
     </div>
 
+    <dialog id="unusedDialog">
+      <form method="dialog" class="dialog-body">
+        <h3>Mute unused channels?</h3>
+        <p id="unusedText" class="muted"></p>
+        <div class="dialog-actions">
+          <button value="cancel" class="btn btn-ghost">Cancel</button>
+          <button value="mute" id="unusedConfirm" class="btn">Mute them</button>
+        </div>
+      </form>
+    </dialog>
+
     <dialog id="stripDialog">
       <form method="dialog" class="dialog-body">
         <h3 id="dlgTitle"></h3>
@@ -70,6 +119,10 @@
           <select id="dlgRole"></select>
         </label>
         <p class="muted small">"Auto" works it out from the channel name on the mixer. A choice here is remembered until the channel is renamed.</p>
+        <div id="dlgLock" class="dlg-lock" hidden>
+          <p><b>This channel is locked to monitors.</b> It's kept off the main speakers, effects and livestream because it was the click or guide.</p>
+          <button type="button" id="dlgRelease" class="btn btn-ghost">It isn't the click or guide any more: release the lock</button>
+        </div>
         <div class="dialog-actions">
           <button value="close" class="btn">Done</button>
         </div>

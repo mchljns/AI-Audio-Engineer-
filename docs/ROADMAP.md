@@ -8,7 +8,12 @@ Sticky click/guide lock and protected monitor buses, PIN for other devices, mixe
 
 **Still to verify on real hardware:** meter data layout (`/meters/1`), the address used for channel FX sends (`/ch/NN/mix/07..10/level`), and whether the XR18 echoes our own changes back. The simulator follows the community-documented X Air protocol; the first midweek test confirms it.
 
-## Step 2: Service modes
+## Step 2: Auto-mix ✅ (0.3.0)
+Speech gain sharing, automatic service modes, ducking under speech, singer mics muted during the sermon, Auto view as the main screen. App-held, bounded and restored on restart (QA M3). Review fixes from 0.2.0.
+
+**Next for auto-mix:** vocal riding during worship (keep the lead on top), learning each volunteer's corrections, ducking done by the mixer's own duck gates once the XR18 gate addresses are confirmed.
+
+## Step 2 (original plan): Service modes
 - Modes: Walk-in, Worship, Speech over music (announcements/prayer), Sermon
 - Automatic mode detection from which mics are active, with a big manual override
 - Speech automix for pastor + announcements mics

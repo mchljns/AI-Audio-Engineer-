@@ -6,10 +6,22 @@ import { LOCKED_ROLES, ROLES, normalizeName } from './roles.js';
 
 // Aux buses whose names say they reach people other than the band: the livestream,
 // a recording, the lobby, or a wedge/speaker in the room. Click and guide must stay off them.
-const PROTECTED_BUS_NAME = /\b(stream|live|livestream|record|rec|broadcast|video|zoom|youtube|facebook|lobby|foyer|overflow|nursery|house|foh|room|wedge|pastor|pulpit|fill)\b/;
+const PROTECTED_BUS_NAME =
+  /\b(stream\w*|live\w*|record\w*|rec|broadcast\w*|online|ls|video|zoom|youtube|facebook|lobby|foyer|overflow|nursery|cry ?room|house|foh|main|mains|room|wedge\w*|pastor|pulpit|fill|sub|subs|pa)\b/;
+// Buses whose names say they're a musician's own monitor mix, where click and guide belong.
+const MONITOR_BUS_NAME = /\b(iem|iems|ear|ears|inear|in ear|mon|mons|monitor\w*|band|keys?|kbd|gtr|guitar|drum\w*|bass|md|cue|cues)\b/;
+
+/** 'protected' | 'monitor' | 'unknown' (blank or unclear names). */
+export function classifyBusName(name) {
+  const n = normalizeName(name);
+  if (!n || /^(aux|bus|mix)? ?\d{0,2}$/.test(n)) return 'unknown';
+  if (PROTECTED_BUS_NAME.test(n)) return 'protected';
+  if (MONITOR_BUS_NAME.test(n)) return 'monitor';
+  return 'unknown';
+}
 
 export function isProtectedBusName(name) {
-  return PROTECTED_BUS_NAME.test(normalizeName(name));
+  return classifyBusName(name) === 'protected';
 }
 
 /**
@@ -65,20 +77,29 @@ export class LockStore {
  * Sends to the band's own monitor buses are left alone: that's where click and guide belong.
  */
 export class ClickGuard {
-  constructor({ state, client, roleStore, lockStore = new LockStore(null), protectedBuses = null, onAlert = () => {} }) {
+  constructor({ state, client, roleStore, lockStore = new LockStore(null), protectedBuses = null, monitorBuses = null, onAlert = () => {} }) {
     this.state = state;
     this.client = client;
     this.roleStore = roleStore;
     this.lockStore = lockStore;
-    this.configuredBuses = Array.isArray(protectedBuses) ? protectedBuses.map(Number) : null;
+    this.extraProtected = new Set(Array.isArray(protectedBuses) ? protectedBuses.map(Number) : []);
+    this.extraMonitor = new Set(Array.isArray(monitorBuses) ? monitorBuses.map(Number) : []);
     this.onAlert = onAlert;
     this.renameWarned = new Map(); // id -> name we already warned about
+    this.unknownWarned = new Set(); // "id:bus" pairs already warned about
   }
 
-  /** Aux buses click/guide must never feed: configured list, else worked out from bus names. */
+  /** What a bus is: config wins, then its name. */
+  busKind(n) {
+    if (this.extraProtected.has(n)) return 'protected';
+    if (this.extraMonitor.has(n)) return 'monitor';
+    if (!this.state.buses[n]?.synced) return 'pending'; // name not loaded yet: don't judge
+    return classifyBusName(this.state.buses[n]?.name);
+  }
+
+  /** Aux buses click/guide must never feed. */
   protectedBuses() {
-    if (this.configuredBuses) return this.configuredBuses;
-    return AUX_BUSES.filter((n) => isProtectedBusName(this.state.buses[n]?.name));
+    return AUX_BUSES.filter((n) => this.busKind(n) === 'protected');
   }
 
   #label(id) {
@@ -119,6 +140,12 @@ export class ClickGuard {
     return this.#refreshLocks().map((l) => l.id);
   }
 
+  /** A person says this channel isn't click/guide any more. */
+  release(id) {
+    this.lockStore.release(id);
+    this.renameWarned.delete(id);
+  }
+
   /** Called when a person sets a channel's role: choosing a non-click/guide role releases the lock. */
   roleChanged(id) {
     const s = this.state.strips[id];
@@ -152,6 +179,20 @@ export class ClickGuard {
           fixes.push({ id, what: `fx${fx}`, message: `${who} had a send to FX${fx}, which would leak into the house. Set it to zero.` });
         }
       }
+      for (const bus of AUX_BUSES) {
+        if ((s.sends[bus] ?? 0) <= 0 || this.busKind(bus) !== 'unknown') continue;
+        const key = `${id}:${bus}`;
+        if (this.unknownWarned.has(key)) continue;
+        this.unknownWarned.add(key);
+        this.onAlert({
+          level: 'warn',
+          source: 'click-guard',
+          id,
+          message:
+            `${who} goes to aux ${bus}${this.state.buses[bus]?.name ? ` ("${this.state.buses[bus].name}")` : ' (no name)'}, and the app can't tell who hears that mix. ` +
+            `In the X Air app, name the bus for what it is, like "Keys IEM" for an in-ear mix or "Stream" for the livestream. Streams and speakers are then protected automatically.`,
+        });
+      }
       for (const bus of protectedBuses) {
         if ((s.sends[bus] ?? 0) > 0) {
           const busName = this.state.buses[bus]?.name || `Aux ${bus}`;
@@ -175,10 +216,17 @@ export class ClickGuard {
       const safe = s.lr !== true && fxClear && busesClear;
       return { id, name: s.name, renamed, lrOff: s.lr !== true, fxClear, busesClear, safe };
     });
+    const unsure = [];
+    for (const { id } of locked) {
+      const s = this.state.strips[id];
+      for (const n of AUX_BUSES) if ((s.sends[n] ?? 0) > 0 && this.busKind(n) === 'unknown') unsure.push({ id, bus: n, name: this.state.buses[n]?.name || '' });
+    }
     return {
       locked,
       allSafe: locked.every((l) => l.safe),
+      unsure,
       protectedBuses: protectedBuses.map((n) => ({ n, name: this.state.buses[n]?.name || `Aux ${n}` })),
+      buses: AUX_BUSES.map((n) => ({ n, name: this.state.buses[n]?.name || '', kind: this.busKind(n) })),
     };
   }
 }
