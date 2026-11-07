@@ -16,9 +16,13 @@ The XR18 makes its own Wi-Fi, so the simplest setup is **everything on the mixer
 3. In Spotify on the laptop, **download** the pre- and post-service playlists (needs Premium).
 4. Turn on **automatic login** for the laptop (System Settings → Users & Groups), so Mix Assistant is running as soon as it starts.
 
-**Once, on the iPad:**
-1. Join the XR18's Wi-Fi and open Safari at `http://192.168.1.50:8080` (the address in the blue badge on the laptop). Enter the PIN.
-2. Tap **Share → Add to Home Screen**. Because the laptop's address never changes, this icon works every week.
+**Once, on each iPad (nothing to type):**
+1. Join the XR18's Wi-Fi.
+2. On the laptop, click **📱 Connect an iPad** at the top of Mix Assistant. A QR code appears.
+3. Point the iPad's **Camera** at it and tap the Mix Assistant link. It opens already signed in.
+4. Tap **Share → Add to Home Screen**. The icon carries the sign-in, and because the laptop's address never changes, it works every week with no code and no PIN.
+
+Only scan again if the laptop's address changes (for example, if step 2 of the laptop setup was skipped) or the PIN is changed.
 
 **Every Sunday:**
 1. Power the rack, open the laptop. Mix Assistant starts by itself and finds the mixer.
@@ -84,4 +88,4 @@ The XR18 joins the church Wi-Fi instead of making its own (X Air app → Setup �
 
 ## Which address do iPads use?
 
-The blue badge at the top of Mix Assistant on the Mac shows it, with the address on the mixer's network listed first, then the PIN. Enter the PIN once on each iPad; it's remembered.
+You don't type it: **📱 Connect an iPad** on the Mac shows a QR code with the Mac's address on the mixer's network and the PIN built in. Scan it once per iPad and save it to the home screen. Without a camera, the same window shows the address and PIN to type.

@@ -7,6 +7,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { createRequire } from 'node:module';
 import http from 'node:http';
 import crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
@@ -26,6 +27,8 @@ import { ROLES } from './roles.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PUBLIC = path.join(ROOT, 'public');
+// QR codes for connecting iPads, served from the app itself (the Mac may have no internet).
+const QR_SCRIPT = createRequire(import.meta.url).resolve('qrcode-generator');
 const VERSION = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version;
 const RESYNC_MS = 30000;
 const REDISCOVER_AFTER_MS = 20000;
@@ -819,6 +822,11 @@ export class Bridge {
     if (url.pathname === '/healthz') {
       res.writeHead(200, { 'content-type': 'text/plain' });
       res.end('ok');
+      return;
+    }
+    if (url.pathname === '/vendor/qrcode.js') {
+      res.writeHead(200, { 'content-type': 'text/javascript', 'cache-control': 'no-cache' });
+      fs.createReadStream(QR_SCRIPT).pipe(res);
       return;
     }
     let rel;

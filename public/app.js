@@ -43,7 +43,7 @@ function connect() {
   ws.onmessage = (e) => {
     const msg = JSON.parse(e.data);
     if (msg.type === 'auth-required') {
-      const saved = loadPin();
+      const saved = loadPin() ?? linkPin;
       if (saved) send({ type: 'auth', pin: saved });
       else showAuth('');
       return;
@@ -83,6 +83,18 @@ function savePin(pin) {
     else localStorage.removeItem('mixPin');
   } catch {
     /* private browsing: PIN just won't be remembered */
+  }
+}
+// Opened from the QR code on the booth Mac: the link carries the PIN. It stays in the address on
+// purpose, so "Add to Home Screen" saves it and the home-screen icon signs in by itself every week.
+// (On iPads, home-screen apps don't share storage with Safari, so the link is what carries it over.)
+const standalone = window.navigator.standalone === true || window.matchMedia?.('(display-mode: standalone)').matches;
+let linkPin = null;
+{
+  const m = location.hash.match(/(?:^#|&)pin=(\d{4,12})(?:&|$)/);
+  if (m) {
+    linkPin = m[1];
+    savePin(linkPin);
   }
 }
 function showAuth(message) {
@@ -303,13 +315,12 @@ function render(s) {
     ? `Also kept off: ${g.protectedBuses.map((b) => b.name).join(', ')}`
     : 'Kept off the main speakers and effects';
 
-  // On the booth Mac itself, show how iPads connect.
-  if (s.pin || s.addresses?.length) {
-    const addr = s.addresses?.[0]?.replace('http://', '');
-    $('#share').hidden = false;
-    $('#share').textContent = [addr && `iPads: ${addr}`, s.pin && `PIN ${s.pin}`].filter(Boolean).join(' · ');
-    $('#share').title = [s.localName && `Saves best on iPads: ${s.localName}`, ...(s.addresses ?? [])].filter(Boolean).join('\n');
-  } else $('#share').hidden = true;
+  // On the booth Mac itself, offer the QR code that connects an iPad.
+  $('#share').hidden = !s.addresses?.length;
+  if (s.addresses?.length) {
+    $('#share').textContent = '📱 Connect an iPad';
+    renderConnect(s);
+  }
 
   const inv = s.inventory;
   const c = inv.counts;
@@ -443,6 +454,54 @@ try {
 } catch {
   showTab('auto');
 }
+// ---------- connect an iPad (QR code, booth Mac only) ----------
+let qrFor = '';
+function connectLink(s) {
+  const base = s.addresses?.[0];
+  if (!base) return null;
+  return s.pin ? `${base}/#pin=${s.pin}` : `${base}/`;
+}
+function renderConnect(s) {
+  const link = connectLink(s);
+  if (!link || link === qrFor) return;
+  qrFor = link;
+  try {
+    const qr = window.qrcode(0, 'M');
+    qr.addData(link);
+    qr.make();
+    $('#qr').innerHTML = qr.createSvgTag({ cellSize: 4, margin: 2, scalable: true });
+  } catch {
+    $('#qr').textContent = '';
+  }
+  const addr = s.addresses[0].replace('http://', '');
+  $('#connectFallback').textContent = `No camera? In Safari on the iPad, go to ${addr}${s.pin ? ` and enter PIN ${s.pin}` : ''}.`;
+}
+function openConnect() {
+  if (latest) renderConnect(latest);
+  $('#connectDialog').showModal();
+}
+$('#share').addEventListener('click', openConnect);
+$('#connectBtn').addEventListener('click', openConnect);
+
+// One-time hint on an iPad that opened the QR link in Safari.
+if (linkPin && !standalone) {
+  let seen = false;
+  try {
+    seen = localStorage.getItem('mixHomeTipSeen') === '1';
+  } catch {
+    /* fine */
+  }
+  if (!seen) $('#homeTip').hidden = false;
+}
+$('#homeTipOk').addEventListener('click', () => {
+  $('#homeTip').hidden = true;
+  try {
+    localStorage.setItem('mixHomeTipSeen', '1');
+  } catch {
+    /* fine */
+  }
+});
+
 // ---------- this Mac (only shown on the booth Mac's own screen) ----------
 let confirmUpdate = false;
 function renderMac(s) {

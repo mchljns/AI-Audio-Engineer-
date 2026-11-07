@@ -15,7 +15,7 @@
       <div class="brand">Mix Assistant</div>
       <div id="conn" class="pill pill-warn">Connecting…</div>
       <div id="lock" class="pill">Click &amp; guide: checking…</div>
-      <div id="share" class="pill pill-info" hidden></div>
+      <button id="share" class="pill pill-info pill-btn" type="button" hidden>Connect an iPad</button>
       <div class="spacer"></div>
       <nav class="tabs" role="tablist">
         <button id="tabAuto" class="tab active" role="tab" aria-selected="true">Auto</button>
@@ -23,6 +23,10 @@
       </nav>
     </header>
     <div id="offlineBar" class="offline-bar" hidden>The mixer isn't connected. Controls are paused until it's back.</div>
+    <div id="homeTip" class="home-tip" hidden>
+      <span><b>Last step:</b> tap <b>Share</b> (the square with the arrow) → <b>Add to Home Screen</b>. From then on, just tap the Mix Assistant icon: no code, no PIN.</span>
+      <button id="homeTipOk" class="btn btn-small btn-ghost" type="button">OK</button>
+    </div>
 
     <details id="checkPanel" class="panel">
       <summary>
@@ -102,6 +106,9 @@
         <h2>This Mac</h2>
         <p id="macVersion" class="muted"></p>
         <div class="row">
+          <button id="connectBtn" class="btn">Connect an iPad</button>
+        </div>
+        <div class="row">
           <button id="updCheck" class="btn btn-ghost">Check for updates</button>
           <button id="updInstall" class="btn" hidden>Update now</button>
         </div>
@@ -141,6 +148,25 @@
       </form>
     </div>
 
+    <dialog id="connectDialog" class="connect-dialog">
+      <form method="dialog" class="dialog-body">
+        <h3>Connect an iPad</h3>
+        <div class="connect-grid">
+          <div id="qr" class="qr" role="img" aria-label="QR code that opens Mix Assistant on an iPad"></div>
+          <ol class="connect-steps">
+            <li>Put the iPad on the <b>same Wi-Fi</b> as this Mac (the mixer's Wi-Fi).</li>
+            <li>Open the iPad's <b>Camera</b> and point it at this code.</li>
+            <li>Tap the <b>Mix Assistant</b> link that appears. It opens already signed in.</li>
+            <li>Tap <b>Share → Add to Home Screen</b>. From then on, just tap that icon.</li>
+          </ol>
+        </div>
+        <p id="connectFallback" class="muted small"></p>
+        <div class="dialog-actions">
+          <button value="close" class="btn">Done</button>
+        </div>
+      </form>
+    </dialog>
+
     <dialog id="unusedDialog">
       <form method="dialog" class="dialog-body">
         <h3>Mute unused channels?</h3>
@@ -171,6 +197,7 @@
       </form>
     </dialog>
 
+    <script src="vendor/qrcode.js"></script>
     <script src="app.js" type="module"></script>
   </body>
 </html>

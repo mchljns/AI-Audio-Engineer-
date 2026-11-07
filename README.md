@@ -82,7 +82,7 @@ For developers, the same installer runs from Terminal: `curl -fsSL https://raw.g
 
 1. **Put the Mac and the iPad on the XR18's own Wi-Fi.** See [docs/NETWORK.md](docs/NETWORK.md) for the one-time setup (fixed Mac address, auto-join) and for keeping Spotify working with downloaded playlists.
 2. **Double-click the Mix Assistant app** (Desktop) to open it. It's already running in the background and finds the mixer on its own.
-3. **On the iPad:** connect to the same network and open the address shown at the top of the app on the Mac (e.g. `192.168.1.20:8080`), then enter the PIN shown next to it. Tap **Share → Add to Home Screen**. Set the iPad's **Auto-Lock to Never** for services.
+3. **Connect each iPad once, with nothing to type:** put it on the same Wi-Fi, click **📱 Connect an iPad** on the Mac, point the iPad's Camera at the QR code and tap the link (it opens signed in), then **Share → Add to Home Screen**. From then on, just tap that icon. Set the iPad's **Auto-Lock to Never** for services.
 
 If it can't find the mixer:
 - If the app shows that macOS is blocking network access, open **System Settings → Privacy & Security → Local Network** and turn on **node**.
@@ -119,7 +119,7 @@ Keep the X Air app open as a backup.
 3. In the X Air app, turn **on** the main L/R assign for the click channel. The web app should turn it back off within a second or two and show an alert.
 4. In the X Air app, raise the click's send to FX1. Same result expected.
 5. Check that every in-ear aux send is **pre-fader** in the X Air app. Then move a singer's channel fader: their in-ear mix must not change. (The auto-mix relies on this to leave the in-ears alone.)
-6. On an iPad, open the app, enter the PIN, and move a fader. Check the X Air app shows the same move.
+6. Connect an iPad with the QR code, add it to the Home Screen, close Safari, open the icon (it should not ask for a PIN), and move a fader. Check the X Air app shows the same move.
 7. Save a pre-service playlist and try **Fade music in** and **Fade music out** from an iPad. The first time, allow "node" to control Spotify when macOS asks.
    Then, on the Auto screen, have someone talk on the pastor's mic, then the announcement mic: the other one should come down. Move a channel fader up and down: does its meter move with it? If it does, tell me (the meters are post-fader, and one setting needs changing).
 8. Note anything that looks wrong, then tap **Save a report for troubleshooting** in the This Mac card and send the file along with any screenshots.
