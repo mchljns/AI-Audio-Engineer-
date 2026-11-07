@@ -368,6 +368,7 @@ function render(s) {
   renderMac(s);
   renderPa(s);
   renderSet(s);
+  renderChannels(s);
   renderSoundcheck(s);
   renderPro(s);
 
@@ -685,6 +686,7 @@ try {
 function showSetView(v) {
   setView = v;
   $('#scCard').hidden = v !== 'soundcheck';
+  $('#chCard').hidden = v !== 'soundcheck';
   $('#liveCard').hidden = v === 'soundcheck';
   $('#segSoundcheck').classList.toggle('active', v === 'soundcheck');
   $('#segService').classList.toggle('active', v !== 'soundcheck');
@@ -762,8 +764,7 @@ function renderSoundcheck(s) {
       send({ type: 'setSongLeads', index: idx, lead, harmonies: [...harm] });
     };
     const meter = (slot) => el('div', { class: 'meter', 'data-ch': slot.left, 'data-ch2': slot.right || '' }, [el('div', { class: 'lvl' })]);
-    const base = (slot) => L.slots.find((x) => x.id === slot.id);
-    const label = (text, slot) => el('div', { class: 'sc-label' }, [el('span', { text }), weekChannelSelect(set, base(slot))]);
+    const label = (text, slot) => el('div', { class: 'sc-label' }, [el('span', { text }), el('span', { class: `ch-tag${slot.moved ? ' moved' : ''}`, text: pairLabel(slot.left, slot.right) })]);
     $('#scPeople').replaceChildren(
       ...[...rows.values()].map(({ person, vocal, instruments }) => {
         const role = song ? roleOf(song, person.id) : 'none';
@@ -861,6 +862,121 @@ function renderSoundcheck(s) {
   }
   $('#scUseHearing').disabled = !hearingSuggestion;
 }
+// ---------- This week's channels (set once per set, at soundcheck) ----------
+let finding = null; // { slotId, name, until, base: Map (loudest before), n, lit: Map, peak: Map }
+const levelHistory = []; // [{ t, levels }] for the last few seconds, so Find knows what was already playing
+const findNotes = {}; // slotId -> result text
+const FIND_SECONDS = 6;
+
+function weekPositions(s) {
+  const L = s.setlist;
+  const set = L?.current;
+  if (!set) return [];
+  const people = Object.fromEntries((L.people ?? []).map((p) => [p.id, p]));
+  return L.slots
+    .filter((x) => set.lineup[x.id] && people[set.lineup[x.id]])
+    .map((x) => ({ base: x, slot: slotThisWeek(set, x), person: people[set.lineup[x.id]] }))
+    .sort((a, b) => a.person.name.localeCompare(b.person.name) || (a.base.instrument === 'vocal' ? -1 : 1));
+}
+
+function renderChannels(s) {
+  const L = s.setlist;
+  const set = L?.current;
+  const card = $('#chCard');
+  if (!set) {
+    card.hidden = true;
+    return;
+  }
+  if (setView === 'soundcheck') card.hidden = false;
+  const list = weekPositions(s);
+  const levels = new Map(s.inventory.rows.map((r) => [r.id, r.levelDb ?? -128]));
+  if (!finding) {
+    levelHistory.push({ t: Date.now(), levels });
+    while (levelHistory.length && levelHistory[0].t < Date.now() - 4000) levelHistory.shift();
+  }
+  const done = !!set.channelsDone;
+  $('#chBody').hidden = done;
+  $('#chEdit').hidden = !done;
+  $('#chSummary').textContent = done
+    ? list.map(({ slot, person, base }) => `${person.name.split(' ')[0]}${base.instrument === 'vocal' ? '' : ` ${base.name.toLowerCase()}`} ${slot.left ? (slot.right ? `${slot.left}/${slot.right}` : slot.left) : '—'}`).join(' · ') || 'Nobody on the lineup yet.'
+    : 'Needs checking this week';
+  $('#chSummary').classList.toggle('music-warn', !done);
+
+  // Finding: watch every channel while the person sings or plays; pick the one that rose most.
+  if (finding) {
+    finding.n++;
+    for (const [ch, db] of levels) {
+      finding.peak.set(ch, Math.max(finding.peak.get(ch) ?? -128, db));
+      if (db > Math.max(finding.base.get(ch) ?? -128, -70) + 8) finding.lit.set(ch, (finding.lit.get(ch) ?? 0) + 1);
+    }
+    if (Date.now() >= finding.until) finishFind(s, levels);
+  }
+  if (changed('chList', [set.id, list.map((x) => [x.base.id, x.person.id, x.slot.left, x.slot.right]), finding?.slotId, findNotes])) {
+    $('#chList').replaceChildren(
+      ...list.map(({ base, slot, person }) => {
+        const what = base.instrument === 'vocal' ? 'Mic' : base.name;
+        const btn = el('button', { class: 'btn btn-small btn-ghost', type: 'button', text: finding?.slotId === base.id ? 'Listening…' : 'Find' });
+        btn.disabled = !!finding;
+        btn.addEventListener('click', () => {
+          // What each channel was already doing: its loudest in the last few seconds (click, tracks, others).
+          const before = new Map();
+          for (const h of [...levelHistory, { levels }]) for (const [ch, db] of h.levels) before.set(ch, Math.max(before.get(ch) ?? -128, db));
+          finding = { slotId: base.id, name: person.name, stereo: !!base.right, until: Date.now() + FIND_SECONDS * 1000, base: before, n: 0, lit: new Map(), peak: new Map() };
+          findNotes[base.id] = `Have ${person.name.split(' ')[0]} ${base.instrument === 'vocal' ? 'sing' : 'play'} now…`;
+          keys.chList = null;
+        });
+        return el('div', { class: 'ch-row' }, [
+          el('div', {}, [el('b', { text: person.name }), el('span', { class: 'muted small', text: ` · ${what}` })]),
+          weekChannelSelect(set, base),
+          el('div', { class: 'meter', 'data-ch': slot.left, 'data-ch2': slot.right || '' }, [el('div', { class: 'lvl' })]),
+          btn,
+          el('span', { class: 'muted small ch-note', text: findNotes[base.id] ?? '' }),
+        ]);
+      }),
+    );
+  }
+  for (const m of document.querySelectorAll('#chList .meter')) {
+    const db = Math.max(levels.get(m.dataset.ch) ?? -128, m.dataset.ch2 ? levels.get(m.dataset.ch2) ?? -128 : -128);
+    m.firstChild.style.width = `${Math.max(0, Math.min(100, ((db + 60) / 60) * 100))}%`;
+    m.classList.toggle('active-now', db > ACTIVE_DB);
+  }
+}
+
+function finishFind(s, levels) {
+  const f = finding;
+  finding = null;
+  keys.chList = null;
+  const set = s.setlist.current;
+  // Channels already used by someone else this week aren't candidates.
+  const taken = new Set();
+  for (const x of s.setlist.slots) {
+    if (x.id === f.slotId || !set.lineup[x.id]) continue;
+    const w = slotThisWeek(set, x);
+    if (w.left) taken.add(w.left);
+    if (w.right) taken.add(w.right);
+  }
+  // Lit up and stayed lit (singing has gaps, so a third of the time is enough), and loud enough to be a real input.
+  const share = (ch) => (f.n ? (f.lit.get(ch) ?? 0) / f.n : 0);
+  const cands = [...f.peak.keys()].filter((ch) => !taken.has(ch) && (f.peak.get(ch) ?? -128) > -45 && share(ch) >= 0.3).sort((a, b) => share(b) - share(a) || (f.peak.get(b) ?? -128) - (f.peak.get(a) ?? -128));
+  if (!cands.length) {
+    findNotes[f.slotId] = `Didn't hear ${f.name.split(' ')[0]} on a free channel. Check their pack is on and try again, or pick the channel.`;
+    return;
+  }
+  let left = cands[0];
+  let right = '';
+  if (f.stereo && left !== 'aux') {
+    // Stereo: pair with whichever neighbour also lit up (or the next channel up).
+    const n = Number(left);
+    const nb = [String(n - 1), String(n + 1)].find((c) => cands.includes(c));
+    if (nb) [left, right] = Number(nb) < n ? [nb, left] : [left, nb];
+    else right = n < 16 ? String(n + 1) : '';
+  }
+  findNotes[f.slotId] = `Found: ${pairLabel(left, right)}`;
+  send({ type: 'setSetChannel', slotId: f.slotId, left, right });
+}
+$('#chDone').addEventListener('click', () => send({ type: 'channelsDone', done: true }));
+$('#chEdit').addEventListener('click', () => send({ type: 'channelsDone', done: false }));
+
 // ---------- ProPresenter: follow the song that's up ----------
 function renderPro(s) {
   const P = s.setlist?.pro;

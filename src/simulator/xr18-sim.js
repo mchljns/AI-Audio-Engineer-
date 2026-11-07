@@ -113,6 +113,7 @@ export class XR18Simulator {
     this.state = initialState();
     this.remoteSubs = new Map(); // "addr:port" -> expiry
     this.meterSubs = new Map();
+    this.forced = new Map(); // tests: channel -> dB, e.g. someone singing into a pack
     this.timers = [];
   }
 
@@ -125,7 +126,7 @@ export class XR18Simulator {
       setInterval(() => {
         const t = Date.now() - t0;
         const values = [];
-        for (let i = 1; i <= 16; i++) values.push(meterLevel(String(i), t, this.scenario));
+        for (let i = 1; i <= 16; i++) values.push(this.forced.has(String(i)) ? this.forced.get(String(i)) + (Math.random() - 0.5) * 3 : meterLevel(String(i), t, this.scenario));
         const aux = meterLevel('aux', t, this.scenario);
         values.push(aux, aux);
         while (values.length < 40) values.push(-128);

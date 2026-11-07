@@ -175,6 +175,19 @@
         <span id="proStatus" class="muted small"></span>
       </div>
 
+      <section class="auto-card ch-card" id="chCard" hidden>
+        <div class="ch-head">
+          <h2>This week's channels</h2>
+          <span id="chSummary" class="muted small"></span>
+          <button id="chEdit" class="btn btn-ghost btn-small" type="button" hidden>Change</button>
+        </div>
+        <div id="chBody">
+          <p class="muted small">Set once at soundcheck; they stay the same for every song. Each person starts on the channel they used last time. Not sure? Tap <b>Find</b>, have them sing or play, and the channel that lights up is picked.</p>
+          <div id="chList" class="ch-list"></div>
+          <button id="chDone" class="btn btn-big" type="button">Channels are set ✓</button>
+        </div>
+      </section>
+
       <section class="auto-card sc-card" id="scCard" hidden>
         <div class="sc-head">
           <button id="scPrev" class="icon-btn big" type="button" aria-label="Previous song">◀</button>
@@ -184,7 +197,7 @@
           </div>
           <button id="scNext" class="icon-btn big" type="button" aria-label="Next song">▶</button>
         </div>
-        <p class="muted small">Under each name, tap what they're doing <b>this week</b>: only singing, only playing, or both. Then, per song, pick how they sing and tap <b>★ Lead</b> on the instrument that carries it. A <b class="gold">gold</b> channel means they're on a different channel this week only. Everything saves straight away.</p>
+        <p class="muted small">Under each name, tap what they're doing <b>this week</b>: only singing, only playing, or both. Then, per song, pick how they sing and tap <b>★ Lead</b> on the instrument that carries it. Everything saves straight away.</p>
         <div id="scPeople" class="sc-people"></div>
         <div class="hearing">
           <span id="scHearing" class="muted">Listening…</span>

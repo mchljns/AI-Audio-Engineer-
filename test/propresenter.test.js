@@ -178,3 +178,34 @@ test('this week: a singer without an instrument, a player who does not sing, and
   for (const n of ['A', 'B', 'C', 'D']) lib.placePerson(lib.savePerson({ name: n, instruments: [{ type: 'vocal' }] }).id, 'vocal', true);
   assert.equal(lib.placePerson(mike.id, 'vocal', true), false, 'no free vocal mic');
 });
+
+test("channels are set once a week: each new set needs checking, and starts from each person's last channel", () => {
+  const lib = new Library(tmp('library.json'));
+  const sarah = lib.savePerson({ name: 'Sarah', instruments: [{ type: 'vocal' }] });
+  const ann = lib.savePerson({ name: 'Ann', instruments: [{ type: 'vocal' }, { type: 'keys' }] });
+  lib.newSet({ title: 'Week 1' });
+  assert.equal(lib.set().channelsDone, false, 'needs checking');
+  lib.placePerson(sarah.id, 'vocal', true); // Vox 1
+  lib.placePerson(ann.id, 'keys', true);
+  lib.setSetChannel('vox1', '10');
+  lib.setSetChannel('keys', '11', '12');
+  lib.setChannelsDone(true);
+  assert.equal(lib.set().channelsDone, true);
+  lib.addSong({ title: 'A' });
+  lib.addSong({ title: 'B' });
+  lib.playSong(0);
+  const a = lib.focusForCurrentSong();
+  lib.playSong(1);
+  assert.deepEqual(Object.keys(lib.focusForCurrentSong()).sort(), Object.keys(a).sort(), 'same channels for every song');
+
+  lib.newSet({ title: 'Week 2' });
+  assert.equal(lib.set().channelsDone, false, 'next week needs checking again');
+  lib.placePerson(ann.id, 'vocal', true); // Ann takes Vox 1 this week
+  lib.placePerson(sarah.id, 'vocal', true); // Sarah on Vox 2
+  lib.placePerson(ann.id, 'keys', true);
+  assert.equal(lib.set().channels.vox1, undefined, "Ann has never sung on a set channel: Vox 1's usual channel, not Sarah's");
+  assert.deepEqual(lib.set().channels.vox2, { left: '10', right: '' }, "Sarah starts on last week's channel");
+  assert.deepEqual(lib.set().channels.keys, { left: '11', right: '12' }, "Ann's keys start on last week's channels");
+  lib.placePerson(sarah.id, 'vocal', false);
+  assert.equal(lib.set().channels.vox2, undefined, "taking someone off clears their channel from the position");
+});

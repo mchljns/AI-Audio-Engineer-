@@ -48,7 +48,7 @@ const LIBRARY_COMMANDS = new Set([
   'saveSlot', 'deleteSlot', 'savePerson', 'deletePerson',
   'newSet', 'openSet', 'deleteSet', 'setLineup',
   'addSong', 'removeSong', 'moveSong', 'setSongLeads', 'playSong', 'nextSong', 'songMixAmounts',
-  'pcoServiceTypes', 'pcoPlans', 'pcoImport', 'setSetChannel', 'placePerson',
+  'pcoServiceTypes', 'pcoPlans', 'pcoImport', 'setSetChannel', 'placePerson', 'channelsDone',
 ]);
 
 // PA knob positions worth writing down, so a bumped knob can be put back next week.
@@ -701,6 +701,9 @@ export class Bridge {
           if (!ok && cmd.on) this.alert({ level: 'warn', source: 'set', message: `No free ${cmd.instrument === 'vocal' ? 'vocal mic' : label.toLowerCase()} position. Free one up, or add a position under Channels for each position.` });
           break;
         }
+        case 'channelsDone':
+          lib.setChannelsDone(!!cmd.done);
+          break;
         case 'setSetChannel':
           lib.setSetChannel(String(cmd.slotId), cmd.left === null ? '' : String(cmd.left ?? ''), String(cmd.right ?? ''));
           break;

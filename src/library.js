@@ -122,7 +122,7 @@ export class Library {
   // ---------- sets ----------
 
   newSet({ title, date, pco = null } = {}) {
-    const set = { id: newId(), title: clean(title, 80) || 'Sunday', date: clean(date, 20), pco, lineup: {}, channels: {}, songs: [] };
+    const set = { id: newId(), title: clean(title, 80) || 'Sunday', date: clean(date, 20), pco, lineup: {}, channels: {}, channelsDone: false, songs: [] };
     this.data.sets.unshift(set);
     this.data.sets = this.data.sets.slice(0, 30);
     this.data.currentSet = set.id;
@@ -166,6 +166,26 @@ export class Library {
     const l = validCh(left ?? '');
     if (!l) delete set.channels[slotId];
     else set.channels[slotId] = { left: l, right: INSTRUMENTS[slot.instrument]?.stereo === 'never' ? '' : validCh(right ?? '') };
+    // Remember it for this person, as next week's first guess.
+    const pid = set.lineup[slotId];
+    if (pid && l) (this.data.personChannels ??= {})[`${pid}:${slot.instrument}`] = set.channels[slotId];
+    this.save();
+  }
+
+  /** Someone was put on a position: start from the channel they used last time, if we know it. */
+  #placed(set, slotId, personId) {
+    const slot = this.slot(slotId);
+    const last = this.data.personChannels?.[`${personId}:${slot?.instrument}`];
+    set.channels ??= {};
+    if (last) set.channels[slotId] = { ...last };
+    else delete set.channels[slotId];
+  }
+
+  /** Channels are checked once a week: done for this set, or not yet. */
+  setChannelsDone(done) {
+    const set = this.set();
+    if (!set) return;
+    set.channelsDone = !!done;
     this.save();
   }
 
@@ -196,13 +216,18 @@ export class Library {
     if (!set || !this.person(personId) || !INSTRUMENTS[type]) return false;
     const ofType = this.data.slots.filter((s) => s.instrument === type);
     if (!on) {
-      for (const s of ofType) if (set.lineup[s.id] === personId) delete set.lineup[s.id];
+      for (const s of ofType) {
+        if (set.lineup[s.id] !== personId) continue;
+        delete set.lineup[s.id];
+        delete set.channels?.[s.id];
+      }
       this.save();
       return true;
     }
     if (ofType.some((s) => set.lineup[s.id] === personId)) return true;
     const free = ofType.find((s) => !set.lineup[s.id] && s.left) ?? ofType.find((s) => !set.lineup[s.id]);
     if (!free) return false;
+    this.#placed(set, free.id, personId);
     set.lineup[free.id] = personId;
     this.save();
     return true;
@@ -211,8 +236,13 @@ export class Library {
   setLineup(slotId, personId) {
     const set = this.set();
     if (!set || !this.slot(slotId)) return;
-    if (personId && this.person(personId)) set.lineup[slotId] = personId;
-    else delete set.lineup[slotId];
+    if (personId && this.person(personId)) {
+      if (set.lineup[slotId] !== personId) this.#placed(set, slotId, personId);
+      set.lineup[slotId] = personId;
+    } else {
+      delete set.lineup[slotId];
+      delete set.channels?.[slotId];
+    }
     this.save();
   }
 
@@ -341,7 +371,10 @@ export class Library {
       person = this.savePerson({ id: person?.id, name: m.name, instruments, pcoId: m.personId });
       if (!person.pcoId && m.personId) person.pcoId = String(m.personId);
       const slot = this.data.slots.find((s) => s.instrument === type && !set.lineup[s.id]);
-      if (slot) set.lineup[slot.id] = person.id;
+      if (slot) {
+        this.#placed(set, slot.id, person.id);
+        set.lineup[slot.id] = person.id;
+      }
       else unplaced.push(`${m.name} (${m.position})`);
     }
     for (const s of songs) this.addSong({ title: s.title, key: s.key, pcoSongId: s.songId });

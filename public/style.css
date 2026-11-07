@@ -544,3 +544,19 @@ dialog.connect-dialog { width: min(640px, calc(100vw - 32px)); }
 .wk { appearance: none; min-height: 34px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--muted); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
 .wk.on { border-color: var(--ok); color: var(--ok); background: rgba(60, 207, 122, 0.12); }
 .sc-add select { width: 100%; min-height: 44px; }
+
+/* This week's channels */
+.ch-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.ch-head h2 { margin: 0; }
+.ch-head #chSummary { flex: 1; min-width: 0; }
+.ch-list { display: grid; gap: 8px; margin: 10px 0 14px; }
+.ch-row { display: grid; grid-template-columns: minmax(140px, 1.2fr) 130px 70px auto minmax(0, 1.4fr); gap: 10px; align-items: center; padding: 8px 10px; border-radius: 10px; background: var(--strip); }
+.ch-row .ch-pick { min-height: 40px; }
+.ch-note { min-width: 0; }
+.ch-tag { font-size: 13px; color: var(--muted); }
+.ch-tag.moved { color: #f5b942; }
+@media (max-width: 640px) {
+  .ch-row { grid-template-columns: minmax(0, 1fr) 110px; }
+  .ch-row .meter { grid-column: 1 / -1; order: 5; }
+  .ch-row .ch-note { grid-column: 1 / -1; }
+}
