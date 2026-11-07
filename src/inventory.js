@@ -75,9 +75,9 @@ export function buildInventory(state, roleStore, now = Date.now(), lockedIds = [
       faderDb: s.faderDb,
       lr: s.lr === true,
       pan: s.pan,
-      // In a mono PA, a channel panned well off-centre loses part of its level (or all of it,
-      // if only one XR18 main output is wired).
-      offCenter: monoPA && s.lr === true && labeled && Math.abs(s.pan - 0.5) > 0.15 && !LOCKED_ROLES.has(role) && !lockedSet.has(id),
+      // Both XR18 mains are summed into one PA feed. Stereo pairs (Keys L/R) arrive whole; a single
+      // channel panned well to one side just comes out a few dB quieter than it looks.
+      offCenter: monoPA && s.lr === true && labeled && !stereoSide(s.name) && Math.abs(s.pan - 0.5) > 0.3 && !LOCKED_ROLES.has(role) && !lockedSet.has(id),
       fxSends: fxSendBuses.map((b) => s.sends[b] ?? 0),
       needsConfirm: role === 'unknown' || status === 'unlabeled-signal',
     };

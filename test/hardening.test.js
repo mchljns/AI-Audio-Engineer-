@@ -138,10 +138,13 @@ test('web server refuses paths outside the app', async (t) => {
 test('mono PA: channels panned off-centre are flagged', async (t) => {
   const { sim, bridge } = await rig(t);
   await until(() => bridge.state.strips['7'].pan === 0);
+  sim.externalChange(paths.pan('6'), { type: 'f', value: 0.1 });
+  await until(() => bridge.state.strips['6'].pan === 0.1);
   const rows = Object.fromEntries(bridge.snapshot().inventory.rows.map((r) => [r.id, r]));
-  assert.equal(rows['7'].offCenter, true, 'Keys L hard left');
-  assert.equal(rows['8'].offCenter, true, 'Keys R hard right');
+  assert.equal(rows['7'].offCenter, false, 'stereo pair Keys L is fine: both mains are summed');
+  assert.equal(rows['8'].offCenter, false, 'stereo pair Keys R is fine');
+  assert.equal(rows['6'].offCenter, true, 'single channel panned hard is flagged');
   assert.equal(rows['1'].offCenter, false, 'pastor centred');
-  sim.externalChange(paths.pan('7'), { type: 'f', value: 0.5 });
-  assert.ok(await until(() => !bridge.snapshot().inventory.rows.find((r) => r.id === '7').offCenter));
+  sim.externalChange(paths.pan('6'), { type: 'f', value: 0.5 });
+  assert.ok(await until(() => !bridge.snapshot().inventory.rows.find((r) => r.id === '6').offCenter));
 });

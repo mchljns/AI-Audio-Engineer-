@@ -3,7 +3,7 @@
 Written for this setup:
 
 ```
-XR18 main out ──► JBL PRX ONE (stage right, built-in sub)
+XR18 main L + R ──► JBL PRX ONE (stage right, built-in sub; adds L and R together)
                      └─ XLR pass-thru ──► Fender Passport Venue (one speaker, fill on the other side)
 
 Tracks, click and guide (Loop Community Prime) ──► XR18 inputs
@@ -14,19 +14,19 @@ XR18 aux buses ──► 2× Phenyx Pro PTM-10 ──► in-ears
 
 The rule for the whole system: **all mixing happens on the XR18** (where Mix Assistant works). The PRX ONE and the Passport are set once, marked, and left alone.
 
-## 1. Your PA is mono, so pan to the centre
+## 1. Your PA is mono: one mix, two speakers
 
-Both speakers get the same single feed: the PRX ONE passes its input mix on to the Passport. So:
+Both XR18 main outputs (L and R) go into the PRX ONE, which adds them together, and the Passport gets that same mix. So both speakers always play the same thing:
 
-- Anything panned left or right on the XR18 gets quieter. If only **one** XR18 main output is wired, it can disappear entirely: Keys R and the right half of every reverb go nowhere.
-- **Pan every channel to the centre** in the X Air app, including both halves of stereo keys and tracks. Mix Assistant now flags any channel that's panned off-centre in the pre-service check.
-- If both XR18 main outputs (L and R) go into two PRX ONE inputs, the PRX adds them together. Off-centre pans then lose less, but centring is still the safe choice.
+- **Stereo pairs** (Keys L/R, stereo tracks, stereo reverb) arrive whole. Nothing is lost.
+- **Panning a single channel** does nothing useful and makes it about 3 dB quieter than it looks. Keep single channels in the centre. Mix Assistant mentions any that aren't.
+- Avoid stereo-widening effects (wide chorus, "stereo" doublers) on important sources: added back together into one feed they can sound thin.
 
 ## 2. The PRX ONE
 
 Its pass-thru doesn't just copy one input. It sends **a mix of every PRX ONE input**, with its own level control and high- and low-pass filters (set in the JBL Pro Connect app or on the PRX's screen). That means:
 
-- **Use only the input(s) the XR18 feeds.** Turn every other PRX input all the way down. Anything plugged into another input also goes to the Passport.
+- **Use only the two inputs the XR18 mains feed**, at the same gain. Turn every other PRX input all the way down. Anything plugged into another input also goes to the Passport.
 - **Turn Bluetooth off** on the PRX ONE during services. Bluetooth audio can still reach the pass-thru, so someone's phone could play through both speakers.
 - XR18 input channel(s) on the PRX: **EQ flat, effects off** (no reverb, chorus or delay; the XR18 does effects).
 - **Input gain:** start low. Play the band at service level and raise it until the PRX's input meter shows strong signal but never clip. A line signal from the XR18 needs far less gain than a microphone.
@@ -85,6 +85,4 @@ Name each XR18 aux bus that feeds a PTM-10 in the X Air app, for example "IEM Vo
 
 ## Still to confirm
 
-- **Is one XR18 main output wired to the PRX ONE, or both (L and R)?**
-- Do the click and guide come into the XR18 on their own channels (so everyone's in-ears get them from the XR18 and the click lock can protect them)?
 - **Are the PTM-10s in stereo or mono mode?** That decides whether you have 2 or 4 in-ear mixes.

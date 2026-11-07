@@ -322,7 +322,7 @@ function render(s) {
       issues.push(['warn', `⚠️ ${r.label} "${r.name}": named but no signal. Check battery, cable or receiver.`]);
     if (r.status === 'unlabeled-signal') issues.push(['warn', `❓ ${r.label}: signal on an unnamed channel. Tap its name strip to set what it is.`]);
     if (r.offCenter)
-      issues.push(['warn', `↔️ ${r.label} "${r.name}" is panned ${r.pan < 0.5 ? 'left' : 'right'}. Your PA is mono (both speakers get one feed), so this channel is quieter than it looks, or missing if only one XR18 main output is wired. Pan it to the centre in the X Air app.`]);
+      issues.push(['info', `↔️ ${r.label} "${r.name}" is panned ${r.pan < 0.5 ? 'left' : 'right'}. Both speakers play the same mix, so panning does nothing useful here and makes it about 3 dB quieter. Centre it in the X Air app.`]);
     if (r.role === 'unknown' && r.roleSource !== 'confirmed')
       issues.push(['info', `❔ ${r.label} "${r.name}": couldn't tell what this is from its name. Tap its name strip.`]);
   }
