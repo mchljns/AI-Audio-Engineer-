@@ -32,9 +32,11 @@ Notes:
 - The laptop's name (shown when you hover over the blue badge, e.g. `http://booth-mac.local:8080`) also works on the iPad, but the fixed address above is the most reliable.
 - Keep the laptop open during the service: closing the lid puts it to sleep.
 
-## At the school: streaming Spotify (optional)
+## At the school: streaming Spotify (optional, needs an Ethernet adapter)
 
-Only if the laptop has an Ethernet port or adapter, and only after this one-time test passes:
+**Not available right now:** the laptop only has USB-C ports and there's no USB-C Ethernet adapter. Use downloaded playlists. To stream without new hardware, use an iPhone's Personal Hotspot over its charging cable (Option 3 below) if a USB-C port is free after the XR18's USB audio cable.
+
+If an adapter is ever added, this works only after this one-time test passes:
 
 1. Connect the laptop to the XR18's Ethernet port with a short cable in the rack. Give the laptop's Ethernet a fixed address: **System Settings → Network → Ethernet → Details → TCP/IP → Using DHCP with manual address**, with the same first three numbers as the XR18's Wi-Fi addresses and `.50` at the end.
 2. Join the laptop's **Wi-Fi** to the school's open network.
