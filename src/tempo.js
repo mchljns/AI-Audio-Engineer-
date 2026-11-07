@@ -44,6 +44,8 @@ export class TempoDetector {
     }
     if (now - this.lastEstimate >= 1000) {
       this.lastEstimate = now;
+      // One uneven estimate doesn't make the tempo blink out: hold the last good one for 4 s.
+      const held = this.result && now - this.result.at <= 4000 ? this.result : null;
       this.result = null;
       for (const src of ['click', 'track', 'band']) {
         const st = this.sources.get(src);
@@ -54,6 +56,7 @@ export class TempoDetector {
           break;
         }
       }
+      if (!this.result && held && now - (this.sources.get(held.source)?.lastOnset ?? 0) <= 2500) this.result = held;
     }
     return this.result;
   }
