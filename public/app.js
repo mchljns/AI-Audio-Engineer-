@@ -409,6 +409,15 @@ function renderAuto(a) {
         ? `Listening… looks like ${MODE_LABEL[a.candidate]}.`
         : 'Changes by itself from what it hears. Tap a mode to set it yourself.';
 
+  // What's happening right now, in plain sentences (also shown on the Set tab).
+  const now = a.now ?? [];
+  if (changed('mixNow', now)) {
+    const items = now.map((t) => el('div', { class: 'mix-line', text: t }));
+    $('#mixNow').replaceChildren(...items);
+    $('#setMixNow').replaceChildren(el('span', { class: 'mix-dot' }), ...now.slice(0, 2).map((t) => el('span', { text: t })));
+  }
+  for (const b of document.querySelectorAll('#rideSeg .seg-btn')) b.classList.toggle('active', b.dataset.ride === (a.settings.ride ?? 'normal'));
+
   const lines = [];
   for (const c of a.channels) {
     const role = latest.inventory.rows.find((r) => r.id === c.id)?.group;
@@ -419,8 +428,8 @@ function renderAuto(a) {
     }
   }
   const ducked = a.channels.filter((c) => ['band', 'tracks'].includes(latest.inventory.rows.find((r) => r.id === c.id)?.group) && c.offsetDb < -1);
-  if (ducked.length) lines.push(['down', 'Band and tracks', `${Math.round(Math.min(...ducked.map((c) => c.offsetDb)))} dB under talking`]);
-  if (!lines.length) lines.push(['', 'Nothing to adjust right now', '']);
+  if (ducked.length && ['talkover', 'walkin'].includes(a.mode)) lines.push(['down', 'Band and tracks', `${Math.round(Math.min(...ducked.map((c) => c.offsetDb)))} dB under talking`]);
+  if (!lines.length && !now.length) lines.push(['', 'Nothing to adjust right now', '']);
   $('#doing').replaceChildren(
     ...lines.map(([k, name, v]) => el('li', { class: k }, [el('span', { text: name }), el('span', { class: 'v', text: v })])),
   );
@@ -432,6 +441,7 @@ function renderAuto(a) {
   set('#optSingers', a.settings.muteSingersWhenSpeaking);
   set('#optModes', a.settings.autoModes);
 }
+for (const b of document.querySelectorAll('#rideSeg .seg-btn')) b.addEventListener('click', () => send({ type: 'automix', settings: { ride: b.dataset.ride } }));
 for (const b of document.querySelectorAll('.mode')) b.addEventListener('click', () => send({ type: 'setMode', mode: b.dataset.mode }));
 $('#modeAuto').addEventListener('click', () => {
   send({ type: 'setMode', mode: 'auto' });

@@ -85,7 +85,9 @@ A running list of what could go wrong, what handles it, and how it's checked. Re
 
 | # | Failure | What handles it | Check |
 |---|---|---|---|
-| M1 | Auto-mix adds feedback | It only ever turns channels down from where a person set them, never up. Gain sharing keeps the total speech gain constant | Test |
+| M1 | Auto-mix adds feedback | Everything except vocal riding only turns channels down. Gain sharing keeps the total speech gain constant | Test |
+| M18 | Vocal riding boosts a mic into feedback | Boost only on the lead's vocal mic, in worship, while they're singing this instant (off within ~0.3 s of stopping), capped by strength and +6 dB on the fader; a boosted mic whose level climbs steadily for a second without the dips singing has gets no boost for a minute and an alert; speech mics, pastor and music never go up | Test (simulated ringing), Midweek: try Strong with a singer near a wedge |
+| M19 | Vocal riding pumps or chases | 1.5 dB dead band, normal level drifts over about a minute (a quiet verse is ridden, not learned), smooth ~0.5 s moves, short hold on lead changes, full chorus favours nobody, and a status line says exactly what it's doing | Test, Midweek: listen for pumping between phrases on Normal |
 | M2 | Auto-mix fights a volunteer | Any fader move (this app, X Air app) becomes that channel's new level; unmuting a singer it muted hands that singer back until the mode changes; each feature has an off switch that hands channels straight back | Test |
 | M3 | App stops with the band ducked or singers muted | State saved every second; on restart it puts faders back and unmutes singers before carrying on (only if nobody moved them meanwhile). If the Mac itself dies, cuts are at most 15 dB (speech) / 8 dB (music) and singer mutes are visible in the X Air app | Test |
 | M4 | A pause between songs flips the service mode | Hold times: worship needs 2.5 s, talking-over-music 1.5 s after singing stops, speaking 6 s after music stops (about 10 s in all); singers are only muted after 20 s of speaking | Test |

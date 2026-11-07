@@ -12,9 +12,17 @@
 //      and mutes singer mics during a sermon (cuts their hiss and feedback risk),
 //      unmuting them the moment music comes back.
 //
+//   4. Vocal riding (worship): keeps the lead singer on top. It learns each singer's and
+//      the band's normal level; when the lead sinks below normal it brings them up (and,
+//      if that isn't enough, the band down), and when they belt it eases them back.
+//      Moves only as much as needed, within the limits of the chosen strength.
+//
 // Safety rules:
-//   - It only ever turns channels DOWN from the level a person set ("home"). It never
-//     boosts, so it can't add feedback.
+//   - Everything except vocal riding only turns channels DOWN from the level a person set
+//     ("home"). Vocal riding may raise the lead singer's fader, but only a vocal mic, only
+//     in worship, only while they're singing (back down within a fraction of a second when
+//     they stop), never past the strength's limit, and never on a mic whose level starts
+//     climbing by itself (feedback): that mic gets no boosts for a minute.
 //   - A person always wins. Moving a fader (in this app, the X Air app, anywhere) sets
 //     a new home level for that channel. Unmuting a channel it muted hands it back.
 //   - Its state is saved. If the app restarts, every fader goes back to its home level
@@ -51,7 +59,21 @@ const DEFAULTS = {
   musicHoldMs: 4000, // music counts as active this long after the last note
   vocalHoldMs: 2500, // singing counts as active this long after the last line
   metersPostFader: false, // set true if the mixer's meters turn out to be post-fader
+  ride: 'normal', // vocal riding: off | gentle | normal | strong
 };
+
+// How far vocal riding may move things (dB) and how much of the gap it closes.
+export const RIDE_LEVELS = {
+  gentle: { boost: 2, cut: 2, band: 2, amount: 0.6, label: 'Gentle' },
+  normal: { boost: 4, cut: 4, band: 3, amount: 0.8, label: 'Normal' },
+  strong: { boost: 6, cut: 6, band: 5, amount: 1, label: 'Strong' },
+};
+const RIDE_DEADBAND_DB = 1.5; // closer than this to normal: leave it
+const RIDE_LEARN_MS = 8000; // singing this long before a singer's normal level is trusted
+const RIDE_LEAD_HOLD_MS = 1500; // an automatically picked lead holds this long before another can take over
+const FEEDBACK_RISE_DB = 6; // a boosted mic climbing this much in ~1 s while held up…
+const FEEDBACK_BLOCK_MS = 60000; // …gets no boosts for this long
+const FADER_CEILING_DB = 6; // riding never pushes a fader past +6 dB
 
 const SPEECH_ROLES = new Set(['pastor', 'speech']);
 const VOCAL_ROLES = new Set(['vocal']);
@@ -84,6 +106,9 @@ export class AutoMix extends EventEmitter {
     this.pulled = new Map();
     this.focus = new Map(); // song mix: channel id -> dB cut (0 or below), from the current song
     this.keepOpen = new Set(); // singers a person turned back up: left alone until the mode changes
+    this.songLead = []; // the current song's lead singer channel(s), from the set
+    this.names = {}; // channel id -> person's name, for the status line
+    this.ride = { lead: null, leadSince: 0, voc: 0, band: 0, musicNormal: null, blocked: new Map(), note: null };
     this.lastSaveAt = 0;
     this.dirty = false;
 
@@ -126,6 +151,7 @@ export class AutoMix extends EventEmitter {
     }
     if (Number.isFinite(partial.duckDb)) this.settings.duckDb = Math.min(15, Math.max(2, partial.duckDb));
     if (Number.isFinite(partial.maxCutDb)) this.settings.maxCutDb = Math.min(25, Math.max(6, partial.maxCutDb));
+    if (partial.ride === 'off' || RIDE_LEVELS[partial.ride]) this.settings.ride = partial.ride;
     // Turning a feature off hands its channels straight back.
     if (before.speechAutomix && !this.settings.speechAutomix) this.#releaseGroup('speech');
     if (before.duckMusic && !this.settings.duckMusic) this.#releaseGroup('music');
@@ -133,8 +159,11 @@ export class AutoMix extends EventEmitter {
     return this.settings;
   }
 
-  /** The current song's mix: { channelId: dB } cuts (0 = stands out). Empty map = no song. */
-  setFocus(cuts = {}) {
+  /** The current song's mix: { channelId: dB } cuts (0 = stands out). Empty map = no song.
+   *  Optionally the lead singer's channel(s) and people's names per channel. */
+  setFocus(cuts = {}, { lead = [], names = {} } = {}) {
+    this.songLead = lead.map(String);
+    this.names = names;
     this.focus = new Map(
       Object.entries(cuts)
         .filter(([, db]) => Number.isFinite(db))
@@ -175,6 +204,7 @@ export class AutoMix extends EventEmitter {
   tick(now = Date.now()) {
     if (!this.enabled) return;
     const groups = this.#classify();
+    this.lastGroups = groups;
     this.#trackLevels(groups.all, now);
 
     const speechActive = groups.speech.some((id) => now - this.ch.get(id).lastActive < this.settings.speechHoldMs);
@@ -214,8 +244,11 @@ export class AutoMix extends EventEmitter {
 
     // Ducking under speech
     const duck = this.settings.duckMusic && this.mode === 'talkover' && speechActive && musicActive ? -this.settings.duckDb : 0;
-    for (const id of groups.music) this.ch.get(id).targetDb = Math.max(-24, duck + focus(id));
-    for (const id of groups.vocal) if (!this.pulled.has(id)) this.ch.get(id).targetDb = focus(id);
+    // Vocal riding (worship only): how much to move the lead and the band right now.
+    const ride = this.#ride(groups, now);
+    for (const id of groups.music) this.ch.get(id).targetDb = Math.max(-24, duck + focus(id) + ride.band);
+    for (const id of groups.vocal) if (!this.pulled.has(id)) this.ch.get(id).targetDb = focus(id) + (ride.lead === id ? ride.voc : 0);
+    this.boostOk = ride.lead && ride.voc > 0 ? ride.lead : null;
     // Pre/post-service music comes down under a welcome or closing words, whatever the mode.
     const duckWalkin = this.settings.duckMusic && talking ? -this.settings.duckDb : 0;
     for (const id of groups.walkin) this.ch.get(id).targetDb = duckWalkin;
@@ -324,14 +357,149 @@ export class AutoMix extends EventEmitter {
     const up = c.targetDb > c.offsetDb;
     // Speech: open fast, close gently. Music duck: down in ~0.3 s, back up in ~1.5 s.
     // Music comes back up gently after speech, but fast when worship starts so the first notes aren't quiet.
-    const rate = isSpeech ? (up ? 0.6 : 0.2) : up ? (this.mode === 'worship' ? 0.3 : 0.06) : 0.25;
+    let rate = isSpeech ? (up ? 0.6 : 0.2) : up ? (this.mode === 'worship' ? 0.3 : 0.06) : 0.25;
+    if (c.offsetDb > 0 && !up) rate = 0.5; // a boost comes off quickly
+    else if (this.ride.lead === id) rate = up ? 0.12 : 0.15; // riding the lead: smooth, about half a second
     let next = c.offsetDb + (c.targetDb - c.offsetDb) * rate;
     if (Math.abs(c.targetDb - next) < 0.1) next = c.targetDb;
-    next = Math.min(0, next); // never boost
+    // Never above the level a person set, except the lead singer while vocal riding brings them up.
+    const ceiling = this.boostOk === id ? Math.min(RIDE_LEVELS[this.settings.ride]?.boost ?? 0, FADER_CEILING_DB - floatToDb(c.home)) : 0;
+    next = Math.min(Math.max(0, ceiling), next);
     if (Math.abs(next - c.offsetDb) < 0.01) return;
     c.offsetDb = next;
     const value = dbToFloat(floatToDb(c.home) + c.offsetDb);
     if (Math.abs(floatToDb(value) - floatToDb(c.lastSent)) >= MIN_STEP_DB || next === c.targetDb) this.#sendFader(id, value);
+  }
+
+  /** Vocal riding: { lead, voc, band } for this moment. */
+  #ride(groups, now) {
+    const r = this.ride;
+    const lv = RIDE_LEVELS[this.settings.ride];
+    const none = { lead: null, voc: 0, band: 0 };
+    // Learn every singer's normal level while they sing (slow), and their level right now (fast).
+    for (const id of groups.vocal) {
+      const c = this.ch.get(id);
+      const singing = now - c.lastActive < 300 && c.level > c.floor + this.settings.activeAboveFloorDb;
+      if (!singing) continue;
+      c.short = c.short === undefined ? c.level : c.short * 0.8 + c.level * 0.2;
+      // Normal level: learned quickly at first, then it only drifts over about a minute, so a quiet
+      // verse is ridden up rather than becoming the new normal.
+      const learnt = (c.learnMs ?? 0) >= RIDE_LEARN_MS;
+      c.normal = c.normal === undefined ? c.level : c.normal + (c.level - c.normal) * (learnt ? 0.001 : 0.03);
+      c.learnMs = (c.learnMs ?? 0) + (c.lastTick ? Math.min(200, now - c.lastTick) : 50);
+      c.lastLoud = now;
+      // Feedback watch: a mic that was boosted and whose level then climbs steadily for a second, never
+      // dipping the way singing does between syllables.
+      c.hist = [...(c.hist ?? []).filter((h) => now - h.t <= 1000), { t: now, db: c.level, up: c.offsetDb }];
+      const h = c.hist;
+      if (
+        !(r.blocked.get(id) > now) &&
+        h.length >= 12 &&
+        now - h[0].t >= 900 &&
+        h.some((x) => x.up > 0.5) &&
+        c.level - h[0].db >= FEEDBACK_RISE_DB &&
+        h.every((x, i) => i === 0 || x.db >= h[i - 1].db - 0.5)
+      ) {
+        r.blocked.set(id, now + FEEDBACK_BLOCK_MS);
+        this.onAlert({ level: 'warn', source: 'automix', message: `${this.#nameOf(id)}'s level started climbing by itself (possible feedback), so it won't be turned up for a minute.` });
+      }
+    }
+    for (const id of groups.vocal) this.ch.get(id).lastTick = now;
+    // Band's level in the room (input + the fader a person set), learned slowly during worship.
+    const musicNow = this.#powerSum(groups.music.filter((id) => now - this.ch.get(id).lastActive < 500).map((id) => this.ch.get(id).level + floatToDb(this.ch.get(id).home)));
+    if (!lv || this.mode !== 'worship') {
+      r.lead = null;
+      r.note = null;
+      return none;
+    }
+    if (musicNow !== null) r.musicNormal = r.musicNormal === null ? musicNow : r.musicNormal * 0.997 + musicNow * 0.003;
+
+    // Who leads: the song's lead if they're singing, else whoever is singing out most against their own normal.
+    const singingNow = groups.vocal.filter((id) => !this.pulled.has(id) && now - this.ch.get(id).lastActive < 400);
+    let lead = this.songLead.find((id) => singingNow.includes(id)) ?? null;
+    if (!lead && singingNow.length) {
+      const best = singingNow.filter((id) => (this.ch.get(id).learnMs ?? 0) >= RIDE_LEARN_MS).sort((a, b) => this.#dev(b) - this.#dev(a))[0] ?? null;
+      // Everyone singing about equally (a chorus): nobody is favoured.
+      const close = singingNow.filter((id) => Math.abs(this.#dev(id) - this.#dev(best)) < 2).length;
+      lead = r.lead && singingNow.includes(r.lead) && now - r.leadSince < RIDE_LEAD_HOLD_MS ? r.lead : close >= 3 ? null : best;
+    }
+    if (lead !== r.lead) {
+      r.lead = lead;
+      r.leadSince = now;
+    }
+    if (!lead) {
+      r.note = singingNow.length >= 3 ? 'Everyone singing: nobody favoured' : null;
+      return none;
+    }
+    const c = this.ch.get(lead);
+    if ((c.learnMs ?? 0) < RIDE_LEARN_MS) {
+      r.note = `Learning ${this.#nameOf(lead)}'s normal level…`;
+      return { lead: null, voc: 0, band: 0 };
+    }
+    // How far the lead is from their normal, and how far the band is above its normal.
+    const dev = this.#dev(lead);
+    const bandOver = musicNow !== null && r.musicNormal !== null ? musicNow - r.musicNormal : 0;
+    const gap = -dev + Math.max(0, bandOver); // dB the lead needs to come up to sit as usual
+    let voc = 0;
+    let band = 0;
+    if (gap > RIDE_DEADBAND_DB) {
+      const need = (gap - RIDE_DEADBAND_DB) * lv.amount;
+      // Only while they're singing this instant, and not on a mic that showed signs of feedback.
+      const boostOk = !(r.blocked.get(lead) > now) && now - (c.lastLoud ?? 0) < 300;
+      voc = boostOk ? Math.min(lv.boost, need) : 0;
+      band = -Math.min(lv.band, need - voc); // whatever the vocal can't make up, the band gives
+    } else if (gap < -RIDE_DEADBAND_DB) {
+      voc = -Math.min(lv.cut, (-gap - RIDE_DEADBAND_DB) * lv.amount); // belting: ease them back
+    }
+    if (voc > 0 && now - (c.lastLoud ?? 0) >= 300) voc = 0;
+    r.voc = voc;
+    r.band = band;
+    return { lead, voc, band };
+  }
+
+  /** How far a singer is from their own normal level right now (dB). */
+  #dev(id) {
+    const c = id && this.ch.get(id);
+    return c && c.short !== undefined && c.normal !== undefined ? c.short - c.normal : 0;
+  }
+
+  #powerSum(dbs) {
+    if (!dbs.length) return null;
+    return 10 * Math.log10(dbs.reduce((a, d) => a + 10 ** (d / 10), 0));
+  }
+
+  #nameOf(id) {
+    return this.names[id] || this.state.strips[id]?.name || (id === 'aux' ? 'Aux' : `Ch ${id}`);
+  }
+
+  /** What the auto-mix is doing right now, in plain sentences. */
+  describe() {
+    const out = [];
+    const off = (id) => this.ch.get(id)?.offsetDb ?? 0;
+    const fmt = (db) => `${db > 0 ? '+' : '−'}${Math.abs(db).toFixed(1).replace(/\.0$/, '')} dB`;
+    const groups = this.lastGroups ?? { speech: [], vocal: [], music: [], walkin: [], all: [] };
+    if (this.pulled.size) out.push(`Singers' mics down in the room for the sermon (${[...this.pulled.keys()].map((id) => this.#nameOf(id)).join(', ')})`);
+    if (this.mode === 'worship') {
+      const r = this.ride;
+      const band = Math.min(0, ...groups.music.map((id) => off(id) - (this.focus.get(id) ?? 0)));
+      if (r.lead && (Math.abs(off(r.lead) - (this.focus.get(r.lead) ?? 0)) >= 0.5 || band <= -0.5)) {
+        const v = off(r.lead) - (this.focus.get(r.lead) ?? 0);
+        const bits = [Math.abs(v) >= 0.5 ? `${this.#nameOf(r.lead)} ${fmt(v)}` : null, band <= -0.5 ? `band ${fmt(band)}` : null].filter(Boolean);
+        out.push(`${v < -0.5 && band > -0.5 ? `${this.#nameOf(r.lead)} is belting, easing back` : `Keeping ${this.#nameOf(r.lead)} on top`}: ${bits.join(', ')}`);
+      } else if (r.lead) out.push(`${this.#nameOf(r.lead)} leading: sitting right, no change needed`);
+      else if (r.note) out.push(r.note);
+      if (this.settings.songMix !== false && this.focus.size && [...this.focus.values()].some((v) => v < 0)) out.push('Song mix on: lead forward, harmonies and others back');
+    }
+    if (this.mode === 'talkover' || this.mode === 'walkin') {
+      const ducked = [...groups.music, ...groups.walkin].filter((id) => off(id) < -1);
+      if (ducked.length) out.push(`Music ${fmt(Math.min(...ducked.map(off)))} under the talking`);
+    }
+    if (this.settings.speechAutomix && groups.speech.length >= 2) {
+      const up = groups.speech.filter((id) => off(id) > -1 && Date.now() - this.ch.get(id).lastActive < 1500);
+      if (up.length === 1) out.push(`${this.#nameOf(up[0])} talking: other speech mics down`);
+    }
+    if (!out.length) out.push(this.mode === 'idle' ? 'Waiting for the service to start' : 'Listening: nothing needs adjusting');
+    return out;
   }
 
   #sendFader(id, value) {
@@ -384,6 +552,7 @@ export class AutoMix extends EventEmitter {
 
   #enterMode(mode, now) {
     if (mode === this.mode) return;
+    this.ride.lead = null;
     const from = this.mode;
     this.mode = mode;
     this.candidate = null;
@@ -492,7 +661,9 @@ export class AutoMix extends EventEmitter {
         autoModes: this.settings.autoModes,
         songMix: this.settings.songMix !== false,
         duckDb: this.settings.duckDb,
+        ride: this.settings.ride,
       },
+      now: this.describe(),
       activity: this.activity ?? {},
       channels: chans,
       modes: Object.fromEntries(Object.entries(MODES).filter(([k]) => k !== 'idle').map(([k, v]) => [k, v])),

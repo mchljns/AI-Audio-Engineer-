@@ -314,7 +314,7 @@ export class Bridge {
       settings: { ...(this.config.automix ?? {}), ...(this.settings.automix ?? {}) },
       onAlert: (a) => this.alert(a),
     });
-    this.automix.setFocus(this.library.focusForCurrentSong());
+    this.automix.setFocus(this.library.focusForCurrentSong(), this.library.songContext());
     this.automix.on('mode', ({ mode, auto }) => {
       const label = { walkin: 'Before / after', worship: 'Worship', talkover: 'Talking over music', speaking: 'Speaking' }[mode] ?? mode;
       this.alert({ level: 'info', source: 'automix', message: `${auto ? 'Switched' : 'Set'} to ${label}.` });
@@ -552,6 +552,7 @@ export class Bridge {
           muteSingersWhenSpeaking: updated.muteSingersWhenSpeaking,
           autoModes: updated.autoModes,
           duckDb: updated.duckDb,
+          ride: updated.ride,
         };
         this.#saveSettings();
         return;
@@ -641,7 +642,7 @@ export class Bridge {
     if (i < 0 || i === lib.data.currentSong) return;
     lib.playSong(i);
     this.automix?.hintMode('worship');
-    this.automix?.setFocus(lib.focusForCurrentSong());
+    this.automix?.setFocus(lib.focusForCurrentSong(), lib.songContext());
   }
 
   #proCommand(cmd) {
@@ -757,7 +758,7 @@ export class Bridge {
       else console.error('Library command failed:', err.message);
     }
     // Whatever changed, the song mix follows the current song.
-    this.automix?.setFocus(lib.focusForCurrentSong());
+    this.automix?.setFocus(lib.focusForCurrentSong(), lib.songContext());
   }
 
   /** What the Set tab needs. */

@@ -560,3 +560,12 @@ dialog.connect-dialog { width: min(640px, calc(100vw - 32px)); }
   .ch-row .meter { grid-column: 1 / -1; order: 5; }
   .ch-row .ch-note { grid-column: 1 / -1; }
 }
+
+/* Live status line: what the auto-mix is doing right now */
+.mix-now { display: grid; gap: 6px; margin-bottom: 10px; }
+.mix-line { padding: 10px 12px; border-radius: 10px; background: rgba(90, 169, 255, 0.12); border-left: 3px solid var(--accent); font-weight: 600; }
+.mix-now.compact { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 12px; border-radius: 12px; background: var(--strip); font-size: 14px; }
+.mix-now.compact span + span:not(:nth-child(2))::before { content: '·'; margin-right: 10px; color: var(--muted); }
+.mix-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 3px rgba(60, 207, 122, 0.2); }
+.ride-set { display: grid; gap: 8px; padding: 10px 0; border-top: 1px solid var(--line); }
+.ride-set small { color: var(--muted); }

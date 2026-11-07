@@ -50,7 +50,7 @@ Before setting the levels, check one thing: turn the PRX master down and see if 
 
 - **Channel gain:** normal singing or speaking peaks around **-18 to -12** on the channel meter.
 - **Main L/R fader at 0 dB.** In a normal song the main meter peaks around **-12 to -6**, and never red.
-- Mix Assistant only turns channels **down** from where you set them, so set these levels at soundcheck as the loudest you'll want.
+- Mix Assistant mostly turns channels **down** from where you set them, so set these levels at soundcheck as the loudest you'll want. The one exception is the lead singer during worship, who may be brought up a few dB while singing (Auto screen → Keep the lead singer on top), so leave a little headroom on vocal channels.
 
 ## 5. Your vocal chain, reviewed
 

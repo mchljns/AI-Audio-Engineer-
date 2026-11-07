@@ -77,6 +77,7 @@
 
       <section class="auto-card">
         <h2>What the auto-mix is doing</h2>
+        <div id="mixNow" class="mix-now" aria-live="polite"></div>
         <ul id="doing" class="doing"></ul>
       </section>
 
@@ -160,6 +161,15 @@
         <label class="switch"><input type="checkbox" id="optSpeech" /><span><b>Balance the speech mics</b><br /><small>The mic being talked into stays up, the others come down.</small></span></label>
         <label class="switch"><input type="checkbox" id="optDuck" /><span><b>Turn the music down under talking</b><br /><small>During announcements and prayer over music.</small></span></label>
         <label class="switch"><input type="checkbox" id="optSingers" /><span><b>Turn singer mics down in the room during the sermon</b><br /><small>Cuts their hiss and feedback risk. In-ear mixes aren't touched. Back up as soon as music starts or someone talks into one.</small></span></label>
+        <div class="ride-set">
+          <span><b>Keep the lead singer on top</b><br /><small>During worship: brings the lead up when they get quiet (band down if that isn't enough) and eases them back when they belt. Only as much as needed, up to the limit you pick. A boost only holds while they're singing, and comes off at once if a mic starts to ring.</small></span>
+          <div class="seg mini" id="rideSeg" role="radiogroup" aria-label="Vocal riding strength">
+            <button class="seg-btn" type="button" data-ride="off">Off</button>
+            <button class="seg-btn" type="button" data-ride="gentle">Gentle ±2</button>
+            <button class="seg-btn" type="button" data-ride="normal">Normal ±4</button>
+            <button class="seg-btn" type="button" data-ride="strong">Strong ±6</button>
+          </div>
+        </div>
         <label class="switch"><input type="checkbox" id="optModes" /><span><b>Change modes automatically</b><br /><small>Off: you pick the mode with the buttons above.</small></span></label>
       </section>
     </main>
@@ -169,6 +179,8 @@
         <button id="segSoundcheck" class="seg-btn" type="button" role="tab">Soundcheck: set roles</button>
         <button id="segService" class="seg-btn active" type="button" role="tab">Service: song buttons</button>
       </div>
+
+      <div class="mix-now compact" id="setMixNow" aria-live="polite"></div>
 
       <div class="pro-bar" id="proBar" hidden>
         <button id="proFollow" class="chip-btn" type="button" aria-pressed="false">Follow ProPresenter</button>

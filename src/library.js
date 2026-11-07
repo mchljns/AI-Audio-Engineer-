@@ -328,6 +328,23 @@ export class Library {
     return stereo && slot.right ? [slot.left, slot.right] : [slot.left];
   }
 
+  /** For vocal riding and the status line: the current song's lead singer channel(s), and who is on each channel. */
+  songContext() {
+    const set = this.set();
+    const song = set && this.data.currentSong !== null ? set.songs[this.data.currentSong] : null;
+    const lead = [];
+    const names = {};
+    for (const slot of this.data.slots) {
+      const pid = set?.lineup[slot.id];
+      if (!pid) continue;
+      const name = this.person(pid)?.name?.split(' ')[0];
+      const chans = this.channelsFor(slot, pid);
+      for (const ch of chans) names[ch] = slot.instrument === 'vocal' ? name : `${name}'s ${slot.name.toLowerCase()}`;
+      if (song?.lead === pid && slot.instrument === 'vocal') lead.push(...chans);
+    }
+    return { lead, names };
+  }
+
   /** { channelId: dB } for the current song. Empty when no song is playing. */
   focusForCurrentSong() {
     const set = this.set();
