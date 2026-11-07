@@ -1,6 +1,6 @@
 {
   "name": "church-mix-assistant",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "AI mix assistant for a Behringer XR18: booth bridge + web app",
   "type": "module",
   "private": true,

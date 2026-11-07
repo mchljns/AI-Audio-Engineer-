@@ -308,7 +308,7 @@ function render(s) {
     const addr = s.addresses?.[0]?.replace('http://', '');
     $('#share').hidden = false;
     $('#share').textContent = [addr && `iPads: ${addr}`, s.pin && `PIN ${s.pin}`].filter(Boolean).join(' · ');
-    $('#share').title = s.addresses?.join('\n') ?? '';
+    $('#share').title = [s.localName && `Saves best on iPads: ${s.localName}`, ...(s.addresses ?? [])].filter(Boolean).join('\n');
   } else $('#share').hidden = true;
 
   const inv = s.inventory;

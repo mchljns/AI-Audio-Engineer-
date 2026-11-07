@@ -211,7 +211,7 @@ export class XR18Simulator {
   }
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const chaos = process.argv.includes('--chaos');
   const port = Number(process.env.SIM_PORT || OSC_PORT);
   new XR18Simulator({ port, chaos, log: true }).start();

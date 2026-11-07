@@ -1,5 +1,34 @@
 # Network: iPads on the mixer's Wi-Fi, Spotify still working
 
+## Your setup: rack on stage, laptop on the rack, set up and torn down each week
+
+The XR18 makes its own Wi-Fi, so the simplest setup is **everything on the mixer's Wi-Fi**: the laptop and the iPad both join it, nothing depends on the venue's internet, and it's the same every Sunday. Spotify plays playlists downloaded during the week (Option 1 below), and Prime already plays its tracks from the laptop.
+
+**Once, at home during the week:**
+1. On the laptop: **System Settings → Wi-Fi → the XR18's network → Details**: turn on **Auto-Join**. If the laptop also knows the venue's Wi-Fi, turn **Auto-Join off** for that one, so the laptop always lands on the mixer's network at the venue.
+2. Still in that XR18 network's Details → **TCP/IP**: set Configure IPv4 to **Using DHCP with manual address** and enter `192.168.1.50` (if the XR18's network uses a different range, use the same first three numbers with .50). The laptop then has the same address every week.
+3. In Spotify on the laptop, **download** the pre- and post-service playlists (needs Premium).
+4. Turn on **automatic login** for the laptop (System Settings → Users & Groups), so Mix Assistant is running as soon as it starts.
+
+**Once, on the iPad:**
+1. Join the XR18's Wi-Fi and open Safari at `http://192.168.1.50:8080` (the address in the blue badge on the laptop). Enter the PIN.
+2. Tap **Share → Add to Home Screen**. Because the laptop's address never changes, this icon works every week.
+
+**Every Sunday:**
+1. Power the rack, open the laptop. Mix Assistant starts by itself and finds the mixer.
+2. On the iPad, join the XR18's Wi-Fi if it didn't join by itself, and tap the Mix Assistant icon.
+3. Keep using the **X Air app** for anything Mix Assistant doesn't do (in-ear mixes, EQ, scenes). Both can be open at once; switch between them freely. The auto-mix runs on the laptop, so it keeps working while the iPad is in the X Air app or asleep.
+
+**Tear-down:** close the laptop and power down. Nothing needs saving: the mixer keeps its own settings, and Mix Assistant keeps its settings on the laptop.
+
+Notes:
+- The XR18's Wi-Fi may only allow about **4 devices** at once. The laptop counts as one, and each iPad or phone counts as one.
+- The laptop's name (shown when you hover over the blue badge, e.g. `http://booth-mac.local:8080`) also works on the iPad, but the fixed address above is the most reliable.
+- Keep the laptop open during the service: closing the lid puts it to sleep.
+
+The options below are for when you want Spotify to stream rather than play downloads.
+
+
 **The catch:** a Mac has one Wi-Fi radio, so it can be on the XR18's Wi-Fi **or** the church Wi-Fi, not both. The XR18's own Wi-Fi has no internet. So if the Mac joins the mixer's Wi-Fi (to host the iPads), Spotify needs another way to play. Here are the options with no new hardware, best first.
 
 ## Option 1: Mac and iPads on the XR18's Wi-Fi, Spotify plays downloaded playlists (recommended)

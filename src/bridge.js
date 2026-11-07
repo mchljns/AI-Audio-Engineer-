@@ -81,6 +81,11 @@ export function lanAddresses() {
   return out;
 }
 
+export function macLocalName() {
+  const h = os.hostname().toLowerCase().replace(/\.$/, '');
+  return h.endsWith('.local') ? h : `${h.split('.')[0]}.local`;
+}
+
 function isLoopback(addr = '') {
   return addr === '127.0.0.1' || addr === '::1' || addr === '::ffff:127.0.0.1';
 }
@@ -571,6 +576,8 @@ export class Bridge {
       // Only this computer's own screen is shown the PIN, so volunteers can read it off the Mac.
       pin: local ? this.pin : undefined,
       addresses: local && this.boundPort ? this.#addressesForIpads().map((ip) => `http://${ip}:${this.boundPort}`) : undefined,
+      // The Mac's Bonjour name (e.g. booth-mac.local) doesn't change week to week the way an address can.
+      localName: local && this.boundPort ? `http://${macLocalName()}:${this.boundPort}` : undefined,
     };
   }
 
@@ -624,7 +631,7 @@ export class Bridge {
     if (!h) return false;
     if (h === 'localhost' || h === '127.0.0.1' || h === '::1') return true;
     if (lanAddresses().includes(h)) return true;
-    if (os.hostname().toLowerCase() === h || `${os.hostname().toLowerCase()}.local` === h) return true;
+    if (os.hostname().toLowerCase() === h || `${os.hostname().toLowerCase()}.local` === h || macLocalName() === h) return true;
     return (this.config.allowedHosts ?? []).map((x) => String(x).toLowerCase()).includes(h);
   }
 
@@ -745,7 +752,7 @@ export class Bridge {
   }
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const bridge = new Bridge(loadConfig());
   bridge.start();
   const shutdown = () => {
