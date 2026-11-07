@@ -346,10 +346,11 @@ function render(s) {
     const fading = s.walkin.some((w) => w.fading);
     const on = s.walkin.some((w) => w.on);
     const sound = s.walkin.some((w) => s.inventory.rows.find((r) => r.id === w.id)?.signal);
-    $('#walkinState').textContent = fading ? 'Fading…' : !on ? 'Off.' : sound ? 'Playing in the house.' : 'On, but no music is coming in. Check Spotify or Music on the Mac.';
+    $('#walkinState').textContent = fading ? 'Walk-in channel: fading…' : !on ? 'Walk-in channel: off.' : sound ? 'Walk-in channel: playing in the room.' : 'Walk-in channel is up, but no music is reaching the mixer. Check the Mac\'s sound output.';
   } else {
-    $('#walkinState').textContent = 'No walk-in channel';
+    $('#walkinState').textContent = 'No walk-in channel found. Name a channel "Walk-in" in the X Air app.';
   }
+  renderMusic(s);
 
   for (const r of inv.rows) updateChannel(r);
   for (const d of s.dcas) updateDca(d);
@@ -441,8 +442,56 @@ try {
 } catch {
   showTab('auto');
 }
-$('#walkinOut').addEventListener('click', () => send({ type: 'walkin', action: 'out' }));
-$('#walkinIn').addEventListener('click', () => send({ type: 'walkin', action: 'in' }));
+// ---------- walk-in player ----------
+let plKey = '';
+function renderMusic(s) {
+  const m = s.music;
+  const pls = s.playlists ?? [];
+  if (!m || !m.available) {
+    $('#npTrack').textContent = 'Music control works on the booth Mac';
+    $('#npArtist').textContent = '';
+  } else if (!m.running) {
+    $('#npTrack').textContent = `${m.label} isn't open`;
+    $('#npArtist').textContent = 'Start walk-in opens it';
+  } else {
+    $('#npTrack').textContent = m.track || (m.playing ? 'Playing' : 'Paused');
+    $('#npArtist').textContent = [m.artist, m.playing ? '' : 'paused'].filter(Boolean).join(' · ');
+  }
+  const warn = m?.error || (m && m.internet === false ? `The Mac has no internet, so ${m.label} can only play downloaded playlists.` : '');
+  $('#musicWarn').hidden = !warn;
+  $('#musicWarn').textContent = warn || '';
+  $('#mPlay').textContent = m?.playing ? '⏸' : '▶';
+  const key = JSON.stringify(pls);
+  if (key !== plKey) {
+    plKey = key;
+    const sel = $('#plSelect');
+    const keep = sel.value;
+    sel.replaceChildren(el('option', { value: '', text: "Whatever's loaded in the player" }), ...pls.map((p, i) => el('option', { value: String(i), text: p.name })));
+    if ([...sel.options].some((o) => o.value === keep)) sel.value = keep;
+    else if (pls.length) sel.value = '0';
+    $('#plList').replaceChildren(
+      ...pls.map((p, i) => {
+        const rm = el('button', { class: 'btn btn-small btn-ghost', type: 'button', text: 'Remove' });
+        rm.addEventListener('click', () => send({ type: 'removePlaylist', index: i }));
+        return el('li', {}, [el('span', { text: p.name }), rm]);
+      }),
+    );
+  }
+}
+$('#walkinStart').addEventListener('click', () => {
+  const v = $('#plSelect').value;
+  send({ type: 'walkinStart', playlist: v === '' ? null : Number(v) });
+});
+$('#walkinEnd').addEventListener('click', () => send({ type: 'walkinEnd' }));
+$('#mPrev').addEventListener('click', () => send({ type: 'music', action: 'previous' }));
+$('#mNext').addEventListener('click', () => send({ type: 'music', action: 'next' }));
+$('#mPlay').addEventListener('click', () => send({ type: 'music', action: latest?.music?.playing ? 'pause' : 'play' }));
+$('#plForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  send({ type: 'addPlaylist', name: $('#plName').value, link: $('#plLink').value });
+  $('#plName').value = '';
+  $('#plLink').value = '';
+});
 $('#clearAlerts').addEventListener('click', () => send({ type: 'clearAlerts' }));
 
 // Keep the screen awake where the browser allows it.

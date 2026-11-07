@@ -87,6 +87,18 @@ A running list of what could go wrong, what handles it, and how it's checked. Re
 | M10 | Walk-in music stays loud under a welcome | Walk-in ducks under any talking, in any mode; a fade in progress is never interrupted; the saved walk-in level is the one a person set, not the ducked one. *Fixed in 0.3.3* | Test |
 | M11 | Worship leader talks over a keys pad on their vocal mic: app can't tell talking from singing, so no duck | Known limit. Tap "Talking over music" for that moment | — |
 
+## Walk-in player
+
+| # | Failure | What handles it | Check |
+|---|---|---|---|
+| W1 | A pasted "playlist link" is used to run other commands on the Mac | Spotify links are reduced to a strict `spotify:playlist:ID` form or refused; Apple Music names are escaped before use (tested with an injection attempt) | Test |
+| W2 | macOS blocks control of Spotify | The app says exactly which setting to turn on (Privacy & Security → Automation) | Midweek |
+| W3 | The status check keeps opening Spotify | It only asks Spotify for status if it's already running | Test |
+| W4 | No internet on Sunday (Mac on the mixer's Wi-Fi) | Player shows that only downloaded playlists will play; NETWORK.md explains downloading during the week | Test |
+| W5 | End walk-in pauses music someone just brought back up | The pause after the fade only happens if the walk-in channel is still off | Test |
+| W6 | iPads are shown an address they can't reach (Mac on two networks) | The Mac's address on the mixer's network is listed first | Design |
+| W7 | Practice mode starts the real Spotify | Practice mode uses a pretend player | Design |
+
 ## Not yet built (tracked in ROADMAP.md)
 
 Profiles, soundcheck assistant, feedback detection (needs a native macOS audio helper and microphone permission), effects control, vocal riding during worship, plain-English assistant.

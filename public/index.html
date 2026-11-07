@@ -65,13 +65,37 @@
         <ul id="doing" class="doing"></ul>
       </section>
 
-      <section class="auto-card">
+      <section class="auto-card walkin-card">
         <h2>Walk-in music</h2>
-        <p id="walkinState" class="muted">No walk-in channel found.</p>
-        <div class="row">
-          <button id="walkinOut" class="btn btn-big">Fade out</button>
-          <button id="walkinIn" class="btn btn-big btn-ghost">Bring up</button>
+        <div class="now-playing">
+          <div class="np-icon" aria-hidden="true">♪</div>
+          <div class="np-text">
+            <b id="npTrack">Nothing playing</b>
+            <span id="npArtist" class="muted"></span>
+          </div>
         </div>
+        <p id="walkinState" class="muted small">No walk-in channel found.</p>
+        <p id="musicWarn" class="music-warn" hidden></p>
+        <label class="pl-label" for="plSelect">Playlist</label>
+        <select id="plSelect"></select>
+        <div class="row">
+          <button id="walkinStart" class="btn btn-big">Start walk-in</button>
+          <button id="walkinEnd" class="btn btn-big btn-ghost">End walk-in</button>
+        </div>
+        <div class="transport" role="group" aria-label="Player">
+          <button id="mPrev" class="btn btn-ghost" aria-label="Previous track">⏮</button>
+          <button id="mPlay" class="btn btn-ghost" aria-label="Play or pause">⏯</button>
+          <button id="mNext" class="btn btn-ghost" aria-label="Next track">⏭</button>
+        </div>
+        <details class="pl-add">
+          <summary>Add a playlist</summary>
+          <form id="plForm" class="pl-form">
+            <input id="plName" placeholder="Name, e.g. Sunday walk-in" maxlength="60" aria-label="Playlist name" />
+            <input id="plLink" placeholder="Spotify: Share → Copy link to playlist" aria-label="Playlist link" />
+            <button class="btn" type="submit">Save playlist</button>
+          </form>
+          <ul id="plList" class="pl-list"></ul>
+        </details>
       </section>
 
       <section class="auto-card">

@@ -8,6 +8,7 @@ Built for this system: XR18 → PRX ONE (both mains, summed) → pass-thru → P
 
 - **0.1–0.2 Foundation and hardening:** mixer link, channel inventory, click & guide lock (main L/R, FX, protected buses, sticky), mute unused, walk-in fades, console view, PIN, background service, stable channel.
 - **0.3 Auto-mix:** speech gain sharing, automatic service modes, music ducked under talking, singer mics muted during the sermon, Auto screen. Fixes from an independent review.
+- **0.4 Walk-in player:** Spotify (or Apple Music) on the Mac controlled from the iPad: Start walk-in (play + fade up), End walk-in (fade out + pause), transport, saved playlists, offline warning. Network guide for iPads on the mixer's Wi-Fi.
 - **0.3.x Fitted to this system:** mono-PA pan check, PRX ONE / Passport / vocal / wireless / in-ear setup guide. Singer mics are no longer muted while someone talks on them (worship leader praying after the sermon); walk-in music ducks under a welcome.
 
 ## Next, in order
@@ -15,16 +16,13 @@ Built for this system: XR18 → PRX ONE (both mains, summed) → pass-thru → P
 ### 1. Midweek test on the real XR18 (blocking everything else)
 Confirms the mixer commands and meter behaviour the auto-mix depends on (QA P1–P6, M7, M9). Nothing below is worth building on unconfirmed foundations.
 
-### 2. Spotify / Music control from the iPad (ease of use)
-Play, pause, next track and playlist for walk-in music, next to the Fade buttons, so nobody touches the Mac on Sunday. Controls the Spotify or Music app on the Mac directly; no new hardware. "Start walk-in" becomes one tap: play the playlist and fade up.
-
-### 3. Noise and wireless health on the pre-service check (your noise-floor problem)
+### 2. Noise and wireless health on the pre-service check (your noise-floor problem)
 The auto-mix already measures each channel's noise floor. Show it per channel as "hiss level", warn when a mic's hiss is high, and say what to check: receiver output too low and XR18 gain too high, makeup gain, a weak battery, or interference. Also warn if a wireless channel goes silent mid-service (battery or dropout).
 
-### 4. People profiles (ease of use, auto-mix quality)
+### 3. People profiles (ease of use, auto-mix quality)
 Four PTU-7000 packs, rotating singers. Pick "who's on which pack" before the service, and each person's gain trim, EQ, gate and compressor come back automatically. In-ear mixes are not touched. The auto-mix also learns each person's normal level.
 
-### 5. Vocal riding during worship (auto-mix)
+### 4. Vocal riding during worship (auto-mix)
 Keep whoever is carrying the song on top of keys, acoustic and tracks. **There is no fixed lead singer**: the lead changes from song to song and sometimes within a song (singers trading verses, call and response). So:
 
 - **Every singer mic is treated the same.** No channel is ever labelled "the lead".
@@ -35,10 +33,10 @@ Keep whoever is carrying the song on top of keys, acoustic and tracks. **There i
 - **Optional override:** tap a singer's name on the Auto screen to keep them on top for this song; tap again for automatic.
 - Same rules as the rest of the auto-mix: small bounded moves (at most about 3–4 dB), never above the level a person set, any fader move wins, faders only (in-ears untouched).
 
-### 6. Feedback watch for the pastor's omni earset
+### 5. Feedback watch for the pastor's omni earset
 Needs a small native macOS helper to read the XR18's USB audio, plus microphone permission. Detects a ringing frequency and pulls the pastor's channel down briefly, then suggests a notch EQ. The biggest remaining technical step.
 
-### 7. Plain-English assistant
+### 6. Plain-English assistant
 "The pastor sounds muffled", "the keys are too loud in the room" → a proposed change with undo. Useful once profiles exist; lowest priority.
 
 ## Dropped or deferred

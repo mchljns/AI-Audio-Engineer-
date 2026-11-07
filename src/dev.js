@@ -4,6 +4,7 @@
 //   npm run dev -- --chaos # simulator also routes click/guide to the house every 20 s
 import { XR18Simulator } from './simulator/xr18-sim.js';
 import { Bridge } from './bridge.js';
+import { fakePlayer } from './music.js';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -24,6 +25,8 @@ const bridge = await new Bridge({
   pin: false, // practice mode only talks to a pretend mixer
   trustLocalhost: true,
   protectedBuses: null,
+  musicApp: 'spotify',
+  musicRunner: fakePlayer().runner, // practice mode never touches the real Spotify
 }).start();
 
 const shutdown = () => {

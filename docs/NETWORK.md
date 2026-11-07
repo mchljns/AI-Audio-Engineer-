@@ -1,32 +1,38 @@
-# Network setup (no new hardware, Spotify keeps working)
+# Network: iPads on the mixer's Wi-Fi, Spotify still working
 
-The booth Mac needs two things at once: the **internet** (Spotify) and the **XR18**. Pick one of these.
+**The catch:** a Mac has one Wi-Fi radio, so it can be on the XR18's Wi-Fi **or** the church Wi-Fi, not both. The XR18's own Wi-Fi has no internet. So if the Mac joins the mixer's Wi-Fi (to host the iPads), Spotify needs another way to play. Here are the options with no new hardware, best first.
 
-## Option 1: put the XR18 on the church Wi-Fi (recommended, no cables)
+## Option 1: Mac and iPads on the XR18's Wi-Fi, Spotify plays downloaded playlists (recommended)
 
-The XR18 can join an existing Wi-Fi network instead of making its own. Then the Mac, the iPads and the mixer are all on the church Wi-Fi, and Spotify works as normal.
+Everything runs on the mixer's own network, with no dependence on church Wi-Fi.
 
-1. Connect an iPad to the XR18's own Wi-Fi as you do today and open the X Air app.
-2. Go to **Setup → Network**. Set the Wi-Fi mode to **Client**, choose the church network, enter its password, and leave it on **DHCP**. Apply.
-3. The XR18 joins the church Wi-Fi. Join the Mac and the iPads to the same network.
-4. Mix Assistant finds the mixer by itself, and finds it again if the router ever gives it a new address.
+1. **During the week, at home or the office:** in Spotify on the booth Mac, open each walk-in playlist and switch on **Download** (needs Spotify Premium). Wait until every song shows the green download arrow.
+2. **On Sunday:** join the Mac and the iPads to the XR18's Wi-Fi. Open the app on the iPads at the address shown in the blue badge on the Mac.
+3. Start walk-in from the iPad. Downloaded songs play without internet. The app shows a note on the player when the Mac is offline, as a reminder that only downloaded playlists will play.
 
-Things to check:
-- **Use the staff network, not guest Wi-Fi.** Guest networks usually stop devices from seeing each other, so the app wouldn't find the mixer. And the XR18 has no password of its own: anyone on its network with the X Air app can control it.
-- The XR18 only uses **2.4 GHz** Wi-Fi (channels 1–11), with WPA2. Most church routers offer this alongside 5 GHz.
-- If the church Wi-Fi is unreliable at the booth, use Option 2.
+Things to know:
+- Spotify needs the Mac to go online at least **once every 30 days** to keep downloads playable. Connecting it to any Wi-Fi during the week does this.
+- Add new songs during the week, not Sunday morning.
+- The XR18's own Wi-Fi may only allow **4 devices** at once (the Mac counts as one). If an iPad can't join, that's likely why: use Option 4, or have spare devices stay off it.
 
-## Option 2: one Ethernet cable from the Mac to the XR18
+## Option 2: Mac on the XR18's Wi-Fi, internet over a cable
 
-Most reliable. The Mac stays on church Wi-Fi for Spotify, and talks to the mixer over the cable. iPads reach the mixer *through* Mix Assistant on the Mac.
+If there's a church network jack at the booth, plug the Mac into it with an Ethernet cable (needs a USB-C to Ethernet adapter on most Macs). Spotify streams over the cable while the Mac hosts the iPads on the mixer's Wi-Fi.
 
-With no router on the cable, both ends need a fixed address:
-1. **XR18:** in the X Air app, **Setup → Network → LAN**: set a fixed IP of `192.168.2.10`, subnet mask `255.255.255.0`.
-2. **Mac:** **System Settings → Network → Ethernet → Details → TCP/IP**: Configure IPv4 **Manually**, IP address `192.168.2.20`, subnet mask `255.255.255.0`, leave Router empty.
-3. Plug the cable in. Mix Assistant finds the mixer on the cable.
+Set the Mac to use the cable for internet: **System Settings → Network → ⋯ (bottom) → Set Service Order**, then drag the Ethernet adapter **above** Wi-Fi. Otherwise the Mac may try to reach the internet through the mixer's Wi-Fi.
 
-Trade-off: iPads use Mix Assistant (over church Wi-Fi) to control the mixer. The X Air app on an iPad can only reach the mixer if the XR18's own Wi-Fi is also left on.
+## Option 3: Mac on the XR18's Wi-Fi, internet from an iPhone over its cable
 
-## Spotify tip
+Same as Option 2, using a phone you already have: connect an iPhone to the Mac with its charging cable and turn on **Personal Hotspot** on the phone. Then, in Set Service Order, drag **iPhone USB** above Wi-Fi. Uses the phone's data plan; walk-in music is roughly 50–150 MB an hour.
 
-Download the walk-in playlist for offline listening (Spotify Premium). If the church internet drops on Sunday morning, walk-in music keeps playing.
+## Option 4: everything on the church Wi-Fi (no mixer Wi-Fi)
+
+The XR18 joins the church Wi-Fi instead of making its own (X Air app → Setup → Network → Wi-Fi mode **Client**, choose the church network, enter its password). The Mac and iPads use the church Wi-Fi too, so Spotify streams normally.
+
+- Use the **staff** network, not guest Wi-Fi: guest networks usually stop devices seeing each other, and the mixer has no password of its own.
+- The XR18 only uses **2.4 GHz** Wi-Fi.
+- Depends on the church Wi-Fi being reliable at the booth on Sunday.
+
+## Which address do iPads use?
+
+The blue badge at the top of Mix Assistant on the Mac shows it, with the address on the mixer's network listed first, then the PIN. Enter the PIN once on each iPad; it's remembered.

@@ -20,6 +20,7 @@ import { RoleStore, buildInventory, resolveRole } from './inventory.js';
 import { ClickGuard, LockStore } from './clickGuard.js';
 import { FadeEngine } from './fades.js';
 import { AutoMix } from './automix.js';
+import { MusicController, toSpotifyUri } from './music.js';
 import { ROLES } from './roles.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -63,6 +64,7 @@ export function loadConfig() {
     automix: typeof file.automix === 'object' && file.automix ? file.automix : {},
     // Both speakers get the same feed (XR18 main → PRX ONE → pass-thru → Passport), so warn about panning.
     monoPA: file.monoPA !== false,
+    musicApp: file.musicApp === 'music' ? 'music' : 'spotify', // walk-in player on the Mac
   };
 }
 
@@ -98,7 +100,7 @@ export class Bridge {
     this.roleStore = new RoleStore(path.join(config.dataDir, 'roles.json'));
     this.lockStore = new LockStore(path.join(config.dataDir, 'locks.json'));
     this.settingsFile = path.join(config.dataDir, 'settings.json');
-    this.settings = { walkinLevels: {}, automix: {} };
+    this.settings = { walkinLevels: {}, automix: {}, playlists: [] };
     try {
       this.settings = { ...this.settings, ...JSON.parse(fs.readFileSync(this.settingsFile, 'utf8')) };
     } catch {
@@ -123,6 +125,11 @@ export class Bridge {
   }
 
   async start() {
+    this.music = new MusicController({
+      appKey: this.config.musicApp,
+      ...(this.config.musicRunner ? { runner: this.config.musicRunner, checkInternet: async () => true } : {}),
+      onAlert: (a) => this.alert(a),
+    }).start();
     this.#startHttp();
     this.timers.push(setInterval(() => this.#push(), PUSH_MS));
     if (this.config.keepAwake && process.platform === 'darwin') {
@@ -139,6 +146,8 @@ export class Bridge {
     this.timers.forEach(clearInterval);
     this.fades?.stopAll();
     this.automix?.stop();
+    this.music?.stop();
+    clearTimeout(this.pauseTimer);
     this.client?.stop();
     for (const ws of this.wss?.clients ?? []) ws.terminate();
     this.wss?.close();
@@ -309,9 +318,11 @@ export class Bridge {
 
   handleCommand(cmd) {
     if (!cmd || typeof cmd !== 'object' || typeof cmd.type !== 'string') return;
-    if (!this.client) return; // still searching for the mixer
     // Never act on a mixer we can't reach: the screen would show changes that didn't happen.
-    const offlineOk = new Set(['dismissAlert', 'clearAlerts']);
+    // Commands that don't need the mixer.
+    const offlineOk = new Set(['dismissAlert', 'clearAlerts', 'music', 'addPlaylist', 'removePlaylist']);
+    if (cmd.type === 'music' || cmd.type === 'addPlaylist' || cmd.type === 'removePlaylist') return this.#musicCommand(cmd);
+    if (!this.client) return; // still searching for the mixer
     if (!this.status.connected && !offlineOk.has(cmd.type)) {
       this.alert({ level: 'warn', source: 'connection', message: "The mixer isn't connected, so that change wasn't made." });
       return;
@@ -366,6 +377,10 @@ export class Bridge {
         return;
       case 'walkin':
         return this.#walkin(cmd.action, cmd.seconds);
+      case 'walkinStart':
+        return this.#walkinStart(cmd.playlist);
+      case 'walkinEnd':
+        return this.#walkinEnd();
       case 'muteUnused': {
         // Only safe once every name has loaded and meters have flowed long enough to trust "no signal".
         if (!this.state.settled(UNUSED_SETTLE_MS)) {
@@ -472,6 +487,59 @@ export class Bridge {
     });
   }
 
+  // ---------- walk-in music player ----------
+
+  async #musicCommand(cmd) {
+    if (cmd.type === 'addPlaylist') {
+      const name = String(cmd.name ?? '').trim().slice(0, 60);
+      let link = String(cmd.link ?? '').trim();
+      if (this.config.musicApp === 'spotify') {
+        const uri = toSpotifyUri(link);
+        if (!uri) {
+          this.alert({ level: 'warn', source: 'music', message: "That doesn't look like a Spotify playlist link. In Spotify, use Share → Copy link to playlist." });
+          return;
+        }
+        link = uri;
+      } else if (!link) link = name; // Apple Music plays playlists by name
+      if (!name && !link) return;
+      this.settings.playlists = [...(this.settings.playlists ?? []), { name: name || 'Walk-in playlist', link }].slice(-10);
+      this.#saveSettings();
+      this.alert({ level: 'ok', source: 'music', message: `Saved "${name || 'Walk-in playlist'}".` });
+      return;
+    }
+    if (cmd.type === 'removePlaylist') {
+      const i = Number(cmd.index);
+      if (!Number.isInteger(i) || !this.settings.playlists?.[i]) return;
+      this.settings.playlists.splice(i, 1);
+      this.#saveSettings();
+      return;
+    }
+    const action = cmd.action;
+    if (!['play', 'pause', 'next', 'previous'].includes(action)) return;
+    if (action === 'play' || action === 'pause') clearTimeout(this.pauseTimer);
+    await this.music.command(action);
+  }
+
+  /** One tap before the service: start the playlist (or resume) and fade the walk-in channel up. */
+  async #walkinStart(index) {
+    clearTimeout(this.pauseTimer);
+    const pl = Number.isInteger(index) ? this.settings.playlists?.[index] : null;
+    const ok = pl ? await this.music.command('playList', pl.link) : await this.music.command('play');
+    this.#walkin('in');
+    if (!ok) this.alert({ level: 'warn', source: 'music', message: 'The walk-in channel is up, but the music player didn\'t start. Check Spotify on the Mac.' });
+  }
+
+  /** One tap when the service starts: fade the walk-in channel out, then pause the player. */
+  #walkinEnd() {
+    clearTimeout(this.pauseTimer);
+    this.#walkin('out');
+    this.pauseTimer = setTimeout(() => {
+      // Only pause if nobody brought walk-in back up meanwhile.
+      const stillOff = this.#walkinStrips().every((id) => !this.state.strips[id].on);
+      if (stillOff) this.music.command('pause');
+    }, this.config.walkinFadeSeconds * 1000 + 500);
+  }
+
   #saveSettings() {
     try {
       fs.mkdirSync(path.dirname(this.settingsFile), { recursive: true });
@@ -496,12 +564,22 @@ export class Bridge {
       automix: this.automix ? this.automix.status() : null,
       dcas: Object.values(this.state.dcas),
       walkin: this.#walkinStrips().map((id) => ({ id, fading: !!this.fades?.isFading(id), on: this.state.strips[id].on })),
+      music: this.music ? this.music.status() : null,
+      playlists: (this.settings.playlists ?? []).map((p) => ({ name: p.name })),
       alerts: this.alerts.slice(0, 20),
       roles: Object.fromEntries(Object.entries(ROLES).map(([k, v]) => [k, v.label])),
       // Only this computer's own screen is shown the PIN, so volunteers can read it off the Mac.
       pin: local ? this.pin : undefined,
-      addresses: local && this.boundPort ? lanAddresses().map((ip) => `http://${ip}:${this.boundPort}`) : undefined,
+      addresses: local && this.boundPort ? this.#addressesForIpads().map((ip) => `http://${ip}:${this.boundPort}`) : undefined,
     };
+  }
+
+  /** This Mac's addresses, the one on the mixer's network first (that's the one iPads on the mixer Wi-Fi can reach). */
+  #addressesForIpads() {
+    const mixer = String(this.client?.hostIp ?? this.status.host ?? '');
+    const prefix = mixer.split('.').slice(0, 3).join('.') + '.';
+    const all = lanAddresses();
+    return [...all.filter((ip) => mixer && ip.startsWith(prefix)), ...all.filter((ip) => !(mixer && ip.startsWith(prefix)))];
   }
 
   #json(obj) {

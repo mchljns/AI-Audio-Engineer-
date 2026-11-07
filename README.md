@@ -17,6 +17,18 @@ The app opens on the **Auto** screen. It listens to the channel meters and mixes
 
 A **Mixer** tab has the full console view for anything else.
 
+## Walk-in music from the iPad
+
+The Walk-in card controls **Spotify** on the booth Mac, so nobody has to touch the Mac on Sunday:
+- **Start walk-in**: plays the chosen playlist and fades the walk-in channel up.
+- **End walk-in**: fades the walk-in channel out, then pauses Spotify.
+- Previous / play-pause / next, and what's playing now.
+- Save playlists once: in Spotify use **Share → Copy link to playlist**, then paste it under "Add a playlist".
+
+The first time, macOS asks whether "node" may control Spotify: click **OK** (or turn it on later in System Settings → Privacy & Security → Automation). To use Apple Music instead, add `"musicApp": "music"` to `config.json`; playlists are then saved by name.
+
+See [docs/NETWORK.md](docs/NETWORK.md) for keeping Spotify working while the iPads are on the mixer's Wi-Fi.
+
 ## What else it does
 
 - **Connects to the XR18** automatically and keeps a live copy of every channel's name, mute, fader, main assign, FX sends and level.
@@ -108,7 +120,7 @@ Keep the X Air app open as a backup.
 4. In the X Air app, raise the click's send to FX1. Same result expected.
 5. Check that every in-ear aux send is **pre-fader** in the X Air app. Then move a singer's channel fader: their in-ear mix must not change. (The auto-mix relies on this to leave the in-ears alone.)
 6. On an iPad, open the app, enter the PIN, and move a fader. Check the X Air app shows the same move.
-7. Try **Fade out** and **Bring up** on the walk-in music.
+7. Save a walk-in playlist and try **Start walk-in** and **End walk-in** from an iPad. The first time, allow "node" to control Spotify when macOS asks.
    Then, on the Auto screen, have someone talk on the pastor's mic, then the announcement mic: the other one should come down. Move a channel fader up and down: does its meter move with it? If it does, tell me (the meters are post-fader, and one setting needs changing).
 8. Note anything that looks wrong and send screenshots plus `~/MixAssistant/logs/bridge.log`.
 

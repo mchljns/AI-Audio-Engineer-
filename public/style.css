@@ -357,3 +357,21 @@ body.offline .strip, body.offline .auto button, body.offline .auto input { opaci
 .switch small { color: var(--muted); }
 .dlg-lock { display: grid; gap: 8px; padding: 12px; border-radius: 8px; background: rgba(255, 77, 77, 0.1); }
 .dlg-lock p { margin: 0; }
+
+/* ---------- walk-in player ---------- */
+.walkin-card { display: grid; gap: 10px; align-content: start; }
+.walkin-card h2 { margin-bottom: 0; }
+.now-playing { display: flex; gap: 12px; align-items: center; padding: 10px; border-radius: 10px; background: var(--strip); }
+.np-icon { width: 44px; height: 44px; border-radius: 8px; display: grid; place-items: center; background: rgba(20, 184, 166, 0.18); color: #14b8a6; font-size: 22px; flex: none; }
+.np-text { display: grid; min-width: 0; }
+.np-text b, .np-text span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.music-warn { margin: 0; padding: 8px 10px; border-radius: 8px; background: rgba(242, 179, 61, 0.12); color: var(--warn); font-size: 13px; }
+.pl-label { font-size: 12px; font-weight: 700; color: var(--muted); }
+.walkin-card select { background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 10px; font: inherit; min-height: 44px; }
+.transport { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.transport .btn { font-size: 18px; }
+.pl-add summary { cursor: pointer; color: var(--muted); font-weight: 600; padding: 4px 0; }
+.pl-form { display: grid; gap: 8px; margin-top: 8px; }
+.pl-form input { background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 10px; font: inherit; min-width: 0; }
+.pl-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; }
+.pl-list li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 8px; background: var(--strip); font-size: 14px; }
