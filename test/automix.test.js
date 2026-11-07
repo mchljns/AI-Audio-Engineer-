@@ -166,3 +166,31 @@ test('after a restart, faders it had turned down and singers it muted are put ba
   assert.ok(Math.abs(a.state.strips['2'].faderDb) < 0.6, `announce back at home (${a.state.strips['2'].faderDb})`);
   assert.ok(sent.length > 0, 'changes sent to the mixer');
 });
+
+test('worship leader talking on a singer mic after the sermon is not muted', () => {
+  const { run, mix, state } = rig();
+  run({ 1: -18 }, 30000); // sermon: singers muted
+  assert.equal(state.strips['3'].on, false);
+  // Pastor finishes; worship leader (Vox 1) prays with no music.
+  run({ 1: -85, 3: -20 }, 1000);
+  assert.equal(state.strips['3'].on, true, 'muted singer who starts talking is unmuted');
+  run({}, 30000);
+  assert.equal(state.strips['3'].on, true, 'and stays open while talking');
+  assert.equal(mix.mode, 'speaking');
+});
+
+test('a singer talking during the speaking part is never muted in the first place', () => {
+  const { run, state } = rig();
+  run({ 2: -20, 3: -22 }, 40000); // announcer and worship leader both talking, no music
+  assert.equal(state.strips['3'].on, true);
+  assert.equal(state.strips['4'].on, false, 'the unused singer mic is muted');
+});
+
+test('walk-in music is turned down under a welcome and comes back after', () => {
+  const { run, offset } = rig();
+  run({ aux: -15 }, 5000);
+  run({ 2: -20 }, 3000); // "Good morning, welcome…"
+  assert.ok(offset('aux') <= -7, `walk-in ducked ${offset('aux')}`);
+  run({ 2: -85 }, 8000);
+  assert.ok(offset('aux') > -1, `walk-in back up ${offset('aux')}`);
+});

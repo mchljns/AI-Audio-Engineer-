@@ -82,6 +82,9 @@ A running list of what could go wrong, what handles it, and how it's checked. Re
 | M6 | Duck still on when the next song starts | Ducking applies only while music is actually playing, and releases fast when worship starts | Test |
 | M7 | Meters are post-fader on the real mixer, so turning a mic down makes the auto-mix turn it down further | Assumed pre-fader (P2). If midweek shows otherwise, set `"automix": { "metersPostFader": true }` in config.json | Midweek |
 | M8 | Speech mic picks up loud music and counts as "talking" | Possible with omni earsets near the band. Watch for it midweek; tune `activeAboveFloorDb` | Midweek |
+| M9 | Singer mic muted for the sermon while someone talks on it (worship leader praying after the sermon) | A singer mic is only muted if it has been silent for the whole 20 s; a singer mic used for talking with no music counts as speaking. If someone starts talking into a mic it muted, it unmutes at once (needs the meters to read before the mute: confirm midweek). *Fixed in 0.3.3* | Test, Midweek |
+| M10 | Walk-in music stays loud under a welcome | Walk-in ducks under any talking, in any mode; a fade in progress is never interrupted; the saved walk-in level is the one a person set, not the ducked one. *Fixed in 0.3.3* | Test |
+| M11 | Worship leader talks over a keys pad on their vocal mic: app can't tell talking from singing, so no duck | Known limit. Tap "Talking over music" for that moment | — |
 
 ## Not yet built (tracked in ROADMAP.md)
 

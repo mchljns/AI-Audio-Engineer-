@@ -200,7 +200,8 @@ export class Bridge {
       state: this.state,
       client: this.client,
       roleStore: this.roleStore,
-      isLocked: (id) => this.#lockedIds().includes(id) || !!this.fades?.isFading(id),
+      isLocked: (id) => this.#lockedIds().includes(id),
+      isFading: (id) => !!this.fades?.isFading(id),
       stateFile: path.join(this.config.dataDir, 'automix-state.json'),
       settings: { ...(this.config.automix ?? {}), ...(this.settings.automix ?? {}) },
       onAlert: (a) => this.alert(a),
@@ -449,7 +450,9 @@ export class Bridge {
     for (const id of ids) {
       const s = this.state.strips[id];
       if (action === 'out') {
-        if (s.on && s.faderDb > -60) this.settings.walkinLevels[id] = s.faderDb;
+        // Remember the level a person set, not a level the auto-mix had ducked it to.
+        const level = this.automix?.homeDb(id) ?? s.faderDb;
+        if (s.on && level > -60) this.settings.walkinLevels[id] = level;
         this.fades.fade(id, -Infinity, ms, { muteAtEnd: true });
       } else {
         const target = this.settings.walkinLevels[id] ?? -10;

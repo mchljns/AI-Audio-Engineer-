@@ -61,8 +61,9 @@ const MIN_STEP_DB = 0.25; // don't send fader moves smaller than this
 const HUMAN_MOVE_TOLERANCE = 0.02; // fader float difference that counts as a person moving it
 
 export class AutoMix extends EventEmitter {
-  constructor({ state, client, roleStore, isLocked = () => false, stateFile = null, settings = {}, onAlert = () => {} }) {
+  constructor({ state, client, roleStore, isLocked = () => false, isFading = () => false, stateFile = null, settings = {}, onAlert = () => {} }) {
     super();
+    this.isFading = isFading;
     this.state = state;
     this.client = client;
     this.roleStore = roleStore;
@@ -163,14 +164,17 @@ export class AutoMix extends EventEmitter {
     const musicActive = groups.music.some((id) => now - this.ch.get(id).lastActive < this.settings.musicHoldMs);
     const vocalsActive = groups.vocal.some((id) => now - this.ch.get(id).lastActive < this.settings.vocalHoldMs);
     const walkinActive = groups.walkin.some((id) => this.state.strips[id].on && now - this.ch.get(id).lastActive < this.settings.musicHoldMs);
-    this.activity = { speechActive, musicActive, vocalsActive, walkinActive };
+    // Someone talking on a singer's mic with no music (worship leader praying, closing words).
+    const vocalTalking = vocalsActive && !musicActive;
+    const talking = speechActive || vocalTalking;
+    this.activity = { speechActive, musicActive, vocalsActive, walkinActive, vocalTalking };
 
     // Modes
     if (!this.modeLocked && this.settings.autoModes) {
       let want = this.mode;
       if (musicActive && (vocalsActive || !speechActive)) want = 'worship';
       else if (musicActive && speechActive) want = 'talkover';
-      else if (speechActive) want = 'speaking';
+      else if (talking) want = 'speaking';
       else if (walkinActive) want = 'walkin';
       // nothing active: keep the current mode (pauses between songs, between sentences)
       if (want !== this.mode) {
@@ -189,23 +193,37 @@ export class AutoMix extends EventEmitter {
     // Ducking under speech
     const duck = this.settings.duckMusic && this.mode === 'talkover' && speechActive && musicActive ? -this.settings.duckDb : 0;
     for (const id of groups.music) this.ch.get(id).targetDb = duck;
+    // Walk-in music comes down under a welcome, whatever the mode.
+    const duckWalkin = this.settings.duckMusic && talking ? -this.settings.duckDb : 0;
+    for (const id of groups.walkin) this.ch.get(id).targetDb = duckWalkin;
 
     // Singer mics during a sermon
     if (this.settings.muteSingersWhenSpeaking) {
       if (this.mode === 'speaking' && this.speakingSince && now - this.speakingSince >= this.settings.muteSingersAfterMs) {
         for (const id of groups.vocal) {
           const s = this.state.strips[id];
-          if (s.on && !this.mutedByAuto.has(id) && !this.keepOpen.has(id)) {
+          const c = this.ch.get(id);
+          const silentFor = now - c.lastActive;
+          if (s.on && !this.mutedByAuto.has(id) && !this.keepOpen.has(id) && silentFor >= this.settings.muteSingersAfterMs) {
+            // Only a mic nobody has used for the whole wait gets muted.
             this.mutedByAuto.add(id);
             this.#setOn(id, false);
             this.dirty = true;
+          } else if (this.mutedByAuto.has(id) && silentFor < 300) {
+            // Someone started talking into a mic we muted: open it straight away.
+            // (Works when the mixer's meters read the input before the mute; see QA M9.)
+            this.mutedByAuto.delete(id);
+            this.keepOpen.add(id);
+            this.#setOn(id, true);
+            this.dirty = true;
+            this.onAlert({ level: 'info', source: 'automix', message: `${s.name || `Ch ${id}`} started talking, so it's unmuted.` });
           }
         }
       } else if (this.mode !== 'speaking' && this.mutedByAuto.size) this.#unmuteSingers();
     }
 
     // Move faders toward their targets
-    for (const id of [...groups.speech, ...groups.music]) this.#apply(id, groups.speech.includes(id));
+    for (const id of [...groups.speech, ...groups.music, ...groups.walkin]) this.#apply(id, groups.speech.includes(id));
     this.#save(false, now);
   }
 
@@ -215,7 +233,7 @@ export class AutoMix extends EventEmitter {
     const g = { speech: [], vocal: [], music: [], walkin: [], all: [] };
     for (const id of STRIP_IDS) {
       const s = this.state.strips[id];
-      if (!s.synced || this.isLocked(id)) continue;
+      if (!s.synced || this.isLocked(id) || this.isFading(id)) continue;
       const { role } = resolveRole(s, this.roleStore);
       const group = ROLES[role]?.group;
       let bucket = null;
@@ -234,7 +252,8 @@ export class AutoMix extends EventEmitter {
     for (const id of [...this.ch.keys()]) {
       if (!g.all.includes(id)) {
         const c = this.ch.get(id);
-        if (Math.abs(c.offsetDb) > 0.05 && c.home > 0) this.#sendFader(id, c.home);
+        // A channel being faded (walk-in) belongs to the fade: don't jump it back first.
+        if (!this.isFading(id) && Math.abs(c.offsetDb) > 0.05 && c.home > 0) this.#sendFader(id, c.home);
         this.ch.delete(id);
         if (this.mutedByAuto.delete(id)) this.#setOn(id, true);
       }
@@ -413,6 +432,12 @@ export class AutoMix extends EventEmitter {
       /* gone already */
     }
     if (restored) this.onAlert({ level: 'info', source: 'automix', message: `Put ${restored} channel${restored > 1 ? 's' : ''} back where they were before the restart.` });
+  }
+
+  /** The level a person set for this channel, before any auto-mix cut (dB), or null. */
+  homeDb(id) {
+    const c = this.ch.get(id);
+    return c && c.home > 0 ? floatToDb(c.home) : null;
   }
 
   // ---------- for the app ----------
