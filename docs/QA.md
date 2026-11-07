@@ -45,6 +45,10 @@ A running list of what could go wrong, what handles it, and how it's checked. Re
 | C5b | Mixer comes back with a new address from the router | After 20 s offline the app searches again and follows it (*fixed in 0.3.0*) | Design |
 | C9 | Volunteers can't tell or choose whether the mixer is reached over Wi-Fi or a cable | "Reach the mixer over" (Automatic / Prefer Wi-Fi / Prefer cable) on the Mac, with the path shown in the Mixer pill on every device. The connection type is read from macOS's port names (no admin password). A preference never drops a working connection: if the preferred path can't reach the mixer it stays put and says so (tested). Switching only happens when someone changes the setting or the mixer is lost, never by itself mid-service | Test, Midweek |
 | C10 | A setup step is forgotten at a new venue | Venues (connection + notes) on the Mac; a setup checklist on every device that ticks automatic items itself and resets each day (tested) | Test |
+| G1 | Gains set by guesswork | PA setup tab reads each channel's meter live with a peak hold and says Good / raise / lower by how much (target peaks -18 to -12). Relies on the meters being the channel input before the fader (P2, midweek) | Browser, Midweek |
+| G2 | Test noise left running or too loud | Plays only on the booth Mac, measured at about -20 dBFS RMS (peaks about -7 dBFS), stops by itself after 90 seconds; the step says to turn the speakers down first | Browser, Midweek |
+| G3 | Music or tracks mistaken for hiss | Hiss is only reported between -62 and -40 dB; anything louder is listed as "still making sound" | Browser |
+| G4 | A bumped PA knob isn't noticed next week | Knob positions saved per venue from any device | Test |
 | C8 | Click warnings on startup before bus names arrive | Bus names load first; the guard doesn't judge a bus until its name is known | Manual |
 | C6 | A change pushed by the mixer is missed | Everything is re-read every 30 s and the lock re-checked | Design |
 | C7 | Direct Mac-to-XR18 cable gets no IP address | **Setup:** use a router, or set fixed addresses. Documented | Setup |

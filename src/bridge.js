@@ -41,6 +41,18 @@ const PIN_MAX_TRIES = 5;
 const PIN_LOCKOUT_MS = 60 * 1000;
 const UNUSED_SETTLE_MS = 15000;
 
+// PA knob positions worth writing down, so a bumped knob can be put back next week.
+const PA_FIELDS = [
+  { id: 'prxGain', label: 'PRX ONE input gain (the XR18 inputs)' },
+  { id: 'prxMaster', label: 'PRX ONE master volume' },
+  { id: 'thruLevel', label: 'PRX ONE pass-thru level' },
+  { id: 'thruHpf', label: 'PRX ONE pass-thru high-pass' },
+  { id: 'passportChannel', label: 'Passport channel level' },
+  { id: 'passportMaster', label: 'Passport master volume' },
+  { id: 'xr18Main', label: 'XR18 main fader' },
+  { id: 'roomLevel', label: 'Room level reached (dBA)' },
+];
+
 // Setup checklist items a person ticks (they reset each day). Built for a set-up/tear-down church.
 const SETUP_ITEMS = [
   { id: 'speakers', label: 'Speakers powered, levels at their marks' },
@@ -398,6 +410,8 @@ export class Bridge {
     }
     // The setup checklist can be ticked from any connected device.
     if (cmd.type === 'checkItem') return this.#checkItem(cmd);
+    // PA knob positions can be noted from any device (a volunteer standing at the speaker).
+    if (cmd.type === 'savePa') return this.#savePa(cmd);
     // Never act on a mixer we can't reach: the screen would show changes that didn't happen.
     // Commands that don't need the mixer.
     const offlineOk = new Set(['dismissAlert', 'clearAlerts', 'music', 'addPlaylist', 'removePlaylist']);
@@ -587,6 +601,31 @@ export class Bridge {
       c.done = {};
     }
     return c.done;
+  }
+
+  /** Where PA settings live: on the chosen venue, or the default set when no venue is chosen. */
+  #paTarget() {
+    const v = Number.isInteger(this.settings.venue) ? this.settings.venues?.[this.settings.venue] : null;
+    if (v) return { holder: v, venueName: v.name };
+    return { holder: this.settings, venueName: null };
+  }
+
+  #savePa(cmd) {
+    if (!cmd.fields || typeof cmd.fields !== 'object') return;
+    const { holder, venueName } = this.#paTarget();
+    const pa = { ...(holder.pa ?? {}) };
+    for (const f of PA_FIELDS) {
+      if (typeof cmd.fields[f.id] === 'string') pa[f.id] = cmd.fields[f.id].trim().slice(0, 40);
+    }
+    pa.savedAt = new Date().toISOString();
+    holder.pa = pa;
+    this.#saveSettings();
+    this.alert({ level: 'ok', source: 'pa', message: `Saved the PA settings${venueName ? ` for ${venueName}` : ''}.` });
+  }
+
+  #paSnapshot() {
+    const { holder, venueName } = this.#paTarget();
+    return { fields: PA_FIELDS, values: holder.pa ?? {}, venueName };
   }
 
   #checkItem(cmd) {
@@ -824,6 +863,7 @@ export class Bridge {
           }
         : undefined,
       checklist: this.#checklist(),
+      pa: this.#paSnapshot(),
       addresses: local && this.boundPort ? this.#addressesForIpads().map((ip) => `http://${ip}:${this.boundPort}`) : undefined,
       // The Mac's Bonjour name (e.g. booth-mac.local) doesn't change week to week the way an address can.
       localName: local && this.boundPort ? `http://${macLocalName()}:${this.boundPort}` : undefined,

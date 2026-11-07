@@ -20,6 +20,7 @@
       <nav class="tabs" role="tablist">
         <button id="tabAuto" class="tab active" role="tab" aria-selected="true">Auto</button>
         <button id="tabMixer" class="tab" role="tab" aria-selected="false">Mixer</button>
+        <button id="tabPa" class="tab" role="tab" aria-selected="false">PA setup</button>
       </nav>
     </header>
     <div id="offlineBar" class="offline-bar" hidden>The mixer isn't connected. Controls are paused until it's back.</div>
@@ -159,6 +160,74 @@
         <label class="switch"><input type="checkbox" id="optDuck" /><span><b>Turn the music down under talking</b><br /><small>During announcements and prayer over music.</small></span></label>
         <label class="switch"><input type="checkbox" id="optSingers" /><span><b>Turn singer mics down in the room during the sermon</b><br /><small>Cuts their hiss and feedback risk. In-ear mixes aren't touched. Back up as soon as music starts or someone talks into one.</small></span></label>
         <label class="switch"><input type="checkbox" id="optModes" /><span><b>Change modes automatically</b><br /><small>Off: you pick the mode with the buttons above.</small></span></label>
+      </section>
+    </main>
+
+    <main class="pa" id="paView" hidden>
+      <section class="auto-card pa-intro">
+        <h2>Set up the PA</h2>
+        <p class="muted">About 15 minutes, before the service. Do the steps in order. All the mixing happens on the XR18; the PRX ONE and Passport are set once, written down, and left alone. Signal path: XR18 main L + R → PRX ONE (stage right, with its sub) → pass-thru → Passport (the fill on the other side).</p>
+        <p id="paVenue" class="muted small"></p>
+      </section>
+
+      <section class="auto-card pa-step">
+        <h2><span class="num">1</span> Prepare the speakers</h2>
+        <ul class="list checks pa-ticks">
+          <li><label><input type="checkbox" /><span><b>PRX ONE:</b> use only the two inputs from the XR18 main L and R, at the same gain. Turn every other input all the way down.</span></label></li>
+          <li><label><input type="checkbox" /><span><b>PRX ONE:</b> Bluetooth off (its audio can reach the Passport too).</span></label></li>
+          <li><label><input type="checkbox" /><span><b>PRX ONE:</b> on the XR18 inputs, EQ flat and effects off (no reverb, chorus or delay).</span></label></li>
+          <li><label><input type="checkbox" /><span><b>PRX ONE pass-thru:</b> on, level 0 dB, high-pass about 100 Hz, so the low end stays with the PRX ONE's sub.</span></label></li>
+          <li><label><input type="checkbox" /><span><b>Passport:</b> pass-thru cable in a mic/line input; EQ flat; effects off.</span></label></li>
+          <li><label><input type="checkbox" /><span><b>Start low:</b> PRX ONE input gain and master, and the Passport channel and master, turned well down.</span></label></li>
+        </ul>
+      </section>
+
+      <section class="auto-card pa-step">
+        <h2><span class="num">2</span> Set each channel's gain on the XR18</h2>
+        <p class="muted">Ask each person to talk or sing at their normal loudest, one at a time. Adjust that channel's <b>gain</b> in the X Air app until it says <b>Good</b> here (peaks around -18 to -12). For wireless mics, turn the receiver's output up first, then use less XR18 gain: that keeps hiss down.</p>
+        <ul id="gainList" class="gain-list"></ul>
+      </section>
+
+      <section class="auto-card pa-step">
+        <h2><span class="num">3</span> Set the PRX ONE</h2>
+        <ol class="pa-sub">
+          <li>On the XR18, set the <b>main fader to 0 dB</b>.</li>
+          <li>Play steady sound through the PA: the <b>test noise</b> below, or have the band play at service level.</li>
+          <li>Raise the PRX ONE <b>input gain</b> until its signal light shows strong signal but never clip (red).</li>
+          <li>Stand in the middle of the room with a phone sound-meter app. Raise the PRX ONE <b>master</b> until speaking is about <b>75–80 dBA</b> and the loudest worship about <b>85–90 dBA</b>.</li>
+          <li>Turn the PRX ONE master down and check the Passport gets quieter too. If it does, set the PRX ONE first and don't touch it afterwards.</li>
+        </ol>
+        <div class="noise-box">
+          <div>
+            <b>Test noise</b>
+            <p id="noiseNote" class="muted small">A steady "shhh" played from the booth Mac through the music channel. Turn the speakers down before starting it.</p>
+          </div>
+          <button id="noiseBtn" class="btn" type="button">Play test noise</button>
+        </div>
+      </section>
+
+      <section class="auto-card pa-step">
+        <h2><span class="num">4</span> Set the Passport fill</h2>
+        <ol class="pa-sub">
+          <li>Keep the test noise (or a song) playing.</li>
+          <li>Walk slowly from the PRX ONE side of the room to the Passport side.</li>
+          <li>Set the Passport's <b>channel level</b> so the sound stays about as loud the whole way across, and voices still seem to come from the stage, not the Passport.</li>
+          <li>Leave the Passport's master and EQ alone after that.</li>
+        </ol>
+      </section>
+
+      <section class="auto-card pa-step">
+        <h2><span class="num">5</span> Check for hiss</h2>
+        <p class="muted">Everyone quiet, test noise off, wait 10 seconds. Channels with noticeable hiss are listed. Mute anything unused (Pre-service check → Mute unused channels). For a hissy wireless mic: turn its receiver's output up and its XR18 gain down, and go easy on compressor makeup gain.</p>
+        <ul id="hissList" class="list"></ul>
+        <p class="muted small">Hiss still there with the XR18 main fader all the way down? Then it's the speakers: lower the PRX ONE input gain and raise the XR18 main fader instead.</p>
+      </section>
+
+      <section class="auto-card pa-step">
+        <h2><span class="num">6</span> Write down the knob positions</h2>
+        <p class="muted">So a knob bumped during tear-down can be put back next week. Use positions like "12 o'clock", "-6 dB" or "3 of 10". Saved with the chosen venue.</p>
+        <form id="paForm" class="pa-form"></form>
+        <p id="paSaved" class="muted small"></p>
       </section>
     </main>
 

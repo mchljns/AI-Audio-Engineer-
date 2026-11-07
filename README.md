@@ -74,6 +74,18 @@ It takes about two minutes, needs the internet while installing, and needs no ad
 
 **Updates, practice mode and troubleshooting reports** are buttons in the app's **This Mac** card (shown only on the Mac itself). Running the installer again also updates. Settings are always kept. It installs the **stable** version: the last one tested on the real mixer.
 
+### PA setup (gain staging the PRX ONE and Passport)
+
+The **PA setup** tab walks through it in six steps, on any device:
+1. **Prepare the speakers:** a short checklist (other PRX ONE inputs down, Bluetooth off, effects off, pass-thru at 0 dB with a ~100 Hz high-pass, Passport EQ flat, everything starting low).
+2. **Set each channel's gain:** someone talks or sings into each mic, and the app reads that channel live and says **Good**, or "raise the gain about 6 dB" (target: peaks around -18 to -12).
+3. **Set the PRX ONE:** with the XR18 main at 0 dB and **test noise** playing (a steady "shhh" from the booth Mac through the music channel, about -20 dBFS, stops by itself after 90 seconds), set the PRX ONE input gain, then its master with a phone sound meter (75–80 dBA speaking, 85–90 dBA loudest worship).
+4. **Set the Passport fill** by walking the room with the test noise playing.
+5. **Check for hiss:** with everyone quiet, it lists open channels with hiss, separately from anything still playing.
+6. **Write down the knob positions:** saved with the venue, so bumped knobs can be put back next week.
+
+[docs/PA-GAIN-STAGING.md](docs/PA-GAIN-STAGING.md) has the reasoning behind each step.
+
 ### Venues, Wi-Fi or cable, and the setup checklist
 
 - **Reach the mixer over** (This Mac card): **Automatic** (recommended: uses a cable if one reaches the mixer, otherwise Wi-Fi), **Prefer Wi-Fi**, or **Prefer cable**. A preference never drops a working connection: if the preferred path can't reach the mixer, it stays on the other one and says so. The line underneath, and the Mixer pill at the top on every device, show which one is in use. A cable needs a USB-C to Ethernet adapter on this laptop.

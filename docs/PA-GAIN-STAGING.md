@@ -1,5 +1,7 @@
 # Your system: gain staging and setup
 
+**To do it, use the PA setup tab in Mix Assistant:** it walks through these steps with a live gain check, test noise from the Mac, a hiss check, and a place to save the knob positions. This page explains the reasoning.
+
 Written for this setup:
 
 ```

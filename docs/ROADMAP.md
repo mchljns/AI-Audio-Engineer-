@@ -11,6 +11,7 @@ Built for this system: XR18 → PRX ONE (both mains, summed) → pass-thru → P
 - **0.4 Pre/post-service music player:** Spotify (or Apple Music) on the Mac controlled from the iPad: Fade music in (play + fade up), Fade music out (fade out + pause), transport, saved playlists, offline warning. Network guide for iPads on the mixer's Wi-Fi. (0.4.1: "walk-in" renamed to pre/post-service music.)
 - **0.5 No Terminal:** download page and Mix Assistant Installer app; a Mix Assistant app on the Desktop; in-app updates, practice mode and troubleshooting report on the booth Mac's This Mac card.
 - **0.5.1 QR connect:** scan once per iPad; the home-screen icon signs in every week.
+- **0.7 PA setup:** guided gain staging for the PRX ONE and Passport with a live gain check, test noise from the Mac, a hiss check, and knob positions saved per venue.
 - **0.6 Venues:** Wi-Fi or cable preference with live status, saved venues with notes, and a daily setup checklist.
 - **0.3.x Fitted to this system:** mono-PA pan check, PRX ONE / Passport / vocal / wireless / in-ear setup guide. Singer mics are no longer muted while someone talks on them (worship leader praying after the sermon); pre/post-service music ducks under a welcome.
 

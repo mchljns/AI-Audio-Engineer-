@@ -117,3 +117,32 @@ test('venues, connection preference and the setup checklist', async (t) => {
     assert.equal(bridge.snapshot().checklist.manual.find((i) => i.id === 'bluetooth').done, false, 'reset for a new day');
   });
 });
+
+test('PA knob positions are saved per venue, from any device', async (t) => {
+  const port = 20000 + Math.floor(Math.random() * 20000);
+  const sim = await new XR18Simulator({ port }).start();
+  const bridge = await new Bridge({
+    mixerHost: '127.0.0.1', mixerPort: port, httpPort: 0, walkinFadeSeconds: 1,
+    dataDir: fs.mkdtempSync(path.join(os.tmpdir(), 'mix-')), keepAwake: false, pin: false, trustLocalhost: true, protectedBuses: null,
+  }).start();
+  t.after(() => {
+    bridge.stop();
+    sim.stop();
+  });
+  // No venue: saved as the default.
+  bridge.handleCommand({ type: 'savePa', fields: { prxMaster: '11 o\'clock', bogus: 'x' } }, { local: false });
+  let pa = bridge.snapshot().pa;
+  assert.equal(pa.values.prxMaster, "11 o'clock");
+  assert.equal(pa.values.bogus, undefined, 'unknown fields ignored');
+  assert.equal(pa.venueName, null);
+  // With a venue chosen, saved on that venue.
+  bridge.handleCommand({ type: 'saveVenue', name: 'School' });
+  bridge.handleCommand({ type: 'savePa', fields: { prxMaster: '1 o\'clock', thruHpf: '100 Hz' } }, { local: false });
+  pa = bridge.snapshot().pa;
+  assert.equal(pa.venueName, 'School');
+  assert.equal(pa.values.thruHpf, '100 Hz');
+  // Choosing no venue shows the default set again.
+  bridge.handleCommand({ type: 'selectVenue', index: null });
+  assert.equal(bridge.snapshot().pa.values.prxMaster, "11 o'clock");
+  assert.ok(pa.fields.some((f) => f.id === 'prxGain'));
+});

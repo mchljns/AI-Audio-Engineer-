@@ -366,6 +366,7 @@ function render(s) {
   }
   renderMusic(s);
   renderMac(s);
+  renderPa(s);
 
   for (const r of inv.rows) updateChannel(r);
   for (const d of s.dcas) updateDca(d);
@@ -437,26 +438,165 @@ for (const [sel, key] of [['#optSpeech', 'speechAutomix'], ['#optDuck', 'duckMus
 }
 
 // ---------- tabs ----------
+const TABS = { auto: ['#tabAuto', '#autoView'], mixer: ['#tabMixer', '#console'], pa: ['#tabPa', '#paView'] };
 function showTab(name) {
-  $('#autoView').hidden = name !== 'auto';
-  $('#console').hidden = name !== 'mixer';
-  $('#tabAuto').classList.toggle('active', name === 'auto');
-  $('#tabMixer').classList.toggle('active', name === 'mixer');
-  $('#tabAuto').setAttribute('aria-selected', String(name === 'auto'));
-  $('#tabMixer').setAttribute('aria-selected', String(name === 'mixer'));
+  if (!TABS[name]) name = 'auto';
+  for (const [k, [tab, view]] of Object.entries(TABS)) {
+    $(view).hidden = k !== name;
+    $(tab).classList.toggle('active', k === name);
+    $(tab).setAttribute('aria-selected', String(k === name));
+  }
   try {
     localStorage.setItem('mixTab', name);
   } catch {
     /* fine */
   }
 }
-$('#tabAuto').addEventListener('click', () => showTab('auto'));
-$('#tabMixer').addEventListener('click', () => showTab('mixer'));
+for (const k of Object.keys(TABS)) $(TABS[k][0]).addEventListener('click', () => showTab(k));
 try {
-  showTab(localStorage.getItem('mixTab') === 'mixer' ? 'mixer' : 'auto');
+  showTab(localStorage.getItem('mixTab') || 'auto');
 } catch {
   showTab('auto');
 }
+
+// ---------- PA setup ----------
+// Gain check: each channel's loudest moment over the last few seconds, against the target window.
+const GAIN_HOLD_MS = 3000;
+const gainPeaks = new Map(); // id -> { db, at }
+const floorSamples = new Map(); // id -> [{ db, at }] for the hiss check
+const pct = (db) => Math.max(0, Math.min(100, ((db + 60) / 60) * 100));
+
+function gainVerdict(peak) {
+  if (peak === null || peak < -50) return ['idle', 'Waiting for sound…'];
+  if (peak > -3) return ['clip', `Too hot: lower the gain about ${Math.round(peak + 15)} dB`];
+  if (peak > -9) return ['hot', `A bit hot: lower about ${Math.round(peak + 15)} dB`];
+  if (peak >= -21) return ['good', 'Good'];
+  return ['low', `Too quiet: raise the gain about ${Math.round(-15 - peak)} dB`];
+}
+
+function renderPa(s) {
+  const now = Date.now();
+  const rows = s.inventory.rows.filter((r) => r.name && !r.locked && r.role !== 'none');
+  // Gain check
+  const items = rows.map((r) => {
+    const prev = gainPeaks.get(r.id);
+    let peak = r.levelDb;
+    if (prev && now - prev.at < GAIN_HOLD_MS && prev.db >= r.levelDb) peak = prev.db;
+    else gainPeaks.set(r.id, { db: r.levelDb, at: now });
+    const [kind, text] = gainVerdict(peak);
+    const fill = el('div', { class: 'fill' });
+    fill.style.width = `${pct(peak)}%`;
+    const target = el('div', { class: 'target' });
+    target.style.left = `${pct(-21)}%`;
+    target.style.width = `${pct(-9) - pct(-21)}%`;
+    return el('li', {}, [
+      el('span', { class: 'gname', text: r.name }),
+      el('div', { class: 'gbar' }, [target, fill]),
+      el('span', { class: 'gval', text: peak < -50 ? '–' : `${peak.toFixed(0)} dB` }),
+      el('span', { class: `gverdict v-${kind}`, text }),
+    ]);
+  });
+  $('#gainList').replaceChildren(...(items.length ? items : [el('li', {}, [el('span', { text: 'No named channels yet. Name them in the X Air app.' })])]));
+
+  // Hiss check: the quietest level of each open channel over the last 10 seconds.
+  const hissy = [];
+  for (const r of s.inventory.rows) {
+    if (r.locked) continue;
+    const list = (floorSamples.get(r.id) ?? []).filter((x) => now - x.at < 10000);
+    if (!list.length || now - list[list.length - 1].at > 400) list.push({ db: r.levelDb, at: now });
+    floorSamples.set(r.id, list);
+    const floor = Math.min(...list.map((x) => x.db));
+    // Hiss sits roughly between -62 and -40 dB. Louder than that, something is still making sound.
+    if (r.on && list.length > 15 && floor > -62) hissy.push([r, floor]);
+  }
+  const playing = hissy.filter(([, f]) => f > -40);
+  const hiss = hissy.filter(([, f]) => f <= -40);
+  $('#hissList').replaceChildren(
+    ...hiss.map(([r, f]) => el('li', { class: 'lvl-warn' }, [el('span', { class: 'msg', text: `${r.label} ${r.name || '(no name)'}: hiss at ${f.toFixed(0)} dB${r.name ? '' : ' · unused? mute it'}` })])),
+    ...(playing.length
+      ? [el('li', { class: 'lvl-info' }, [el('span', { class: 'msg', text: `Still making sound, so it can't be checked yet: ${playing.map(([r]) => r.name || r.label).join(', ')}. Stop them and wait 10 seconds.` })])]
+      : []),
+    ...(!hissy.length ? [el('li', { class: 'lvl-ok' }, [el('span', { class: 'msg', text: 'No hissy open channels right now (checked when the room is quiet).' })])] : []),
+  );
+
+  // Knob positions
+  const pa = s.pa;
+  if (pa) {
+    $('#paVenue').textContent = pa.venueName ? `Venue: ${pa.venueName}. Settings below are saved for this venue.` : 'No venue chosen: settings are saved as the default. Choose or save a venue on the booth Mac to keep them per venue.';
+    const form = $('#paForm');
+    if (!form.dataset.built) {
+      form.dataset.built = '1';
+      for (const f of pa.fields) form.append(el('label', {}, [f.label, el('input', { id: `pa-${f.id}`, maxlength: '40', autocomplete: 'off' })]));
+      form.append(el('div', { class: 'actions' }, [el('button', { class: 'btn', type: 'submit', text: 'Save PA settings' })]));
+    }
+    for (const f of pa.fields) {
+      const input = $(`#pa-${f.id}`);
+      if (document.activeElement !== input && !input.dataset.dirty) input.value = pa.values[f.id] ?? '';
+    }
+    $('#paSaved').textContent = pa.values.savedAt ? `Last saved ${new Date(pa.values.savedAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}.` : 'Not saved yet.';
+  }
+
+  // Test noise is played by the booth Mac itself.
+  const onMac = !!s.mac;
+  $('#noiseBtn').disabled = !onMac;
+  if (!onMac) $('#noiseNote').textContent = 'Test noise plays from the booth Mac: open the PA setup tab there to start it.';
+}
+$('#paForm').addEventListener('input', (e) => {
+  if (e.target.tagName === 'INPUT') e.target.dataset.dirty = '1';
+});
+$('#paForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const fields = {};
+  for (const f of latest?.pa?.fields ?? []) {
+    const input = $(`#pa-${f.id}`);
+    fields[f.id] = input.value;
+    delete input.dataset.dirty;
+  }
+  send({ type: 'savePa', fields });
+});
+
+// Pink noise from the Mac's speakers output (which feeds the XR18 music channel), about -20 dBFS.
+let noise = null;
+function stopNoise() {
+  if (!noise) return;
+  clearTimeout(noise.timer);
+  noise.ctx.close();
+  noise = null;
+  $('#noiseBtn').textContent = 'Play test noise';
+  $('#noiseBtn').classList.remove('playing');
+}
+$('#noiseBtn').addEventListener('click', async () => {
+  if (noise) return stopNoise();
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const seconds = 8;
+  const buf = ctx.createBuffer(2, ctx.sampleRate * seconds, ctx.sampleRate);
+  for (let ch = 0; ch < 2; ch++) {
+    const d = buf.getChannelData(ch);
+    // Paul Kellet's pink noise filter.
+    let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+    for (let i = 0; i < d.length; i++) {
+      const w = Math.random() * 2 - 1;
+      b0 = 0.99886 * b0 + w * 0.0555179;
+      b1 = 0.99332 * b1 + w * 0.0750759;
+      b2 = 0.969 * b2 + w * 0.153852;
+      b3 = 0.8665 * b3 + w * 0.3104856;
+      b4 = 0.55 * b4 + w * 0.5329522;
+      b5 = -0.7616 * b5 - w * 0.016898;
+      d[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + w * 0.5362) * 0.11;
+      b6 = w * 0.115926;
+    }
+  }
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  src.loop = true;
+  const gain = ctx.createGain();
+  gain.gain.value = 0.5; // measured: about -20 dBFS RMS, peaks about -7 dBFS
+  src.connect(gain).connect(ctx.destination);
+  src.start();
+  noise = { ctx, timer: setTimeout(stopNoise, 90000) }; // never left running by accident
+  $('#noiseBtn').textContent = 'Stop test noise';
+  $('#noiseBtn').classList.add('playing');
+});
 // ---------- connect an iPad (QR code, booth Mac only) ----------
 let qrFor = '';
 function connectLink(s) {
