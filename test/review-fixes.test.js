@@ -135,12 +135,11 @@ test('review findings', async (t) => {
     assert.ok(!bridge.snapshot().inventory.rows.find((r) => r.id === '16').locked, 'released');
   });
 
-  await t.test('unknown bus with click on it is flagged, not silently zeroed', async () => {
+  await t.test('click on an unnamed aux is left alone: auxes are the band\'s mixes', async () => {
     sim.externalChange(paths.busName(3), { type: 's', value: '' });
     sim.externalChange(paths.send('15', 3), { type: 'f', value: 0.5 });
-    assert.ok(await until(() => bridge.guard.status().unsure.some((u) => u.bus === 3)));
-    assert.equal(sim.get(paths.send('15', 3)), 0.5, 'not zeroed: it might be an in-ear mix');
-    assert.ok(bridge.alerts.some((a) => /can't tell who hears that mix/.test(a.message)));
+    await wait(600);
+    assert.equal(sim.get(paths.send('15', 3)), 0.5, 'not zeroed');
   });
 
   await t.test('#17 nothing is sent while the mixer is offline', async () => {

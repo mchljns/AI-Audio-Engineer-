@@ -391,7 +391,7 @@ function renderAuto(a) {
   const lines = [];
   for (const c of a.channels) {
     const role = latest.inventory.rows.find((r) => r.id === c.id)?.group;
-    if (c.mutedByAuto) lines.push(['down', c.name, 'muted for the sermon']);
+    if (c.mutedByAuto) lines.push(['down', c.name, 'down in the room for the sermon']);
     else if (role === 'speech' && a.settings.speechAutomix) {
       if (c.offsetDb > -1) lines.push(['up', c.name, c.active ? 'up · talking' : 'up']);
       else lines.push(['down', c.name, `${c.offsetDb.toFixed(0)} dB · waiting`]);

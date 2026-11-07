@@ -22,7 +22,7 @@ Play, pause, next track and playlist for walk-in music, next to the Fade buttons
 The auto-mix already measures each channel's noise floor. Show it per channel as "hiss level", warn when a mic's hiss is high, and say what to check: receiver output too low and XR18 gain too high, makeup gain, a weak battery, or interference. Also warn if a wireless channel goes silent mid-service (battery or dropout).
 
 ### 4. People profiles (ease of use, auto-mix quality)
-Four PTU-7000 packs, rotating singers. Pick "who's on which pack" before the service, and each person's gain trim, EQ, gate, compressor and **their in-ear mix (aux 1–4 sends)** come back automatically. The auto-mix also learns each person's normal level.
+Four PTU-7000 packs, rotating singers. Pick "who's on which pack" before the service, and each person's gain trim, EQ, gate and compressor come back automatically. In-ear mixes are not touched. The auto-mix also learns each person's normal level.
 
 ### 5. Vocal riding during worship (auto-mix)
 Keep the lead vocal on top of keys, acoustic and tracks during songs, with small, bounded moves (up to about 4 dB), following the same rules as the rest of the auto-mix: never above the level a person set, and any fader move wins.
@@ -31,10 +31,11 @@ Keep the lead vocal on top of keys, acoustic and tracks during songs, with small
 Needs a small native macOS helper to read the XR18's USB audio, plus microphone permission. Detects a ringing frequency and pulls the pastor's channel down briefly, then suggests a notch EQ. The biggest remaining technical step.
 
 ### 7. Plain-English assistant
-"The pastor sounds muffled", "Sarah can't hear herself" → a proposed change with undo. Useful once profiles exist; lowest priority.
+"The pastor sounds muffled", "the keys are too loud in the room" → a proposed change with undo. Useful once profiles exist; lowest priority.
 
 ## Dropped or deferred
 
+- **Anything that changes the in-ear mixes (aux sends):** out of scope. The band mixes their own ears.
 - **Ducking done by the mixer's own duck gates:** deferred. The app-held ducking is bounded (8 dB), saved, and restored on restart (QA M3), which is enough for now.
 - **Tempo-synced delay, effects automation:** deferred; not a priority for this team.
 - **Helix integration:** not part of this setup.

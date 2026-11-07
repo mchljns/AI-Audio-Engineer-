@@ -79,20 +79,8 @@ Your PTU-7000 routine is the right one: scan each channel by itself with everyth
 - XLR out to the XR18 with **phantom power off** on that channel.
 - If you hear a hum that stops when the cable is unplugged from the NUX, use its **ground lift**.
 
-## 8. In-ears: four mixes, one aux each
+## 8. In-ears
 
-Your two PTM-10s (in mono mode) give **four wireless in-ear mixes**, each fed by its own XR18 aux bus. A suggested starting point (rename to match who's on each pack):
+You run four in-ear mixes, one aux bus each, through the two PTM-10s. **Mix Assistant never changes them**: it doesn't touch aux sends, and it only moves channel faders (it never mutes a channel, since a mute would also cut it from the in-ears).
 
-| XR18 bus | Name it | What's loudest in it |
-|---|---|---|
-| Aux 1 | **IEM Keys** | Click and guide, keys, tracks, then the lead vocal |
-| Aux 2 | **IEM Gtr** | Click and guide, acoustic, keys, tracks, then the lead vocal |
-| Aux 3 | **IEM Vox 1** | Their own voice, keys and acoustic for pitch, guide; click low or off |
-| Aux 4 | **IEM Vox 2** | Same as Vox 1 (shared by the other singers if there are three) |
-| Aux 5–6 | (free) | If you ever add a livestream or recording feed, name that bus "Stream" or "Recording" so Mix Assistant keeps the click off it |
-
-- **Use pre-fader sends** on all four buses, so the auto-mix turning channels down for the house never changes what anyone hears in their ears.
-- Set each aux bus master so its transmitter's input meter is strong but not clipping.
-- **Name the buses with "IEM" in the name** (as above). Mix Assistant then knows click and guide belong there and won't warn about them. A bus with no name and click on it shows a warning until it's named.
-- The pastor's earset and the walk-in music stay out of the in-ear mixes unless someone asks for them.
-- Each musician's mix is a good candidate for the "profiles" step on the roadmap: once that's built, a singer's in-ear mix comes back automatically whichever pack they wear.
+One setting makes that true: **every in-ear aux send must be pre-fader** in the X Air app. Then the auto-mix turning a channel down for the room doesn't change anyone's ears. Check it midweek by moving a singer's channel fader and confirming their in-ear mix stays the same.

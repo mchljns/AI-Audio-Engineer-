@@ -38,7 +38,8 @@ function rig({ stateFile = null, settings = {} } = {}) {
     }
   };
   const offset = (id) => mix.ch.get(id)?.offsetDb ?? 0;
-  return { state, mix, run, offset, sent, levels };
+  const down = (id) => state.strips[id].fader <= 0.001; // turned down in the room
+  return { state, mix, run, offset, sent, levels, down };
 }
 
 test('one person talking: their mic stays up, the other speech mic comes down', () => {
@@ -68,8 +69,8 @@ test('never boosts: offsets are always zero or below', () => {
   for (const c of mix.ch.values()) assert.ok(c.offsetDb <= 0);
 });
 
-test('service flow: walk-in → worship → talking over music (ducked) → speaking (singers muted) → worship', () => {
-  const { run, mix, offset, state } = rig();
+test('service flow: walk-in → worship → talking over music (ducked) → speaking (singers down) → worship', () => {
+  const { run, mix, offset, state, down, sent } = rig();
   run({ aux: -15 }, 5000);
   assert.equal(mix.mode, 'walkin');
 
@@ -84,14 +85,17 @@ test('service flow: walk-in → worship → talking over music (ducked) → spea
   run({ 7: -85, 2: -85, 1: -18 }, 11000); // sermon starts (music hold 4 s + speaking hold 6 s)
   assert.equal(mix.mode, 'speaking');
   assert.ok(offset('7') > -1, 'duck released');
-  assert.equal(state.strips['3'].on, true, 'singers not muted yet');
+  assert.ok(!down('3'), 'singers not down yet');
   run({}, 20000);
-  assert.equal(state.strips['3'].on, false, 'singers muted after 20 s of speaking');
-  assert.equal(state.strips['4'].on, false);
+  assert.ok(down('3'), 'singers turned down in the room after 20 s of speaking');
+  assert.ok(down('4'));
+  assert.equal(state.strips['3'].on, true, 'channel never muted, so in-ear sends are untouched');
+  assert.ok(!sent.some(([a]) => /\/mix\/on$/.test(a)), 'the auto-mix never sends a mute');
+  assert.ok(!sent.some(([a]) => /\/mix\/0[1-6]\/level$/.test(a)), 'the auto-mix never touches an aux send');
 
   run({ 1: -85, 6: -15, 7: -15 }, 5000); // band comes back
   assert.equal(mix.mode, 'worship');
-  assert.equal(state.strips['3'].on, true, 'singers unmuted for worship');
+  assert.ok(Math.abs(state.strips['3'].faderDb) < 0.6, 'singers back at their level for worship');
 });
 
 test('a long steady pad is still counted as music', () => {
@@ -105,7 +109,7 @@ test('a short prayer between songs does not mute the singers', () => {
   run({ 6: -15, 3: -18 }, 5000);
   run({ 6: -85, 3: -85, 1: -18 }, 12000);
   assert.equal(mix.mode, 'speaking');
-  assert.equal(state.strips['3'].on, true);
+  assert.ok(state.strips['3'].fader > 0);
 });
 
 test('a person moving a fader sets a new home level, and the automix works from there', () => {
@@ -119,15 +123,16 @@ test('a person moving a fader sets a new home level, and the automix works from 
   assert.ok(Math.abs(floatToDb(mix.ch.get('2').home) - (-5 - cut)) < 0.6, 'home = their level without our cut');
 });
 
-test('a person unmuting a singer the app muted takes it back', () => {
-  const { run, mix, state } = rig();
+test('a person bringing a turned-down singer back up takes it over', () => {
+  const { run, mix, state, down } = rig();
   run({ 1: -18 }, 30000);
-  assert.equal(state.strips['3'].on, false);
-  state.strips['3'].on = true;
-  state.emit('change', { id: '3', field: 'on' });
+  assert.ok(down('3'));
+  state.strips['3'].fader = dbToFloat(-5);
+  state.strips['3'].faderDb = -5;
+  state.emit('change', { id: '3', field: 'fader' });
   run({}, 2000);
-  assert.equal(state.strips['3'].on, true, 'not muted again');
-  assert.ok(!mix.mutedByAuto.has('3'));
+  assert.ok(!down('3'), 'not turned down again');
+  assert.ok(!mix.pulled.has('3'));
 });
 
 test('turning a feature off hands the channels straight back', () => {
@@ -151,9 +156,9 @@ test('a person picking a mode overrides the automatic choice', () => {
 test('after a restart, faders it had turned down and singers it muted are put back', () => {
   const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'am-')), 'automix-state.json');
   const a = rig({ stateFile: file });
-  a.run({ 1: -18, 2: -70 }, 30000); // speaking: announce cut, singers muted
+  a.run({ 1: -18, 2: -70 }, 30000); // speaking: announce cut, singers turned down
   a.run({}, 1100); // let it save
-  assert.equal(a.state.strips['3'].on, false);
+  assert.ok(a.down('3'));
   assert.ok(a.state.strips['2'].faderDb < -10);
   assert.ok(fs.existsSync(file));
   a.mix.stop(); // the app "crashes" here: nothing is undone
@@ -162,28 +167,28 @@ test('after a restart, faders it had turned down and singers it muted are put ba
   const sent = [];
   const mix2 = new AutoMix({ state: a.state, client: { setFloat: (...x) => sent.push(x), setInt: (...x) => sent.push(x) }, roleStore: new RoleStore(null), stateFile: file });
   mix2.start();
-  assert.equal(a.state.strips['3'].on, true, 'singer unmuted after restart');
+  assert.ok(Math.abs(a.state.strips['3'].faderDb) < 0.6, 'singer back at its level after restart');
   assert.ok(Math.abs(a.state.strips['2'].faderDb) < 0.6, `announce back at home (${a.state.strips['2'].faderDb})`);
   assert.ok(sent.length > 0, 'changes sent to the mixer');
 });
 
-test('worship leader talking on a singer mic after the sermon is not muted', () => {
-  const { run, mix, state } = rig();
-  run({ 1: -18 }, 30000); // sermon: singers muted
-  assert.equal(state.strips['3'].on, false);
+test('worship leader talking on a singer mic after the sermon is brought back up', () => {
+  const { run, mix, down } = rig();
+  run({ 1: -18 }, 30000); // sermon: singers down
+  assert.ok(down('3'));
   // Pastor finishes; worship leader (Vox 1) prays with no music.
   run({ 1: -85, 3: -20 }, 1000);
-  assert.equal(state.strips['3'].on, true, 'muted singer who starts talking is unmuted');
+  assert.ok(!down('3'), 'singer who starts talking is brought straight back');
   run({}, 30000);
-  assert.equal(state.strips['3'].on, true, 'and stays open while talking');
+  assert.ok(!down('3'), 'and stays up while talking');
   assert.equal(mix.mode, 'speaking');
 });
 
-test('a singer talking during the speaking part is never muted in the first place', () => {
-  const { run, state } = rig();
+test('a singer talking during the speaking part is never turned down in the first place', () => {
+  const { run, down } = rig();
   run({ 2: -20, 3: -22 }, 40000); // announcer and worship leader both talking, no music
-  assert.equal(state.strips['3'].on, true);
-  assert.equal(state.strips['4'].on, false, 'the unused singer mic is muted');
+  assert.ok(!down('3'));
+  assert.ok(down('4'), 'the unused singer mic is turned down');
 });
 
 test('walk-in music is turned down under a welcome and comes back after', () => {

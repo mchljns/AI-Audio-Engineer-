@@ -51,15 +51,23 @@ test('protected bus names', () => {
   for (const n of ['Keys IEM', 'Gtr IEM', 'BGV IEM', 'Drum Mix', '']) assert.ok(!isProtectedBusName(n), n);
 });
 
-test('click guard: protected buses and sticky locks', async (t) => {
+test('a bus listed in config as protectedBuses is the only aux the lock touches', async (t) => {
+  const { sim, bridge } = await rig(t, { protectedBuses: [6] });
+  sim.externalChange(paths.send('15', 6), { type: 'f', value: 0.5 });
+  assert.ok(await until(() => sim.get(paths.send('15', 6)) === 0), 'listed bus zeroed');
+  assert.ok(sim.get(paths.send('15', 1)) > 0, 'in-ear send untouched');
+  assert.ok(bridge.alerts.some((a) => /aux 6/.test(a.message)));
+});
+
+test('click guard: auxes and sticky locks', async (t) => {
   const { sim, bridge, dataDir } = await rig(t);
 
-  await t.test('in-ear sends are left alone, livestream send is zeroed', async () => {
+  await t.test('aux sends are never touched, even on a bus named Stream', async () => {
     assert.ok(sim.get(paths.send('15', 1)) > 0, 'click still in keys in-ears');
     sim.externalChange(paths.send('15', 6), { type: 'f', value: 0.5 });
-    assert.ok(await until(() => sim.get(paths.send('15', 6)) === 0), 'stream send removed');
+    await wait(600);
+    assert.equal(sim.get(paths.send('15', 6)), 0.5, 'left alone: the app does not mix the auxes');
     assert.ok(sim.get(paths.send('15', 1)) > 0, 'in-ear send untouched');
-    assert.ok(bridge.alerts.some((a) => /Stream/.test(a.message)));
   });
 
   await t.test('renaming the click channel keeps it locked and warns', async () => {

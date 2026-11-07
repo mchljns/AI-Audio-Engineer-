@@ -89,17 +89,17 @@ export class ClickGuard {
     this.unknownWarned = new Set(); // "id:bus" pairs already warned about
   }
 
-  /** What a bus is: config wins, then its name. */
+  /**
+   * Aux buses are the band's in-ear mixes, and the app never changes them. The only exception is a
+   * bus someone explicitly lists in config.json as "protectedBuses" (e.g. a future livestream feed).
+   */
   busKind(n) {
-    if (this.extraProtected.has(n)) return 'protected';
-    if (this.extraMonitor.has(n)) return 'monitor';
-    if (!this.state.buses[n]?.synced) return 'pending'; // name not loaded yet: don't judge
-    return classifyBusName(this.state.buses[n]?.name);
+    return this.extraProtected.has(n) ? 'protected' : 'monitor';
   }
 
-  /** Aux buses click/guide must never feed. */
+  /** Aux buses click/guide must never feed: only the ones listed in config. */
   protectedBuses() {
-    return AUX_BUSES.filter((n) => this.busKind(n) === 'protected');
+    return AUX_BUSES.filter((n) => this.extraProtected.has(n));
   }
 
   #label(id) {
@@ -179,20 +179,6 @@ export class ClickGuard {
           fixes.push({ id, what: `fx${fx}`, message: `${who} had a send to FX${fx}, which would leak into the house. Set it to zero.` });
         }
       }
-      for (const bus of AUX_BUSES) {
-        if ((s.sends[bus] ?? 0) <= 0 || this.busKind(bus) !== 'unknown') continue;
-        const key = `${id}:${bus}`;
-        if (this.unknownWarned.has(key)) continue;
-        this.unknownWarned.add(key);
-        this.onAlert({
-          level: 'warn',
-          source: 'click-guard',
-          id,
-          message:
-            `${who} goes to aux ${bus}${this.state.buses[bus]?.name ? ` ("${this.state.buses[bus].name}")` : ' (no name)'}, and the app can't tell who hears that mix. ` +
-            `In the X Air app, name the bus for what it is, like "Keys IEM" for an in-ear mix or "Stream" for the livestream. Streams and speakers are then protected automatically.`,
-        });
-      }
       for (const bus of protectedBuses) {
         if ((s.sends[bus] ?? 0) > 0) {
           const busName = this.state.buses[bus]?.name || `Aux ${bus}`;
@@ -217,10 +203,6 @@ export class ClickGuard {
       return { id, name: s.name, renamed, lrOff: s.lr !== true, fxClear, busesClear, safe };
     });
     const unsure = [];
-    for (const { id } of locked) {
-      const s = this.state.strips[id];
-      for (const n of AUX_BUSES) if ((s.sends[n] ?? 0) > 0 && this.busKind(n) === 'unknown') unsure.push({ id, bus: n, name: this.state.buses[n]?.name || '' });
-    }
     return {
       locked,
       allSafe: locked.every((l) => l.safe),

@@ -79,8 +79,10 @@ export class AutoMix extends EventEmitter {
     this.candidate = null;
     this.candidateSince = 0;
     this.speakingSince = 0;
-    this.mutedByAuto = new Set();
-    this.keepOpen = new Set(); // singers a person unmuted: left alone until the mode changes
+    // Singer mics turned down in the room for the sermon: id -> the fader level to put back.
+    // Done with the channel FADER, never the mute: with pre-fader sends the in-ear mixes are untouched.
+    this.pulled = new Map();
+    this.keepOpen = new Set(); // singers a person turned back up: left alone until the mode changes
     this.lastSaveAt = 0;
     this.dirty = false;
 
@@ -108,8 +110,7 @@ export class AutoMix extends EventEmitter {
       c.offsetDb = 0;
       c.targetDb = 0;
     }
-    for (const id of this.mutedByAuto) this.#setOn(id, true);
-    this.mutedByAuto.clear();
+    this.#restoreSingers();
     this.dirty = true;
     this.#save(true);
     if (reason) this.emit('note', reason);
@@ -127,7 +128,7 @@ export class AutoMix extends EventEmitter {
     // Turning a feature off hands its channels straight back.
     if (before.speechAutomix && !this.settings.speechAutomix) this.#releaseGroup('speech');
     if (before.duckMusic && !this.settings.duckMusic) this.#releaseGroup('music');
-    if (before.muteSingersWhenSpeaking && !this.settings.muteSingersWhenSpeaking) this.#unmuteSingers();
+    if (before.muteSingersWhenSpeaking && !this.settings.muteSingersWhenSpeaking) this.#restoreSingers();
     return this.settings;
   }
 
@@ -204,22 +205,19 @@ export class AutoMix extends EventEmitter {
           const s = this.state.strips[id];
           const c = this.ch.get(id);
           const silentFor = now - c.lastActive;
-          if (s.on && !this.mutedByAuto.has(id) && !this.keepOpen.has(id) && silentFor >= this.settings.muteSingersAfterMs) {
-            // Only a mic nobody has used for the whole wait gets muted.
-            this.mutedByAuto.add(id);
-            this.#setOn(id, false);
-            this.dirty = true;
-          } else if (this.mutedByAuto.has(id) && silentFor < 300) {
-            // Someone started talking into a mic we muted: open it straight away.
-            // (Works when the mixer's meters read the input before the mute; see QA M9.)
-            this.mutedByAuto.delete(id);
+          if (s.fader > 0 && !this.pulled.has(id) && !this.keepOpen.has(id) && silentFor >= this.settings.muteSingersAfterMs) {
+            // Only a mic nobody has used for the whole wait is turned down.
+            this.pulled.set(id, s.fader);
+            this.#sendFader(id, 0);
+          } else if (this.pulled.has(id) && silentFor < 300) {
+            // Someone started talking into a mic we turned down: bring it straight back.
+            // The meters read the input before the fader, so this sees them even while it's down.
+            this.#restoreSinger(id);
             this.keepOpen.add(id);
-            this.#setOn(id, true);
-            this.dirty = true;
-            this.onAlert({ level: 'info', source: 'automix', message: `${s.name || `Ch ${id}`} started talking, so it's unmuted.` });
+            this.onAlert({ level: 'info', source: 'automix', message: `${s.name || `Ch ${id}`} started talking, so it's back up.` });
           }
         }
-      } else if (this.mode !== 'speaking' && this.mutedByAuto.size) this.#unmuteSingers();
+      } else if (this.mode !== 'speaking' && this.pulled.size) this.#restoreSingers();
     }
 
     // Move faders toward their targets
@@ -255,7 +253,7 @@ export class AutoMix extends EventEmitter {
         // A channel being faded (walk-in) belongs to the fade: don't jump it back first.
         if (!this.isFading(id) && Math.abs(c.offsetDb) > 0.05 && c.home > 0) this.#sendFader(id, c.home);
         this.ch.delete(id);
-        if (this.mutedByAuto.delete(id)) this.#setOn(id, true);
+        if (this.pulled.has(id)) this.#restoreSinger(id);
       }
     }
     return g;
@@ -299,7 +297,7 @@ export class AutoMix extends EventEmitter {
     const c = this.ch.get(id);
     if (!c || !(c.home > 0)) return; // fader all the way down: nothing to manage
     const s = this.state.strips[id];
-    if (!s.on && !this.mutedByAuto.has(id)) return;
+    if (!s.on) return;
     const up = c.targetDb > c.offsetDb;
     // Speech: open fast, close gently. Music duck: down in ~0.3 s, back up in ~1.5 s.
     // Music comes back up gently after speech, but fast when worship starts so the first notes aren't quiet.
@@ -323,9 +321,17 @@ export class AutoMix extends EventEmitter {
     this.dirty = true;
   }
 
-  #setOn(id, on) {
-    this.state.strips[id].on = on;
-    this.client.setInt(paths.on(id), on ? 1 : 0);
+  /** Put one turned-down singer back, unless a person has moved that fader since. */
+  #restoreSinger(id) {
+    const from = this.pulled.get(id);
+    this.pulled.delete(id);
+    const s = this.state.strips[id];
+    if (from > 0 && s && s.fader <= HUMAN_MOVE_TOLERANCE) this.#sendFader(id, from);
+    this.dirty = true;
+  }
+
+  #restoreSingers() {
+    for (const id of [...this.pulled.keys()]) this.#restoreSinger(id);
   }
 
   #homeFrom(value, offsetDb) {
@@ -337,16 +343,18 @@ export class AutoMix extends EventEmitter {
     if (!id || !this.ch.has(id)) return;
     const c = this.ch.get(id);
     const s = this.state.strips[id];
+    if (field === 'fader' && Math.abs(s.fader - c.lastSent) > HUMAN_MOVE_TOLERANCE && this.pulled.has(id)) {
+      // Someone brought up a singer we'd turned down: they're in charge of it now.
+      this.pulled.delete(id);
+      this.keepOpen.add(id);
+      c.lastSent = s.fader;
+      this.dirty = true;
+      return;
+    }
     if (field === 'fader' && Math.abs(s.fader - c.lastSent) > HUMAN_MOVE_TOLERANCE) {
       // Someone moved it: that's the new level this channel should sit at.
       c.home = this.#homeFrom(s.fader, c.offsetDb);
       c.lastSent = s.fader;
-      this.dirty = true;
-    }
-    if (field === 'on' && s.on && this.mutedByAuto.has(id)) {
-      // Someone unmuted a singer we muted: they're in charge of it now.
-      this.mutedByAuto.delete(id);
-      this.keepOpen.add(id);
       this.dirty = true;
     }
   }
@@ -358,15 +366,10 @@ export class AutoMix extends EventEmitter {
     this.candidate = null;
     this.speakingSince = mode === 'speaking' ? now : 0;
     this.keepOpen.clear();
-    if (mode !== 'speaking') this.#unmuteSingers();
+    if (mode !== 'speaking') this.#restoreSingers();
     this.emit('mode', { mode, from, auto: !this.modeLocked });
   }
 
-  #unmuteSingers() {
-    for (const id of this.mutedByAuto) this.#setOn(id, true);
-    if (this.mutedByAuto.size) this.dirty = true;
-    this.mutedByAuto.clear();
-  }
 
   #releaseGroup(which) {
     const groups = this.#classify();
@@ -388,7 +391,7 @@ export class AutoMix extends EventEmitter {
     const data = {
       savedAt: new Date().toISOString(),
       homes: Object.fromEntries([...this.ch].map(([id, c]) => [id, { home: c.home, offsetDb: c.offsetDb }])),
-      mutedByAuto: [...this.mutedByAuto],
+      pulled: Object.fromEntries(this.pulled),
     };
     try {
       fs.mkdirSync(path.dirname(this.stateFile), { recursive: true });
@@ -419,10 +422,13 @@ export class AutoMix extends EventEmitter {
         restored++;
       }
     }
-    for (const id of data.mutedByAuto ?? []) {
+    for (const [id, from] of Object.entries(data.pulled ?? {})) {
       const s = this.state.strips[id];
-      if (s && !s.on) {
-        this.#setOn(id, true);
+      // Still down where we left it: put it back. If someone moved it, leave it.
+      if (s && from > 0 && s.fader <= HUMAN_MOVE_TOLERANCE) {
+        s.fader = from;
+        s.faderDb = floatToDb(from);
+        this.client.setFloat(paths.fader(id), from);
         restored++;
       }
     }
@@ -448,7 +454,7 @@ export class AutoMix extends EventEmitter {
       name: this.state.strips[id]?.name ?? '',
       offsetDb: Math.round(c.offsetDb * 10) / 10,
       active: Date.now() - c.lastActive < 1500,
-      mutedByAuto: this.mutedByAuto.has(id),
+      mutedByAuto: this.pulled.has(id), // turned down in the room for the sermon
     }));
     return {
       enabled: this.enabled,

@@ -11,7 +11,8 @@ The app opens on the **Auto** screen. It listens to the channel meters and mixes
 - **Balances the speech mics.** Whoever is talking (pastor, announcements) stays up; the other speech mic comes down, so there's less hiss and less feedback. Between sentences the last talker stays up.
 - **Knows where the service is.** Walk-in → Worship → Talking over music → Speaking, worked out from which channels are making sound. Big buttons let a volunteer set the mode instead.
 - **Turns the band and tracks down under talking** during announcements and prayer over music, and brings them back smoothly.
-- **Mutes singer mics during the sermon** (after 20 seconds of speaking), and unmutes them the moment music starts.
+- **Turns unused singer mics down in the room during the sermon** (after 20 seconds of speaking), and brings them back the moment music starts or someone talks into one.
+- **It never touches the in-ear mixes.** It only moves channel faders and never mutes, so with pre-fader aux sends (the XR18 setting for in-ears) the band's mixes don't change.
 - It only ever turns things **down** from where a person set them, never up. Moving any fader (here or in the X Air app) sets that channel's new level. Each feature has its own off switch. If the app restarts, it puts everything back first.
 
 A **Mixer** tab has the full console view for anything else.
@@ -23,7 +24,7 @@ A **Mixer** tab has the full console view for anything else.
 - **Click & guide lock.** Channels named Click/Guide (or confirmed as such) are kept out of the house:
   - Main L/R assign is forced off.
   - Sends to FX1–4 are forced to zero, because effects returns feed the house.
-  - Sends to monitor buses that people outside the band hear are forced to zero. These are worked out from the bus names (Stream, Live, Rec, Lobby, Wedge, Pastor…) or listed in `config.json` as `"protectedBuses": [5, 6]`. The band's in-ear buses are left alone.
+  - Aux buses (the in-ear mixes) are never changed. If you ever add a livestream or recording feed on an aux, list it in `config.json` as `"protectedBuses": [6]` and the click is kept off that one bus.
   - It watches for changes from any app or scene recall and undoes them within moments, with an alert.
   - **The lock is sticky.** If someone renames the Click channel, it stays protected and the volunteer is warned, until a person sets what the channel is now.
 - **Mute unused channels** with one tap. Only touches channels with no name and no signal, never click/guide. This helps the noise floor.
@@ -105,7 +106,7 @@ Keep the X Air app open as a backup.
 2. Compare the inventory against reality. Are names and roles right? Does "In use" match what's plugged in and making sound?
 3. In the X Air app, turn **on** the main L/R assign for the click channel. The web app should turn it back off within a second or two and show an alert.
 4. In the X Air app, raise the click's send to FX1. Same result expected.
-5. If you have a livestream bus, name it "Stream" in the X Air app and send the click to it. It should be pulled back to zero. The click's in-ear sends should stay as they are.
+5. Check that every in-ear aux send is **pre-fader** in the X Air app. Then move a singer's channel fader: their in-ear mix must not change. (The auto-mix relies on this to leave the in-ears alone.)
 6. On an iPad, open the app, enter the PIN, and move a fader. Check the X Air app shows the same move.
 7. Try **Fade out** and **Bring up** on the walk-in music.
    Then, on the Auto screen, have someone talk on the pastor's mic, then the announcement mic: the other one should come down. Move a channel fader up and down: does its meter move with it? If it does, tell me (the meters are post-fader, and one setting needs changing).
