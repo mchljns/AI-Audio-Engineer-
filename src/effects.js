@@ -35,17 +35,11 @@ export const EFFECT_DEFAULTS = {
   talkDb: 6, // returns down this much while someone talks between songs / over music
   quietDb: 15, // and this much for the sermon and pre/post-service music
   delayNote: 'dotted8', // delay time: dotted eighth (the usual worship delay), quarter or eighth
-  delayTimeAuto: false, // the app sets the delay's time itself: only after the test below says yes
-  delayTimeMap: null, // how the XR18 scales the delay time ('log' or 'lin'), found by the test
+  // Effects Mix Assistant runs itself, after a person confirmed the one-tap setup in X Air:
+  // { reverb: { fx, attempt } | null, delay: { fx, attempt } | null }
+  fxConf: { reverb: null, delay: null },
 };
 
-// The delay's Time is parameter 1 of the XR18's delay effects. Its scaling isn't documented for
-// the XR18, so the app tests it once: it sets 500 ms one way and asks whether X Air shows 500 ms.
-export const delayTimeAddress = (fx) => `/fx/${fx}/par/01`;
-const MAPS = {
-  log: (ms) => Math.log(ms / 1) / Math.log(3000 / 1),
-  lin: (ms) => (ms - 1) / (3000 - 1),
-};
 export const DELAY_NOTES = { dotted8: { label: 'Dotted 1/8', factor: 0.75 }, quarter: { label: '1/4', factor: 1 }, eighth: { label: '1/8', factor: 0.5 } };
 export function delayMsFor(bpm, note = 'dotted8') {
   const b = Number(bpm);
@@ -73,7 +67,7 @@ export class Effects {
     this.roleStore = roleStore;
     this.stateFile = stateFile;
     this.onAlert = onAlert;
-    this.settings = { ...EFFECT_DEFAULTS, ...settings };
+    this.settings = { ...EFFECT_DEFAULTS, ...settings, fxConf: { ...EFFECT_DEFAULTS.fxConf, ...(settings.fxConf ?? {}) } };
     this.returns = new Map(); // fx number -> { home, offsetDb, targetDb, lastSent, known }
     this.song = { delay: false, lead: [], amounts: {}, bpm: null, title: null };
     this.mode = 'idle';
@@ -96,7 +90,7 @@ export class Effects {
   update(partial = {}) {
     for (const k of ['follow', 'speechDry']) if (typeof partial[k] === 'boolean') this.settings[k] = partial[k];
     if (DELAY_NOTES[partial.delayNote]) this.settings.delayNote = partial.delayNote;
-    if (partial.delayTimeAuto === false) this.settings.delayTimeAuto = false;
+    if (partial.forget === 'reverb' || partial.forget === 'delay') this.settings.fxConf = { ...this.settings.fxConf, [partial.forget]: null };
     for (const k of ['reverbFx', 'delayFx']) {
       if (partial[k] === null || partial[k] === 0) this.settings[k] = null;
       else if ([1, 2, 3, 4].includes(Number(partial[k]))) this.settings[k] = Number(partial[k]);
@@ -121,40 +115,22 @@ export class Effects {
     return this.live?.bpm ?? this.song.bpm ?? null;
   }
 
-  // ---------- delay time: tested once, then set automatically ----------
-
-  /** Set the delay to 500 ms using one scaling, so a person can check X Air shows 500 ms. */
-  testDelayTime() {
-    const fx = this.settings.delayFx;
-    if (!fx) return null;
-    const order = ['log', 'lin'];
-    const next = order[(order.indexOf(this.testing) + 1) % order.length] ?? 'log';
-    this.testing = this.testing === undefined || this.testing === null ? 'log' : next;
-    this.client.setFloat(delayTimeAddress(fx), MAPS[this.testing](500));
-    return this.testing;
-  }
-
-  /** The person's answer: X Air showed 500 ms (turn on automatic delay time) or it didn't. */
-  confirmDelayTime(ok) {
-    if (ok && this.testing) {
-      this.settings.delayTimeAuto = true;
-      this.settings.delayTimeMap = this.testing;
-      this.testing = null;
-      this.lastDelayMs = null;
-      return true;
-    }
-    return false;
+  /** A confirmed effect (the app runs it), or null. */
+  conf(kind) {
+    const c = this.settings.fxConf?.[kind];
+    const fx = kind === 'reverb' ? this.settings.reverbFx : this.settings.delayFx;
+    return c && c.fx === fx ? c : null;
   }
 
   #setDelayTime() {
-    const fx = this.settings.delayFx;
-    if (!fx || !this.settings.delayTimeAuto || !MAPS[this.settings.delayTimeMap] || !this.song.delay) return;
+    const conf = this.conf('delay');
+    if (!conf || !this.desk || !this.song.delay) return;
     const ms = delayMsFor(this.tempo(), this.settings.delayNote);
     if (!ms || ms < 30 || ms > 2000) return;
     // Only a real change (over 2%), so the delay doesn't wobble while the tempo estimate settles.
     if (this.lastDelayMs && Math.abs(ms - this.lastDelayMs) / this.lastDelayMs < 0.02) return;
     this.lastDelayMs = ms;
-    this.client.setFloat(delayTimeAddress(fx), MAPS[this.settings.delayTimeMap](ms));
+    this.desk.set('delay', conf, 'time', ms);
   }
 
   /** A person nudged the reverb (or delay) level in the room: change where it sits for worship. */
@@ -313,7 +289,7 @@ export class Effects {
     if (this.mode === 'worship' && this.song.delay && this.settings.delayFx) {
       const who = this.song.lead.map((id) => names[id] || `Ch ${id}`);
       const bpm = this.tempo();
-      const ms = this.settings.delayTimeAuto && this.lastDelayMs ? this.lastDelayMs : delayMsFor(bpm, this.settings.delayNote);
+      const ms = this.conf('delay') && this.lastDelayMs ? this.lastDelayMs : delayMsFor(bpm, this.settings.delayNote);
       const src = this.live ? `, live from ${this.live.label ?? 'the music'}` : '';
       out.push(who.length ? `Light delay on ${[...new Set(who)].join(', ')}${ms ? ` (${ms} ms at ${Math.round(bpm)} BPM${src})` : ''}` : 'Light delay song: pick a lead singer for it to go on');
     }
@@ -328,8 +304,11 @@ export class Effects {
       song: { delay: this.song.delay, bpm: this.song.bpm, times: delayTimes(this.song.bpm) },
       live: this.live ?? null,
       delayMs: delayMsFor(this.tempo(), this.settings.delayNote),
-      delaySetMs: this.settings.delayTimeAuto ? (this.lastDelayMs ?? null) : null,
-      testing: this.testing ?? null,
+      delaySetMs: this.conf('delay') ? (this.lastDelayMs ?? null) : null,
+      running: {
+        reverb: this.conf('reverb') ? this.desk?.describe('reverb', this.conf('reverb')) : null,
+        delay: this.conf('delay') ? this.desk?.describe('delay', this.conf('delay')) : null,
+      },
     };
   }
 }

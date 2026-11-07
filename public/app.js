@@ -930,6 +930,7 @@ function renderChannels(s) {
     while (levelHistory.length && levelHistory[0].t < Date.now() - 4000) levelHistory.shift();
   }
   const done = !!set.channelsDone;
+  if (document.activeElement !== $('#chName')) $('#chName').checked = s.options?.nameChannels !== false;
   $('#chBody').hidden = done;
   $('#chEdit').hidden = !done;
   $('#chSummary').textContent = done
@@ -1009,6 +1010,7 @@ function finishFind(s, levels) {
   findNotes[f.slotId] = `Found: ${pairLabel(left, right)}`;
   send({ type: 'setSetChannel', slotId: f.slotId, left, right });
 }
+$('#chName').addEventListener('change', (e) => send({ type: 'options', nameChannels: e.target.checked }));
 $('#chDone').addEventListener('click', () => send({ type: 'channelsDone', done: true }));
 $('#chEdit').addEventListener('click', () => send({ type: 'channelsDone', done: false }));
 
@@ -1041,6 +1043,7 @@ for (const b of document.querySelectorAll('#toneComp .seg-btn')) {
 for (const b of document.querySelectorAll('#toneVerb .seg-btn')) b.addEventListener('click', () => toneSend({ type: 'toneVerb', level: b.dataset.verb }));
 for (const b of document.querySelectorAll('#toneDelay .seg-btn')) b.addEventListener('click', () => toneSend({ type: 'toneDelay', level: b.dataset.delay }));
 $('#toneGateOn').addEventListener('click', () => (toneListen = { kind: 'gate', until: Date.now() + 4000, samples: [] }));
+$('#toneGainBtn').addEventListener('click', () => (toneListen = { kind: 'gain', until: Date.now() + 7000, samples: [] }));
 $('#toneGateOff').addEventListener('click', () => toneSend({ type: 'toneGate', on: false }));
 
 function renderTone(s) {
@@ -1061,6 +1064,8 @@ function renderTone(s) {
   $('#toneSub').textContent = `${T.channels.length > 1 ? `Ch ${T.channels.join(' + ')}` : `Ch ${T.channels[0]}`}${T.saved ? ` · saved tone from ${new Date(T.saved.at).toLocaleDateString()}` : ' · no saved tone yet'}`;
   $('#toneSummary').textContent = T.summary ?? 'Reading the channel from the mixer…';
   $('#toneNote').textContent = T.note ? `Last change: ${T.note}` : '';
+  const g = T.model?.gainDb;
+  $('#toneGainNow').textContent = Number.isFinite(g) ? `${g > 0 ? '+' : ''}${Math.round(g * 10) / 10} dB` : '';
   $('#toneUndo').disabled = !T.canUndo;
   $('#toneLoad').disabled = !T.saved;
   $('#toneSave').textContent = `Save to ${first}`;
@@ -1099,14 +1104,23 @@ function renderTone(s) {
   toneListen.samples.push(db);
   const left = Math.max(0, Math.ceil((toneListen.until - Date.now()) / 1000));
   box.textContent =
-    toneListen.kind === 'comp'
+    toneListen.kind === 'comp' || toneListen.kind === 'gain'
       ? `Have ${first} ${slot.instrument === 'vocal' ? 'sing' : 'play'} the loudest part of a song… ${left}s`
       : `Quiet please: nobody on ${first}'s ${slot.instrument === 'vocal' ? 'mic' : slot.name.toLowerCase()} for ${left}s (measuring its hiss)`;
   if (Date.now() < toneListen.until) return;
   const xs = [...toneListen.samples].sort((a, b) => a - b);
   const L0 = toneListen;
   toneListen = null;
-  if (L0.kind === 'comp') {
+  if (L0.kind === 'gain') {
+    const loud = xs.filter((x) => x > -60);
+    if (loud.length < 10) {
+      box.hidden = false;
+      box.textContent = `Didn't hear ${first}. Check they're on channel ${T.channels[0]} and try again while they sing out.`;
+      setTimeout(() => !toneListen && (box.hidden = true), 4000);
+      return;
+    }
+    toneSend({ type: 'toneGain', loudDb: loud[Math.floor(loud.length * 0.95)] });
+  } else if (L0.kind === 'comp') {
     const loud = xs.filter((x) => x > -50);
     if (loud.length < 10) {
       box.hidden = false;
@@ -1153,10 +1167,43 @@ function renderEffects(s) {
     for (const x of document.querySelectorAll('.fx-slot-d')) x.textContent = st.delayFx ? `FX${st.delayFx}` : 'not set';
   }
   for (const b of document.querySelectorAll('#fxNote .seg-btn')) b.classList.toggle('active', b.dataset.note === st.delayNote);
-  $('#fxTimeTest').hidden = !st.delayFx || st.delayTimeAuto || !!E.testing;
-  $('#fxTimeAsk').hidden = !E.testing;
-  if (st.delayTimeAuto) $('#fxTimeStatus').textContent = `Automatic: Mix Assistant sets FX${st.delayFx}'s delay time for each light-delay song${E.delaySetMs ? ` (now ${E.delaySetMs} ms)` : ''}.`;
-  else if (!E.testing && fxTries === 0) $('#fxTimeStatus').textContent = st.delayFx ? 'Manual: set the delay time in X Air from the time shown on each song. Or let Mix Assistant do it (a 10-second check first):' : 'Pick which effect is the delay above.';
+  $('#fxTimeStatus').textContent = E.running?.delay ? `Automatic: Mix Assistant sets FX${st.delayFx}'s delay time for each light-delay song${E.delaySetMs ? ` (now ${E.delaySetMs} ms)` : ''}.` : st.delayFx ? 'Manual for now: the time is shown on each song. Let Mix Assistant run the delay (below) to have it set automatically.' : 'Pick which effect is the delay above.';
+  // Run the effects: setup cards, and the "does X Air show this?" check.
+  const card = (box, kind, fx, label) => {
+    const run = E.running?.[kind];
+    const key = [kind, fx, run, !!E.ask];
+    if (!changed(`fxRun-${kind}`, key)) return;
+    if (!fx) return box.replaceChildren();
+    const btn = el('button', { class: `btn btn-small${run ? ' btn-ghost' : ''}`, type: 'button', text: run ? 'Stop running it' : `Set up the ${label} for me` });
+    btn.disabled = !!E.ask;
+    btn.addEventListener('click', () => send(run ? { type: 'fxForget', kind } : { type: 'fxSetup', kind }));
+    box.replaceChildren(el('div', {}, [el('b', { text: `${label[0].toUpperCase()}${label.slice(1)} (FX${fx}): ` }), el('span', { text: run ? `run by Mix Assistant · ${run}` : 'set by hand in X Air' })]), btn);
+  };
+  card($('#fxRunReverb'), 'reverb', st.reverbFx, 'reverb');
+  card($('#fxRunDelay'), 'delay', st.delayFx, 'delay');
+  $('#fxAsk').hidden = !E.ask;
+  if (E.ask) $('#fxAskText').innerHTML = '';
+  if (E.ask) $('#fxAskText').append(el('b', { text: 'Look at X Air → Effects → ' + `FX${E.ask.fx}. ` }), el('span', { text: `It should now be ${E.ask.label} with ${E.ask.shows.join(' · ')}. Does it?` }));
+  // Reverb fixes: done directly when Mix Assistant runs the reverb, otherwise how-to.
+  const runningReverb = !!E.running?.reverb;
+  $('#fxTweaks').hidden = !runningReverb;
+  $('#fxHelp').hidden = runningReverb;
+  $('#fxTweakNote').textContent = runningReverb ? (E.note ? `Last change: ${E.note}` : 'Tap what you hear; each tap is a small change. ') : '';
+  if (runningReverb && changed('fxTweaks', E.tweaks.map((t) => t.id))) {
+    $('#fxTweaks').replaceChildren(
+      ...E.tweaks.map((t) => {
+        const [title, hint] = t.label.split(': ');
+        const b = el('button', { class: 'fix-btn', type: 'button' }, [el('b', { text: title }), el('span', { class: 'muted small', text: hint ?? '' })]);
+        b.addEventListener('click', () => send({ type: 'fxTweak', id: t.id }));
+        return b;
+      }),
+      (() => {
+        const u = el('button', { class: 'fix-btn', type: 'button' }, [el('b', { text: 'Undo' }), el('span', { class: 'muted small', text: 'the last reverb change' })]);
+        u.addEventListener('click', () => send({ type: 'fxUndo' }));
+        return u;
+      })(),
+    );
+  }
   if (document.activeElement !== $('#fxFollow')) $('#fxFollow').checked = !!st.follow;
   if (document.activeElement !== $('#fxSpeechDry')) $('#fxSpeechDry').checked = !!st.speechDry;
   $('#fxReverbNow').textContent = E.reverbDb === null ? '' : `(level ${E.reverbDb > 0 ? '+' : ''}${E.reverbDb} dB)`;
@@ -1174,22 +1221,9 @@ $('#fxDelay').addEventListener('change', (e) => send({ type: 'effects', settings
 $('#fxFollow').addEventListener('change', (e) => send({ type: 'effects', settings: { follow: e.target.checked } }));
 $('#fxSpeechDry').addEventListener('change', (e) => send({ type: 'effects', settings: { speechDry: e.target.checked } }));
 for (const b of document.querySelectorAll('#fxNote .seg-btn')) b.addEventListener('click', () => send({ type: 'effects', settings: { delayNote: b.dataset.note } }));
-let fxTries = 0;
-$('#fxTestBtn').addEventListener('click', () => {
-  fxTries = 1;
-  send({ type: 'delayTimeTest' });
-});
-$('#fxYes').addEventListener('click', () => send({ type: 'delayTimeConfirm', ok: true }));
-$('#fxNo').addEventListener('click', () => {
-  fxTries++;
-  if (fxTries > 2) {
-    fxTries = 0;
-    $('#fxTimeAsk').hidden = true;
-    $('#fxTimeStatus').textContent = "That didn't work on this mixer, so the delay time stays manual: set it in X Air from the time shown on each song. Please mention it in the troubleshooting report.";
-    return;
-  }
-  send({ type: 'delayTimeConfirm', ok: false });
-});
+$('#fxYes').addEventListener('click', () => latest?.effects?.ask && send({ type: 'fxAnswer', kind: latest.effects.ask.kind, ok: true }));
+$('#fxNo').addEventListener('click', () => latest?.effects?.ask && send({ type: 'fxAnswer', kind: latest.effects.ask.kind, ok: false }));
+$('#fxBack').addEventListener('click', () => latest?.effects?.ask && send({ type: 'fxCancel', kind: latest.effects.ask.kind }));
 $('#fxLess').addEventListener('click', () => send({ type: 'effectsNudge', which: 'reverb', db: -1.5 }));
 $('#fxMore').addEventListener('click', () => send({ type: 'effectsNudge', which: 'reverb', db: 1.5 }));
 

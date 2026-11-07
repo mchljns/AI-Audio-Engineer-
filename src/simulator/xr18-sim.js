@@ -57,6 +57,7 @@ function initialState() {
     const c = `/ch/${String(i).padStart(2, '0')}`;
     const f = (k, v) => st.set(`${c}/${k}`, { type: 'f', value: v });
     const n = (k, v) => st.set(`${c}/${k}`, { type: 'i', value: v });
+    st.set(`/headamp/${String(i).padStart(2, '0')}/gain`, { type: 'f', value: (20 + 12) / 72 }); // +20 dB
     n('preamp/hpon', 0);
     f('preamp/hpf', 0.5);
     n('eq/on', 1);
@@ -73,7 +74,11 @@ function initialState() {
   }
   // FX returns 1–4 (reverb on FX1, delay on FX2, as most churches set it).
   for (let n = 1; n <= 4; n++) st.set(`/rtn/${n}/mix/fader`, { type: 'f', value: n <= 2 ? dbToFloat(-5) : 0 });
-  for (let n = 1; n <= 4; n++) st.set(`/fx/${n}/par/01`, { type: 'f', value: 0.5 }); // e.g. a delay's Time
+  // Effects 1–4: algorithm (Hall on FX1, as a fresh mixer) and its 12 parameters.
+  for (let n = 1; n <= 4; n++) {
+    st.set(`/fx/${n}/type`, { type: 'i', value: n === 2 ? 10 : 0 });
+    for (let p = 1; p <= 12; p++) st.set(`/fx/${n}/par/${String(p).padStart(2, '0')}`, { type: 'f', value: 0.5 });
+  }
   BUS_NAMES.forEach((name, i) => st.set(paths.busName(i + 1), { type: 's', value: name }));
   for (let n = 1; n <= DCA_COUNT; n++) {
     st.set(paths.dcaName(n), { type: 's', value: ['Speech', 'Vocals', 'Band', 'Tracks'][n - 1] });

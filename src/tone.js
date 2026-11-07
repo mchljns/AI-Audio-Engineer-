@@ -26,8 +26,9 @@ const bool = { toRaw: (v) => (v ? 1 : 0), fromRaw: (r) => !!r };
 export const RATIOS = [1.1, 1.3, 1.5, 2, 2.5, 3, 4, 5, 7, 10, 20, 100];
 export const EQ_TYPES = ['Low cut', 'Low shelf', 'Bell', 'Vintage bell', 'High shelf', 'High cut'];
 
-// [model key, address suffix, scale, OSC type]
+// [model key, address suffix, scale, OSC type]. 'headamp' is the input gain (its own address).
 const PARAMS = [
+  ['gainDb', 'headamp', lin(-12, 60), 'f'],
   ['hpOn', 'preamp/hpon', bool, 'i'],
   ['hpHz', 'preamp/hpf', log(20, 400), 'f'],
   ['eqOn', 'eq/on', bool, 'i'],
@@ -55,12 +56,13 @@ const PARAMS = [
   ['gate.release', 'gate/release', log(5, 4000), 'f'],
 ];
 
-export const toneAddress = (ch, suffix) => `/ch/${pad2(ch)}/${suffix}`;
+export const toneAddress = (ch, suffix) => (suffix === 'headamp' ? `/headamp/${pad2(ch)}/gain` : `/ch/${pad2(ch)}/${suffix}`);
 /** Every address that makes up a channel's tone (for reading it from the mixer). */
 export const tonePaths = (ch) => PARAMS.map(([, suffix]) => toneAddress(ch, suffix));
 /** Only real input channels have this processing (not the aux return). */
 export const toneChannelOk = (ch) => /^([1-9]|1[0-6])$/.test(String(ch));
 
+const suffixOf = (address) => (/^\/headamp\//.test(address) ? 'headamp' : address.replace(/^\/ch\/\d\d\//, ''));
 const get = (m, key) => key.split('.').reduce((o, k) => o?.[k], m);
 const set = (m, key, v) => {
   const ks = key.split('.');
@@ -206,6 +208,29 @@ export function applyComp(model, preset, loudDb) {
   return { model: m, note: `Compression ${p.label.toLowerCase()}: ${p.ratio}:1, threshold ${thr} dB, about ${p.squeeze} dB off the loudest lines` };
 }
 
+/**
+ * Input gain from a measured loud level: their loudest part should peak about −15 dB on the
+ * channel meter (the −18 to −12 sweet spot). The compressor and gate thresholds move with it,
+ * so they keep doing the same job. At most 12 dB per press, within the preamp's range.
+ */
+export const GAIN_TARGET_DB = -15;
+export function applyGain(model, loudDb) {
+  if (!Number.isFinite(loudDb) || !Number.isFinite(model.gainDb)) return { model, note: null };
+  const m = clone(model);
+  const want = clamp(GAIN_TARGET_DB - loudDb, -12, 12);
+  const next = clamp(round(model.gainDb + want, 1), -12, 60);
+  const moved = round(next - model.gainDb, 1);
+  if (Math.abs(moved) < 1) return { model, note: `Gain is right already (loudest part about ${round(loudDb)} dB)` };
+  m.gainDb = next;
+  if (m.comp?.thr !== undefined) m.comp.thr = clamp(round(m.comp.thr + moved), -60, 0);
+  if (m.gate?.thr !== undefined) m.gate.thr = clamp(round(m.gate.thr + moved), -80, 0);
+  const atEdge = next === 60 || next === -12;
+  return {
+    model: m,
+    note: `Gain ${moved > 0 ? 'up' : 'down'} ${Math.abs(moved)} dB to ${next > 0 ? '+' : ''}${next} dB${atEdge ? ' (the end of the range: check the wireless receiver or DI output level)' : ''}`,
+  };
+}
+
 /** Gentle gate for hiss between lines, from the measured quiet level (pack hiss, room). */
 export function applyGate(model, on, floorDb) {
   const m = clone(model);
@@ -245,6 +270,7 @@ export function fmtHz(hz) {
 export function describeTone(m) {
   if (!m) return '';
   const parts = [];
+  if (Number.isFinite(m.gainDb)) parts.push(`Gain ${m.gainDb > 0 ? '+' : ''}${round(m.gainDb)} dB`);
   parts.push(m.hpOn ? `Low cut ${Math.round(m.hpHz)} Hz` : 'Low cut off');
   if (m.eqOn !== false) {
     for (const k of ['b1', 'b2', 'b3', 'b4']) {
@@ -263,6 +289,7 @@ export function describeTone(m) {
 export function toneToSave(m) {
   const pick = (o, ks) => Object.fromEntries(ks.filter((k) => o?.[k] !== undefined).map((k) => [k, o[k]]));
   return {
+    gainDb: m.gainDb,
     hpOn: m.hpOn,
     hpHz: m.hpHz,
     eqOn: m.eqOn,
@@ -291,11 +318,13 @@ export class ToneDesk {
   }
 
   #onMessage(msg) {
-    const m = msg.address?.match(/^\/ch\/(\d\d)\/(preamp\/hp(?:on|f)|eq\/(?:on|[1-4]\/(?:type|f|g|q))|dyn\/\w+|gate\/\w+)$/);
-    if (!m || !msg.args?.length) return;
-    const ch = String(Number(m[1]));
+    if (!msg.args?.length) return;
+    const g = msg.address?.match(/^\/headamp\/(\d\d)\/gain$/);
+    const m = g ? null : msg.address?.match(/^\/ch\/(\d\d)\/(preamp\/hp(?:on|f)|eq\/(?:on|[1-4]\/(?:type|f|g|q))|dyn\/\w+|gate\/\w+)$/);
+    if (!g && !m) return;
+    const ch = String(Number((g ?? m)[1]));
     if (!this.raw.has(ch)) this.raw.set(ch, {});
-    this.raw.get(ch)[m[2]] = Number(msg.args[0].value);
+    this.raw.get(ch)[g ? 'headamp' : m[2]] = Number(msg.args[0].value);
   }
 
   /** Ask the mixer for a channel's tone; resolves when it has answered (or after a short wait). */
@@ -325,7 +354,7 @@ export class ToneDesk {
       for (const msg of messagesFor(ch, next, cur)) {
         if (msg.type === 'i') this.client.setInt(msg.address, msg.value);
         else this.client.setFloat(msg.address, msg.value);
-        const suffix = msg.address.replace(/^\/ch\/\d\d\//, '');
+        const suffix = suffixOf(msg.address);
         if (!this.raw.has(ch)) this.raw.set(ch, {});
         this.raw.get(ch)[suffix] = msg.value;
       }
@@ -342,7 +371,7 @@ export class ToneDesk {
       for (const msg of messagesFor(ch, prev, cur)) {
         if (msg.type === 'i') this.client.setInt(msg.address, msg.value);
         else this.client.setFloat(msg.address, msg.value);
-        this.raw.get(ch)[msg.address.replace(/^\/ch\/\d\d\//, '')] = msg.value;
+        this.raw.get(ch)[suffixOf(msg.address)] = msg.value;
       }
       this.notes.set(ch, 'Undone');
     }

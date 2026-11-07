@@ -28,9 +28,11 @@ import { PlanningCenter } from './pco.js';
 import { ProPresenter } from './propresenter.js';
 import { Effects, VERB_LEVELS, DELAY_LEVELS, fxSendBus } from './effects.js';
 import { TempoDetector, TEMPO_SOURCES } from './tempo.js';
-import { ToneDesk, applyFix, applyComp, applyGate, freshModel, toneToSave, describeTone, FIXES, COMP_PRESETS } from './tone.js';
+import { FxDesk, REVERB_TWEAKS } from './fxsetup.js';
+import { channelName } from './naming.js';
+import { ToneDesk, applyGain, applyFix, applyComp, applyGate, freshModel, toneToSave, describeTone, FIXES, COMP_PRESETS } from './tone.js';
 import { CONNECTION_MODES, chooseMixer, hardwarePorts, kindLabel, pathTo } from './netpath.js';
-import { ROLES } from './roles.js';
+import { ROLES, LOCKED_ROLES } from './roles.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PUBLIC = path.join(ROOT, 'public');
@@ -47,7 +49,7 @@ const PIN_MAX_TRIES = 5;
 const PIN_LOCKOUT_MS = 60 * 1000;
 const UNUSED_SETTLE_MS = 15000;
 
-const TONE_COMMANDS = new Set(['toneRead', 'toneFix', 'toneComp', 'toneGate', 'toneFresh', 'toneUndo', 'toneSave', 'toneLoad', 'toneVerb', 'toneDelay']);
+const TONE_COMMANDS = new Set(['toneGain', 'toneRead', 'toneFix', 'toneComp', 'toneGate', 'toneFresh', 'toneUndo', 'toneSave', 'toneLoad', 'toneVerb', 'toneDelay']);
 const LIBRARY_COMMANDS = new Set([
   'saveSlot', 'deleteSlot', 'savePerson', 'deletePerson',
   'newSet', 'openSet', 'deleteSet', 'setLineup',
@@ -331,6 +333,9 @@ export class Bridge {
       stateFile: path.join(this.config.dataDir, 'effects-state.json'),
       onAlert: (a) => this.alert(a),
     });
+    this.fxdesk?.stop();
+    this.fxdesk = new FxDesk({ client: this.client });
+    this.effects.desk = this.fxdesk;
     this.effects.setSong(this.library.songEffects());
     this.automix.on('mode', ({ mode, auto }) => {
       const label = { walkin: 'Before / after', worship: 'Worship', talkover: 'Talking over music', speaking: 'Speaking' }[mode] ?? mode;
@@ -466,19 +471,12 @@ export class Bridge {
       this.#saveSettings();
       return;
     }
-    if (cmd.type === 'delayTimeTest' && this.effects) {
-      const how = this.effects.testDelayTime();
-      if (how) this.alert({ level: 'info', source: 'effects', message: `Set FX${this.effects.settings.delayFx}'s delay time to 500 ms. Check X Air: does FX${this.effects.settings.delayFx} show 500 ms?` });
+    if (cmd.type === 'options') {
+      if (typeof cmd.nameChannels === 'boolean') this.settings.nameChannels = cmd.nameChannels;
+      this.#saveSettings();
       return;
     }
-    if (cmd.type === 'delayTimeConfirm' && this.effects) {
-      if (this.effects.confirmDelayTime(!!cmd.ok)) {
-        this.settings.effects = { ...this.effects.settings };
-        this.#saveSettings();
-        this.alert({ level: 'ok', source: 'effects', message: 'Delay time is now set automatically from each song\'s tempo.' });
-      } else this.effects.testDelayTime();
-      return;
-    }
+    if (cmd.type?.startsWith('fx') && this.effects && this.fxdesk) return this.#fxCommand(cmd);
     if (cmd.type === 'effectsNudge' && this.effects) {
       const fx = cmd.which === 'delay' ? this.effects.settings.delayFx : this.effects.settings.reverbFx;
       const db = Math.max(-3, Math.min(3, Number(cmd.db) || 0));
@@ -711,6 +709,9 @@ export class Bridge {
         if (!FIXES[t.instrument]?.[cmd.fix] && !FIXES.vocal[cmd.fix]) return;
         r = applyFix(t.model, t.instrument, String(cmd.fix));
         break;
+      case 'toneGain':
+        r = applyGain(t.model, Math.max(-60, Math.min(0, Number(cmd.loudDb))));
+        break;
       case 'toneComp':
         if (cmd.preset !== 'off' && !COMP_PRESETS[cmd.preset]) return;
         r = applyComp(t.model, cmd.preset, Math.max(-60, Math.min(0, Number(cmd.loudDb))));
@@ -794,6 +795,42 @@ export class Bridge {
     if (loaded.length) this.alert({ level: 'ok', source: 'tone', message: `Loaded saved EQ and compression: ${loaded.join(', ')}. Undo in each person's Tone if this week sounds different.` });
   }
 
+  /** Name this week's channels on the mixer after the people on them. Never click, guide or a clash. */
+  #nameChannels() {
+    const set = this.library.set();
+    if (!set || !this.status.connected) return;
+    const done = new Set();
+    const named = [];
+    const skipped = [];
+    for (const slotId of Object.keys(set.lineup)) {
+      const t = this.library.slotThisWeek(slotId);
+      if (!t) continue;
+      const person = this.library.person(t.personId)?.name ?? '';
+      t.channels.forEach((ch, i) => {
+        const s = this.state.strips[String(ch)];
+        if (!s || ch === 'aux') return;
+        const { role } = resolveRole(s, this.roleStore);
+        if (LOCKED_ROLES.has(role) || this.guard?.status().locked.some((l) => l.id === String(ch))) {
+          skipped.push(`ch ${ch} is the ${role === 'guide' ? 'guide' : 'click'}, so ${person.split(' ')[0]} can't be on it: check their channel`);
+          return;
+        }
+        if (done.has(String(ch))) {
+          skipped.push(`ch ${ch} is set for two people this week`);
+          return;
+        }
+        done.add(String(ch));
+        const side = t.channels.length > 1 ? (i === 0 ? 'L' : 'R') : null;
+        const name = channelName(person, t.instrument, side);
+        if (s.name === name) return;
+        s.name = name;
+        this.client.send(paths.name(String(ch)), [{ type: 's', value: name }]);
+        named.push(`${ch} "${name}"`);
+      });
+    }
+    if (named.length) this.alert({ level: 'ok', source: 'set', message: `Named this week's channels on the mixer: ${named.join(', ')}.` });
+    if (skipped.length) this.alert({ level: 'warn', source: 'set', message: `Not named: ${skipped.join('; ')}.` });
+  }
+
   /** What the Set tab shows for each position's tone. */
   #toneSnapshot() {
     const out = {};
@@ -812,6 +849,70 @@ export class Bridge {
       out[slotId] = { channels: t.channels, ...(st ?? {}), verb, delay, saved: saved?.savedAt ? { at: saved.savedAt, summary: describeTone(saved) } : null };
     }
     return out;
+  }
+
+  // ---------- one-tap effect setup, then the app runs the reverb and delay ----------
+
+  async #fxCommand(cmd) {
+    if (!this.status.connected) {
+      this.alert({ level: 'warn', source: 'effects', message: "The mixer isn't connected, so that change wasn't made." });
+      return;
+    }
+    const E = this.effects;
+    const kind = cmd.kind === 'delay' ? 'delay' : 'reverb';
+    const fx = kind === 'reverb' ? E.settings.reverbFx : E.settings.delayFx;
+    const save = () => {
+      this.settings.effects = { ...E.settings };
+      this.#saveSettings();
+    };
+    switch (cmd.type) {
+      case 'fxSetup':
+      case 'fxAnswer': {
+        if (!fx) return;
+        if (cmd.type === 'fxAnswer' && cmd.ok) {
+          const conf = this.fxdesk.confirm(kind);
+          this.fxAsk = null;
+          if (!conf) return;
+          E.settings.fxConf = { ...E.settings.fxConf, [kind]: conf };
+          E.lastDelayMs = null;
+          save();
+          this.alert({ level: 'ok', source: 'effects', message: kind === 'reverb' ? `Mix Assistant now runs the reverb on FX${fx}. Use the reverb buttons to change how it sounds.` : `Mix Assistant now runs the delay on FX${fx}, including its time from each song's tempo.` });
+          return;
+        }
+        if (cmd.type === 'fxSetup') await this.fxdesk.cancel(kind); // start over
+        const ms = kind === 'delay' ? (E.status().delayMs ?? 500) : null;
+        const shown = await this.fxdesk.trySetup(kind, fx, kind === 'delay' ? { time: cmd.type === 'fxSetup' ? 500 : ms ?? 500 } : {});
+        if (!shown) {
+          this.fxAsk = null;
+          this.alert({ level: 'warn', source: 'effects', message: `FX${fx} couldn't be set up automatically on this mixer, so it's back exactly as it was. Set it in X Air using the starting settings shown, and please mention it in the troubleshooting report.` });
+          return;
+        }
+        this.fxAsk = { kind, fx, ...shown };
+        return;
+      }
+      case 'fxCancel':
+        await this.fxdesk.cancel(kind);
+        this.fxAsk = null;
+        this.alert({ level: 'info', source: 'effects', message: `FX${fx} is back as it was.` });
+        return;
+      case 'fxTweak': {
+        const conf = E.conf('reverb');
+        if (!conf || !REVERB_TWEAKS[cmd.id]) return;
+        this.fxNote = this.fxdesk.tweak(conf, cmd.id);
+        return;
+      }
+      case 'fxUndo': {
+        const conf = E.conf('reverb');
+        if (conf && this.fxdesk.undoTweak(conf)) this.fxNote = 'Undone';
+        return;
+      }
+      case 'fxForget':
+        E.update({ forget: kind });
+        save();
+        this.alert({ level: 'info', source: 'effects', message: `Mix Assistant no longer changes FX${fx}'s settings. It stays as it is now.` });
+        return;
+      default:
+    }
   }
 
   /** Live tempo from the click, the tracks or the band; learned into the song once it's steady. */
@@ -927,7 +1028,10 @@ export class Bridge {
           break;
         case 'channelsDone':
           lib.setChannelsDone(!!cmd.done);
-          if (cmd.done) await this.#loadSavedTones();
+          if (cmd.done) {
+            await this.#loadSavedTones();
+            if (this.settings.nameChannels !== false) this.#nameChannels();
+          }
           break;
         case 'setSetChannel':
           lib.setSetChannel(String(cmd.slotId), cmd.left === null ? '' : String(cmd.left ?? ''), String(cmd.right ?? ''));
@@ -1247,7 +1351,8 @@ export class Bridge {
       unused: this.state.settled(UNUSED_SETTLE_MS) ? this.#unusedRows().map((r) => ({ id: r.id, label: r.label })) : [],
       clickGuard: this.guard ? this.guard.status() : { locked: [], allSafe: true, unsure: [], protectedBuses: [], buses: [] },
       automix: this.automix ? { ...this.automix.status(), now: [...this.automix.describe(), ...(this.effects?.describe(this.library.songContext().names) ?? [])].sort((x, y) => Number(/^Song mix on/.test(x)) - Number(/^Song mix on/.test(y))) } : null,
-      effects: this.effects ? this.effects.status() : null,
+      effects: this.effects ? { ...this.effects.status(), ask: this.fxAsk ?? null, note: this.fxNote ?? null, tweaks: Object.entries(REVERB_TWEAKS).map(([id, t]) => ({ id, label: t.label })) } : null,
+      options: { nameChannels: this.settings.nameChannels !== false },
       tempo: this.tempo?.result ? { ...this.tempo.result, label: TEMPO_SOURCES[this.tempo.result.source] } : null,
       dcas: Object.values(this.state.dcas),
       walkin: this.#walkinStrips().map((id) => ({ id, fading: !!this.fades?.isFading(id), on: this.state.strips[id].on })),

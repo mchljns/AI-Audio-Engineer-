@@ -598,3 +598,9 @@ dialog.connect-dialog { width: min(640px, calc(100vw - 32px)); }
 .fx-start { display: grid; gap: 8px; font-size: 14px; }
 .fx-start > div { padding: 10px 12px; border-radius: 10px; background: var(--strip); }
 .fx-time { font-weight: 600; margin: 8px 0; }
+.tone-gain { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 12px 0 4px; padding: 10px 12px; border-radius: 12px; background: var(--strip); }
+.small-switch { margin: 6px 0 12px; font-size: 14px; }
+.fx-run { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin: 6px 0; padding: 10px 12px; border-radius: 10px; background: var(--strip); font-size: 14px; }
+.fx-run:empty { display: none; }
+.fx-ask { margin: 10px 0; padding: 12px; border-radius: 12px; border: 2px solid #f5b942; background: rgba(245, 185, 66, 0.1); }
+.fx-ask p { margin: 0 0 10px; }

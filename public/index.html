@@ -185,6 +185,10 @@
       <div class="meter big" id="toneMeter"><div class="lvl"></div></div>
       <p id="toneSummary" class="tone-summary"></p>
       <p id="toneNote" class="muted small"></p>
+      <div class="tone-gain">
+        <div><b>Input gain</b> <span id="toneGainNow" class="muted"></span><br /><small class="muted">Set this first. Mix Assistant listens to their loudest part and sets the XR18's gain so it peaks around −15 dB. Compression and gate follow it.</small></div>
+        <button id="toneGainBtn" class="btn" type="button">Set gain</button>
+      </div>
       <h3>What do you hear? Tap to fix (small steps; tap again for more)</h3>
       <div id="toneFixes" class="tone-fixes"></div>
       <h3>Compression <small class="muted">evens out loud and quiet lines</small></h3>
@@ -248,6 +252,7 @@
         <div id="chBody">
           <p class="muted small">Set once at soundcheck; they stay the same for every song. Each person starts on the channel they used last time. Not sure? Tap <b>Find</b>, have them sing or play, and the channel that lights up is picked.</p>
           <div id="chList" class="ch-list"></div>
+          <label class="switch small-switch"><input type="checkbox" id="chName" /><span><b>Name the channels on the mixer</b> after the people on them ("Sarah Vox"), so X Air matches. Click and guide are never renamed.</span></label>
           <button id="chDone" class="btn btn-big" type="button">Channels are set ✓</button>
         </div>
       </section>
@@ -340,6 +345,19 @@
           <label class="switch"><input type="checkbox" id="fxFollow" /><span><b>Effects follow the service</b><br /><small>Down a few dB while someone talks between songs or over music; well down for the sermon and pre/post-service music; back for worship.</small></span></label>
           <label class="switch"><input type="checkbox" id="fxSpeechDry" /><span><b>Keep announcement mics dry too</b><br /><small>The pastor is always kept dry.</small></span></label>
 
+          <h3>Let Mix Assistant run the effects</h3>
+          <p class="muted small">One tap sets the effect up with good settings. You check once in X Air that it landed right; after that Mix Assistant adjusts it for you (reverb fixes, delay time from the tempo). "No" puts back exactly what was there.</p>
+          <div class="fx-run" id="fxRunReverb"></div>
+          <div class="fx-run" id="fxRunDelay"></div>
+          <div class="fx-ask" id="fxAsk" hidden>
+            <p id="fxAskText"></p>
+            <div class="row">
+              <button id="fxYes" class="btn" type="button">Yes, that's what it shows</button>
+              <button id="fxNo" class="btn btn-ghost" type="button">No, it shows something else</button>
+              <button id="fxBack" class="btn btn-ghost" type="button">Put it back</button>
+            </div>
+          </div>
+
           <h3>Reverb in the room <span id="fxReverbNow" class="muted small"></span></h3>
           <div class="row">
             <button class="btn btn-small" type="button" id="fxLess">Too much reverb</button>
@@ -348,6 +366,8 @@
           <p class="muted small">Each tap moves the reverb's level in the room by 1.5 dB. For one singer only, use their 🎚 Tone.</p>
 
           <h3>Reverb sounds wrong? Pick what you hear</h3>
+          <div id="fxTweaks" class="tone-fixes" hidden></div>
+          <p id="fxTweakNote" class="muted small"></p>
           <div id="fxHelp" class="fx-help"></div>
 
           <h3>Delay time</h3>
@@ -358,14 +378,6 @@
             <button class="seg-btn" type="button" data-note="eighth">1/8</button>
           </div>
           <p id="fxTimeStatus" class="fx-time"></p>
-          <div class="row" id="fxTimeTest">
-            <button id="fxTestBtn" class="btn btn-small" type="button">Let Mix Assistant set the delay time</button>
-          </div>
-          <div class="row" id="fxTimeAsk" hidden>
-            <span id="fxAskText"><b>Look at X Air:</b> does the delay effect show <b>500 ms</b> now?</span>
-            <button id="fxYes" class="btn btn-small" type="button">Yes, 500 ms</button>
-            <button id="fxNo" class="btn btn-small btn-ghost" type="button">No, something else</button>
-          </div>
 
           <h3>Good starting settings (set once in X Air)</h3>
           <div class="fx-start">
