@@ -2,6 +2,12 @@
 
 ## Your setup: rack on stage, laptop on the rack, set up and torn down each week
 
+**Decision: the mixer's own Wi-Fi is the normal setup everywhere, not just the fallback.** Don't put the XR18 or the iPad on the school's open Wi-Fi:
+- The XR18 has no password. On an open network, anyone with the free X Air app could change the mix.
+- Open and guest networks often block devices from seeing each other ("client isolation"), so the iPad might not find the mixer or the laptop at all.
+
+The school Wi-Fi is still useful for one thing: internet for the **laptop**, so Spotify can stream. See "At the school: streaming Spotify" below. Anywhere without open Wi-Fi, nothing changes: Spotify plays the downloads.
+
 The XR18 makes its own Wi-Fi, so the simplest setup is **everything on the mixer's Wi-Fi**: the laptop and the iPad both join it, nothing depends on the venue's internet, and it's the same every Sunday. Spotify plays playlists downloaded during the week (Option 1 below), and Prime already plays its tracks from the laptop.
 
 **Once, at home during the week:**
@@ -26,7 +32,19 @@ Notes:
 - The laptop's name (shown when you hover over the blue badge, e.g. `http://booth-mac.local:8080`) also works on the iPad, but the fixed address above is the most reliable.
 - Keep the laptop open during the service: closing the lid puts it to sleep.
 
-The options below are for when you want Spotify to stream rather than play downloads.
+## At the school: streaming Spotify (optional)
+
+Only if the laptop has an Ethernet port or adapter, and only after this one-time test passes:
+
+1. Connect the laptop to the XR18's Ethernet port with a short cable in the rack. Give the laptop's Ethernet a fixed address: **System Settings → Network → Ethernet → Details → TCP/IP → Using DHCP with manual address**, with the same first three numbers as the XR18's Wi-Fi addresses and `.50` at the end.
+2. Join the laptop's **Wi-Fi** to the school's open network.
+3. Put the iPad on the XR18's Wi-Fi as usual and tap the Mix Assistant icon.
+   - **If it opens:** the XR18 passes traffic between its Wi-Fi and Ethernet, and this works. Spotify streams over the school Wi-Fi.
+   - **If it doesn't:** the XR18 keeps them separate. Use the normal setup (laptop on the XR18's Wi-Fi, downloaded playlists).
+
+Mix Assistant finds the mixer over whichever connection the laptop has, so no settings change between the two.
+
+The options below are general reference.
 
 
 **The catch:** a Mac has one Wi-Fi radio, so it can be on the XR18's Wi-Fi **or** the church Wi-Fi, not both. The XR18's own Wi-Fi has no internet. So if the Mac joins the mixer's Wi-Fi (to host the iPads), Spotify needs another way to play. Here are the options with no new hardware, best first.
