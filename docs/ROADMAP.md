@@ -25,7 +25,15 @@ The auto-mix already measures each channel's noise floor. Show it per channel as
 Four PTU-7000 packs, rotating singers. Pick "who's on which pack" before the service, and each person's gain trim, EQ, gate and compressor come back automatically. In-ear mixes are not touched. The auto-mix also learns each person's normal level.
 
 ### 5. Vocal riding during worship (auto-mix)
-Keep the lead vocal on top of keys, acoustic and tracks during songs, with small, bounded moves (up to about 4 dB), following the same rules as the rest of the auto-mix: never above the level a person set, and any fader move wins.
+Keep whoever is carrying the song on top of keys, acoustic and tracks. **There is no fixed lead singer**: the lead changes from song to song and sometimes within a song (singers trading verses, call and response). So:
+
+- **Every singer mic is treated the same.** No channel is ever labelled "the lead".
+- **Each singer is compared with their own normal level**, learned over the service (and later from their profile), so a naturally quiet singer isn't overlooked and a loud one isn't over-favoured.
+- **Whoever is singing strongest against their own normal is "on top" right now.** The other singers sit back by a few dB. A swap is followed within about half a second, with a short hold so quick back-and-forth lines don't make the levels flicker.
+- **When everyone sings together** (a chorus), nobody is favoured.
+- **If the vocals are getting buried,** the band and tracks come down slightly. Vocals are never pushed up.
+- **Optional override:** tap a singer's name on the Auto screen to keep them on top for this song; tap again for automatic.
+- Same rules as the rest of the auto-mix: small bounded moves (at most about 3–4 dB), never above the level a person set, any fader move wins, faders only (in-ears untouched).
 
 ### 6. Feedback watch for the pastor's omni earset
 Needs a small native macOS helper to read the XR18's USB audio, plus microphone permission. Detects a ringing frequency and pulls the pastor's channel down briefly, then suggests a notch EQ. The biggest remaining technical step.

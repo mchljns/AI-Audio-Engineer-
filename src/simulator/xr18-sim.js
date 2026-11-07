@@ -17,7 +17,7 @@ const SUB_TTL_MS = 10000;
 const LAYOUT = {
   1: { name: 'Pastor', pattern: 'speech', db: -18 },
   2: { name: 'Announce', pattern: 'speech', db: -20 },
-  3: { name: 'Vox 1 Lead', pattern: 'sing', db: -16 },
+  3: { name: 'Vox 1', pattern: 'sing', db: -16 },
   4: { name: 'Vox 2', pattern: 'silent' },
   5: { name: 'Vox 3', pattern: 'sing', db: -20 },
   6: { name: 'Ac Gtr', pattern: 'steady', db: -18 },
@@ -32,7 +32,7 @@ const LAYOUT = {
   aux: { name: 'Walk-in', pattern: 'steady', db: -14 },
 };
 
-const BUS_NAMES = ['Keys IEM', 'Gtr IEM', 'Lead IEM', 'BGV IEM', 'Pastor Wedge', 'Stream'];
+const BUS_NAMES = ['IEM Keys', 'IEM Gtr', 'IEM Vox 1', 'IEM Vox 2', '', ''];
 
 function initialState() {
   const st = new Map();
