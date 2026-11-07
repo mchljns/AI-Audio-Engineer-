@@ -569,3 +569,18 @@ dialog.connect-dialog { width: min(640px, calc(100vw - 32px)); }
 .mix-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 3px rgba(60, 207, 122, 0.2); }
 .ride-set { display: grid; gap: 8px; padding: 10px 0; border-top: 1px solid var(--line); }
 .ride-set small { color: var(--muted); }
+
+/* Tone sheet */
+.tone-btn { appearance: none; justify-self: start; margin-top: 2px; padding: 4px 10px; min-height: 32px; border-radius: 8px; border: 1px solid var(--line); background: var(--strip); color: var(--text); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.tone-dlg { width: min(760px, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow: auto; border: 1px solid var(--line); border-radius: 16px; background: var(--panel); color: var(--text); padding: 18px; }
+.tone-dlg::backdrop { background: rgba(0, 0, 0, 0.6); }
+.tone-dlg h3 { margin: 16px 0 8px; font-size: 15px; }
+.tone-head { display: flex; justify-content: space-between; align-items: start; gap: 12px; }
+.tone-head h2 { margin: 0; }
+.meter.big { height: 10px; margin: 12px 0 6px; }
+.tone-summary { font-weight: 600; margin: 8px 0 2px; }
+.tone-fixes { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+.fix-btn { appearance: none; display: grid; gap: 2px; text-align: left; padding: 10px 12px; min-height: 56px; border-radius: 12px; border: 1px solid var(--line); background: var(--strip); color: var(--text); font: inherit; cursor: pointer; }
+.fix-btn:active { border-color: var(--accent); }
+.tone-listen { margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: rgba(245, 185, 66, 0.15); color: #f5b942; font-weight: 700; }
+.tone-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 8px; }

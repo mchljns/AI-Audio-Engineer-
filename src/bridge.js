@@ -26,6 +26,7 @@ import { Updater } from './updater.js';
 import { Library, INSTRUMENTS } from './library.js';
 import { PlanningCenter } from './pco.js';
 import { ProPresenter } from './propresenter.js';
+import { ToneDesk, applyFix, applyComp, applyGate, freshModel, toneToSave, describeTone, FIXES, COMP_PRESETS } from './tone.js';
 import { CONNECTION_MODES, chooseMixer, hardwarePorts, kindLabel, pathTo } from './netpath.js';
 import { ROLES } from './roles.js';
 
@@ -44,6 +45,7 @@ const PIN_MAX_TRIES = 5;
 const PIN_LOCKOUT_MS = 60 * 1000;
 const UNUSED_SETTLE_MS = 15000;
 
+const TONE_COMMANDS = new Set(['toneRead', 'toneFix', 'toneComp', 'toneGate', 'toneFresh', 'toneUndo', 'toneSave', 'toneLoad']);
 const LIBRARY_COMMANDS = new Set([
   'saveSlot', 'deleteSlot', 'savePerson', 'deletePerson',
   'newSet', 'openSet', 'deleteSet', 'setLineup',
@@ -304,6 +306,8 @@ export class Bridge {
       onAlert: (a) => this.alert(a),
     });
     this.fades = new FadeEngine({ state: this.state, client: this.client });
+    this.tone?.stop();
+    this.tone = new ToneDesk({ client: this.client });
     this.automix = new AutoMix({
       state: this.state,
       client: this.client,
@@ -440,6 +444,7 @@ export class Bridge {
     }
     if (LIBRARY_COMMANDS.has(cmd.type)) return this.#libraryCommand(cmd);
     if (cmd.type === 'proPresenter') return this.#proCommand(cmd);
+    if (TONE_COMMANDS.has(cmd.type)) return this.#toneCommand(cmd);
     // Never act on a mixer we can't reach: the screen would show changes that didn't happen.
     // Commands that don't need the mixer.
     const offlineOk = new Set(['dismissAlert', 'clearAlerts', 'music', 'addPlaylist', 'removePlaylist']);
@@ -634,6 +639,102 @@ export class Bridge {
 
   // ---------- people, channels, sets, songs and Planning Center ----------
 
+  // ---------- tone at soundcheck: EQ, compression, gate per person ----------
+
+  /** Channels, person and instrument on a position this week, with the channel's current tone read. */
+  async #toneTarget(slotId) {
+    const t = this.library.slotThisWeek(String(slotId));
+    if (!t || !this.tone || !t.channels.length) return null;
+    const name = this.library.person(t.personId)?.name ?? 'them';
+    const model = this.tone.model(t.channels[0]) ?? (await this.tone.read(t.channels[0]));
+    for (const ch of t.channels.slice(1)) if (!this.tone.model(ch)) await this.tone.read(ch);
+    return { ...t, name, model };
+  }
+
+  async #toneCommand(cmd) {
+    if (!this.status.connected) {
+      this.alert({ level: 'warn', source: 'tone', message: "The mixer isn't connected, so that change wasn't made." });
+      return;
+    }
+    const t = await this.#toneTarget(cmd.slotId);
+    if (!t) return;
+    if (!t.model) {
+      this.alert({ level: 'warn', source: 'tone', message: `Couldn't read channel ${t.channels[0]}'s EQ from the mixer. Try again.` });
+      return;
+    }
+    let r = null;
+    switch (cmd.type) {
+      case 'toneRead':
+        return;
+      case 'toneFix':
+        if (!FIXES[t.instrument]?.[cmd.fix] && !FIXES.vocal[cmd.fix]) return;
+        r = applyFix(t.model, t.instrument, String(cmd.fix));
+        break;
+      case 'toneComp':
+        if (cmd.preset !== 'off' && !COMP_PRESETS[cmd.preset]) return;
+        r = applyComp(t.model, cmd.preset, Math.max(-60, Math.min(0, Number(cmd.loudDb))));
+        break;
+      case 'toneGate':
+        r = applyGate(t.model, !!cmd.on, Math.max(-90, Math.min(-20, Number(cmd.floorDb))));
+        break;
+      case 'toneFresh':
+        r = { model: freshModel(t.instrument), note: 'Started fresh: EQ flat, low cut set, no compression or gate' };
+        break;
+      case 'toneUndo':
+        this.tone.undo(t.channels.map(String));
+        return;
+      case 'toneSave': {
+        this.library.savePersonTone(t.personId, t.instrument, toneToSave(t.model));
+        this.alert({ level: 'ok', source: 'tone', message: `Saved ${t.name}'s ${t.instrument === 'vocal' ? 'vocal' : t.slot.name.toLowerCase()} tone. It loads onto their channel each week when you tap "Channels are set".` });
+        return;
+      }
+      case 'toneLoad': {
+        const saved = this.library.personTone(t.personId, t.instrument);
+        if (!saved) return;
+        r = { model: { ...t.model, ...saved, b1: { ...t.model.b1, ...saved.b1 }, b2: { ...t.model.b2, ...saved.b2 }, b3: { ...t.model.b3, ...saved.b3 }, b4: { ...t.model.b4, ...saved.b4 }, comp: { ...t.model.comp, ...saved.comp }, gate: { ...t.model.gate, ...saved.gate } }, note: `Loaded ${t.name}'s saved tone` };
+        break;
+      }
+      default:
+        return;
+    }
+    if (!r?.note) return;
+    if (r.model === t.model) {
+      this.tone.notes.set(String(t.channels[0]), r.note);
+      return;
+    }
+    this.tone.write(t.channels.map(String), r.model, r.note);
+  }
+
+  /** Channels confirmed for the week: put each person's saved tone on their channel. */
+  async #loadSavedTones() {
+    const set = this.library.set();
+    if (!set || !this.tone || !this.status.connected) return;
+    const loaded = [];
+    for (const slotId of Object.keys(set.lineup)) {
+      const t = this.library.slotThisWeek(slotId);
+      if (!t || !this.library.personTone(t.personId, t.instrument)) continue;
+      await this.#toneCommand({ type: 'toneLoad', slotId });
+      const name = this.library.person(t.personId)?.name?.split(' ')[0];
+      loaded.push(`${name}${t.instrument === 'vocal' ? '' : `'s ${t.slot.name.toLowerCase()}`} (ch ${t.channels.join('/')})`);
+    }
+    if (loaded.length) this.alert({ level: 'ok', source: 'tone', message: `Loaded saved EQ and compression: ${loaded.join(', ')}. Undo in each person's Tone if this week sounds different.` });
+  }
+
+  /** What the Set tab shows for each position's tone. */
+  #toneSnapshot() {
+    const out = {};
+    const set = this.library.set();
+    if (!set || !this.tone) return out;
+    for (const slotId of Object.keys(set.lineup)) {
+      const t = this.library.slotThisWeek(slotId);
+      if (!t?.channels.length) continue;
+      const st = this.tone.status(t.channels[0]);
+      const saved = this.library.personTone(t.personId, t.instrument);
+      out[slotId] = { channels: t.channels, ...(st ?? {}), saved: saved ? { at: saved.savedAt, summary: describeTone(saved) } : null };
+    }
+    return out;
+  }
+
   /** ProPresenter put up a presentation: if it's a song in today's set, go to that song. */
   #followPresentation(name) {
     const lib = this.library;
@@ -704,6 +805,7 @@ export class Bridge {
         }
         case 'channelsDone':
           lib.setChannelsDone(!!cmd.done);
+          if (cmd.done) await this.#loadSavedTones();
           break;
         case 'setSetChannel':
           lib.setSetChannel(String(cmd.slotId), cmd.left === null ? '' : String(cmd.left ?? ''), String(cmd.right ?? ''));
@@ -770,6 +872,7 @@ export class Bridge {
       slots: d.slots,
       people: d.people.map(({ id, name, instruments }) => ({ id, name, instruments })),
       instruments: d.instruments,
+      toneFixes: Object.fromEntries(Object.entries(FIXES).map(([k, v]) => [k, Object.entries(v).map(([id, f]) => ({ id, label: f.label, hint: f.hint }))])),
       mix: d.mix,
       sets: d.sets.map((s) => ({ id: s.id, title: s.title, date: s.date, fromPco: !!s.pco, songs: s.songs.length })),
       current: set
@@ -781,6 +884,7 @@ export class Bridge {
       currentSong: d.currentSong,
       pco: this.pco.status(),
       pro: { ...this.pro.status(), match: this.proMatch },
+      tone: this.#toneSnapshot(),
     };
   }
 

@@ -52,6 +52,25 @@ function initialState() {
     // Click and guide feed the keys and guitar in-ears (aux 1-2), as they should.
     for (const b of AUX_BUSES) st.set(paths.send(id, b), { type: 'f', value: isLocked && b <= 2 ? dbToFloat(-5) : 0 });
   }
+  // Channel processing (low cut, EQ, compressor, gate) for ch 1–16, as a fresh XR18 has it.
+  for (let i = 1; i <= 16; i++) {
+    const c = `/ch/${String(i).padStart(2, '0')}`;
+    const f = (k, v) => st.set(`${c}/${k}`, { type: 'f', value: v });
+    const n = (k, v) => st.set(`${c}/${k}`, { type: 'i', value: v });
+    n('preamp/hpon', 0);
+    f('preamp/hpf', 0.5);
+    n('eq/on', 1);
+    [0.2, 0.45, 0.65, 0.85].forEach((fr, b) => {
+      n(`eq/${b + 1}/type`, 2);
+      f(`eq/${b + 1}/f`, fr);
+      f(`eq/${b + 1}/g`, 0.5);
+      f(`eq/${b + 1}/q`, 0.5);
+    });
+    for (const [k, v] of [['on', 0], ['mode', 0], ['ratio', 3], ['auto', 0]]) n(`dyn/${k}`, v);
+    for (const [k, v] of [['thr', 0.6], ['knee', 0.4], ['mgain', 0], ['attack', 0.1], ['release', 0.5]]) f(`dyn/${k}`, v);
+    for (const [k, v] of [['on', 0], ['mode', 3]]) n(`gate/${k}`, v);
+    for (const [k, v] of [['thr', 0.3], ['range', 0.3], ['attack', 0], ['hold', 0.5], ['release', 0.5]]) f(`gate/${k}`, v);
+  }
   BUS_NAMES.forEach((name, i) => st.set(paths.busName(i + 1), { type: 's', value: name }));
   for (let n = 1; n <= DCA_COUNT; n++) {
     st.set(paths.dcaName(n), { type: 's', value: ['Speech', 'Vocals', 'Band', 'Tracks'][n - 1] });

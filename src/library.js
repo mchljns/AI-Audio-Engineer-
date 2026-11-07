@@ -95,7 +95,7 @@ export class Library {
       instruments.push({ type: it.type, stereo: mode === 'always' ? true : mode === 'never' ? false : !!it.stereo });
     }
     const existing = p?.id ? this.person(p.id) : null;
-    const person = { id: existing ? existing.id : newId(), name: clean(p?.name, 40) || 'Unnamed', instruments, pcoId: existing?.pcoId ?? (p?.pcoId ? String(p.pcoId) : null) };
+    const person = { id: existing ? existing.id : newId(), name: clean(p?.name, 40) || 'Unnamed', instruments, pcoId: existing?.pcoId ?? (p?.pcoId ? String(p.pcoId) : null), tone: existing?.tone ?? {} };
     const i = this.data.people.findIndex((x) => x.id === person.id);
     if (i >= 0) this.data.people[i] = person;
     else if (this.data.people.length < 200) this.data.people.push(person);
@@ -155,6 +155,29 @@ export class Library {
   slotIn(set, slot) {
     const o = set?.channels?.[slot?.id];
     return o ? { ...slot, left: o.left, right: o.right, usual: { left: slot.left, right: slot.right } } : slot;
+  }
+
+  /** A person's saved tone (EQ, compression, gate) for one instrument, or null. */
+  personTone(personId, instrument) {
+    return this.person(personId)?.tone?.[instrument] ?? null;
+  }
+
+  savePersonTone(personId, instrument, tone) {
+    const p = this.person(personId);
+    if (!p || !INSTRUMENTS[instrument] || !tone || typeof tone !== 'object') return false;
+    p.tone ??= {};
+    p.tone[instrument] = { ...tone, savedAt: new Date().toISOString() };
+    this.save();
+    return true;
+  }
+
+  /** Who is on a position this week, and on which channels. */
+  slotThisWeek(slotId) {
+    const set = this.set();
+    const slot = this.slot(slotId);
+    const personId = set?.lineup[slotId];
+    if (!slot || !personId) return null;
+    return { slot, personId, instrument: slot.instrument, channels: this.channelsFor(slot, personId) };
   }
 
   /** This week only: move a position to other channels. left '' clears it back to the usual channels. */

@@ -174,6 +174,41 @@
       </section>
     </main>
 
+    <dialog id="toneDlg" class="tone-dlg" aria-labelledby="toneTitle">
+      <div class="tone-head">
+        <div>
+          <h2 id="toneTitle">Tone</h2>
+          <span id="toneSub" class="muted small"></span>
+        </div>
+        <button id="toneClose" class="icon-btn" type="button" aria-label="Close">✕</button>
+      </div>
+      <div class="meter big" id="toneMeter"><div class="lvl"></div></div>
+      <p id="toneSummary" class="tone-summary"></p>
+      <p id="toneNote" class="muted small"></p>
+      <h3>What do you hear? Tap to fix (small steps; tap again for more)</h3>
+      <div id="toneFixes" class="tone-fixes"></div>
+      <h3>Compression <small class="muted">evens out loud and quiet lines</small></h3>
+      <div class="seg mini" id="toneComp">
+        <button class="seg-btn" type="button" data-comp="off">Off</button>
+        <button class="seg-btn" type="button" data-comp="light">Light</button>
+        <button class="seg-btn" type="button" data-comp="medium">Medium</button>
+        <button class="seg-btn" type="button" data-comp="firm">Firm</button>
+      </div>
+      <h3>Hiss between lines <small class="muted">a gentle gate, set from their mic's own hiss</small></h3>
+      <div class="row">
+        <button id="toneGateOn" class="btn btn-small" type="button">Turn hiss down between lines</button>
+        <button id="toneGateOff" class="btn btn-small btn-ghost" type="button">Gate off</button>
+      </div>
+      <p id="toneListen" class="tone-listen" hidden></p>
+      <div class="tone-actions">
+        <button id="toneUndo" class="btn btn-ghost" type="button">Undo</button>
+        <button id="toneFresh" class="btn btn-ghost" type="button">Start fresh</button>
+        <button id="toneLoad" class="btn btn-ghost" type="button">Load saved</button>
+        <button id="toneSave" class="btn" type="button">Save to person</button>
+      </div>
+      <p class="muted small">Changes go to the mixer straight away. EQ and compression are on the channel itself, so they also change how this person sounds in the in-ears (in-ear levels are never touched). Saved tone loads onto their channel each week when you tap "Channels are set".</p>
+    </dialog>
+
     <main class="pa setv" id="setView" hidden>
       <div class="seg" role="tablist" aria-label="Set view">
         <button id="segSoundcheck" class="seg-btn" type="button" role="tab">Soundcheck: set roles</button>

@@ -369,6 +369,7 @@ function render(s) {
   renderPa(s);
   renderSet(s);
   renderChannels(s);
+  renderTone(s);
   renderSoundcheck(s);
   renderPro(s);
 
@@ -759,7 +760,7 @@ function renderSoundcheck(s) {
   }
 
   // Tiles: rebuilt when the song or roles change; levels update every refresh.
-  if (changed('scRows', [set.id, idx, song?.lead, song?.harmonies, song?.leadInstrument, [...rows.values()].map((r) => [r.person.id, r.vocal?.id, r.instruments.map((i) => i.id)]), set.channels, L.people])) {
+  if (changed('scRows', [set.id, idx, song?.lead, song?.harmonies, song?.leadInstrument, [...rows.values()].map((r) => [r.person.id, r.vocal?.id, r.instruments.map((i) => i.id)]), set.channels, L.people, Object.entries(L.tone ?? {}).map(([k, v]) => [k, !!v.saved])])) {
     const setVocal = (pid, role) => {
       if (!song) return;
       let lead = song.lead;
@@ -774,7 +775,12 @@ function renderSoundcheck(s) {
       send({ type: 'setSongLeads', index: idx, lead, harmonies: [...harm] });
     };
     const meter = (slot) => el('div', { class: 'meter', 'data-ch': slot.left, 'data-ch2': slot.right || '' }, [el('div', { class: 'lvl' })]);
-    const label = (text, slot) => el('div', { class: 'sc-label' }, [el('span', { text }), el('span', { class: `ch-tag${slot.moved ? ' moved' : ''}`, text: pairLabel(slot.left, slot.right) })]);
+    const label = (text, slot) => {
+      const tone = el('button', { class: 'tone-btn', type: 'button', text: '🎚 Tone' });
+      tone.addEventListener('click', () => openTone(slot.id));
+      const saved = s.setlist.tone?.[slot.id]?.saved;
+      return el('div', { class: 'sc-label' }, [el('span', { text }), el('span', { class: `ch-tag${slot.moved ? ' moved' : ''}`, text: pairLabel(slot.left, slot.right) + (saved ? ' · saved tone' : '') }), tone]);
+    };
     $('#scPeople').replaceChildren(
       ...[...rows.values()].map(({ person, vocal, instruments }) => {
         const role = song ? roleOf(song, person.id) : 'none';
@@ -986,6 +992,114 @@ function finishFind(s, levels) {
 }
 $('#chDone').addEventListener('click', () => send({ type: 'channelsDone', done: true }));
 $('#chEdit').addEventListener('click', () => send({ type: 'channelsDone', done: false }));
+
+// ---------- Tone at soundcheck: EQ, compression, gate for one person's mic or instrument ----------
+let toneSlot = null;
+let toneListen = null; // { kind: 'comp'|'gate', preset, until, samples: [] }
+function openTone(slotId) {
+  toneSlot = slotId;
+  toneListen = null;
+  keys.toneFixes = null;
+  send({ type: 'toneRead', slotId });
+  $('#toneDlg').showModal();
+}
+$('#toneClose').addEventListener('click', () => $('#toneDlg').close());
+$('#toneDlg').addEventListener('close', () => {
+  toneSlot = null;
+  toneListen = null;
+});
+const toneSend = (o) => toneSlot && send({ ...o, slotId: toneSlot });
+$('#toneUndo').addEventListener('click', () => toneSend({ type: 'toneUndo' }));
+$('#toneFresh').addEventListener('click', () => toneSend({ type: 'toneFresh' }));
+$('#toneLoad').addEventListener('click', () => toneSend({ type: 'toneLoad' }));
+$('#toneSave').addEventListener('click', () => toneSend({ type: 'toneSave' }));
+for (const b of document.querySelectorAll('#toneComp .seg-btn')) {
+  b.addEventListener('click', () => {
+    if (b.dataset.comp === 'off') return toneSend({ type: 'toneComp', preset: 'off' });
+    toneListen = { kind: 'comp', preset: b.dataset.comp, until: Date.now() + 7000, samples: [] };
+  });
+}
+$('#toneGateOn').addEventListener('click', () => (toneListen = { kind: 'gate', until: Date.now() + 4000, samples: [] }));
+$('#toneGateOff').addEventListener('click', () => toneSend({ type: 'toneGate', on: false }));
+
+function renderTone(s) {
+  if (!toneSlot || !$('#toneDlg').open) return;
+  const L = s.setlist;
+  const set = L?.current;
+  const slot = L?.slots.find((x) => x.id === toneSlot);
+  const pid = set?.lineup[toneSlot];
+  const person = L?.people.find((p) => p.id === pid);
+  const T = L?.tone?.[toneSlot];
+  if (!slot || !person || !T) {
+    $('#toneSummary').textContent = 'Reading the channel from the mixer…';
+    return;
+  }
+  const first = person.name.split(' ')[0];
+  const what = slot.instrument === 'vocal' ? 'Vocal' : slot.name;
+  $('#toneTitle').textContent = `${person.name} · ${what}`;
+  $('#toneSub').textContent = `${T.channels.length > 1 ? `Ch ${T.channels.join(' + ')}` : `Ch ${T.channels[0]}`}${T.saved ? ` · saved tone from ${new Date(T.saved.at).toLocaleDateString()}` : ' · no saved tone yet'}`;
+  $('#toneSummary').textContent = T.summary ?? 'Reading the channel from the mixer…';
+  $('#toneNote').textContent = T.note ? `Last change: ${T.note}` : '';
+  $('#toneUndo').disabled = !T.canUndo;
+  $('#toneLoad').disabled = !T.saved;
+  $('#toneSave').textContent = `Save to ${first}`;
+  const comp = T.model?.comp;
+  const ratio = comp?.on ? [1.1, 1.3, 1.5, 2, 2.5, 3, 4, 5, 7, 10, 20, 100][comp.ratio] : null;
+  const compNow = !comp?.on ? 'off' : ratio <= 2 ? 'light' : ratio <= 3 ? 'medium' : 'firm';
+  for (const b of document.querySelectorAll('#toneComp .seg-btn')) b.classList.toggle('active', b.dataset.comp === compNow);
+
+  const fixes = L.toneFixes?.[slot.instrument] ?? L.toneFixes?.vocal ?? [];
+  if (changed('toneFixes', [toneSlot, fixes.map((f) => f.id)])) {
+    $('#toneFixes').replaceChildren(
+      ...fixes.map((f) => {
+        const b = el('button', { class: 'fix-btn', type: 'button' }, [el('b', { text: f.label }), el('span', { class: 'muted small', text: f.hint })]);
+        b.addEventListener('click', () => toneSend({ type: 'toneFix', fix: f.id }));
+        return b;
+      }),
+    );
+  }
+
+  // Live level, and listening for compression (their loudest part) or the gate (quiet: the mic's hiss).
+  const levels = new Map(s.inventory.rows.map((r) => [r.id, r.levelDb ?? -128]));
+  const db = Math.max(...T.channels.map((c) => levels.get(c) ?? -128));
+  $('#toneMeter').firstChild.style.width = `${Math.max(0, Math.min(100, ((db + 60) / 60) * 100))}%`;
+  const box = $('#toneListen');
+  if (!toneListen) {
+    box.hidden = true;
+    return;
+  }
+  box.hidden = false;
+  toneListen.samples.push(db);
+  const left = Math.max(0, Math.ceil((toneListen.until - Date.now()) / 1000));
+  box.textContent =
+    toneListen.kind === 'comp'
+      ? `Have ${first} ${slot.instrument === 'vocal' ? 'sing' : 'play'} the loudest part of a song… ${left}s`
+      : `Quiet please: nobody on ${first}'s ${slot.instrument === 'vocal' ? 'mic' : slot.name.toLowerCase()} for ${left}s (measuring its hiss)`;
+  if (Date.now() < toneListen.until) return;
+  const xs = [...toneListen.samples].sort((a, b) => a - b);
+  const L0 = toneListen;
+  toneListen = null;
+  if (L0.kind === 'comp') {
+    const loud = xs.filter((x) => x > -50);
+    if (loud.length < 10) {
+      box.hidden = false;
+      box.textContent = `Didn't hear ${first} loud enough to set it. Try again while they sing out.`;
+      setTimeout(() => !toneListen && (box.hidden = true), 4000);
+      return;
+    }
+    const loudDb = loud[Math.floor(loud.length * 0.9)];
+    toneSend({ type: 'toneComp', preset: L0.preset, loudDb });
+  } else {
+    const floorDb = xs[Math.floor(xs.length * 0.5)];
+    if (floorDb > -35) {
+      box.hidden = false;
+      box.textContent = "That wasn't quiet: there was sound on the mic. Try again when it's silent.";
+      setTimeout(() => !toneListen && (box.hidden = true), 4000);
+      return;
+    }
+    toneSend({ type: 'toneGate', on: true, floorDb });
+  }
+}
 
 // ---------- ProPresenter: follow the song that's up ----------
 function renderPro(s) {
