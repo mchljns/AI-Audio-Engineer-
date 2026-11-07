@@ -165,7 +165,32 @@
     </main>
 
     <main class="pa setv" id="setView" hidden>
-      <section class="auto-card live-card">
+      <div class="seg" role="tablist" aria-label="Set view">
+        <button id="segSoundcheck" class="seg-btn" type="button" role="tab">Soundcheck: set roles</button>
+        <button id="segService" class="seg-btn active" type="button" role="tab">Service: song buttons</button>
+      </div>
+
+      <section class="auto-card sc-card" id="scCard" hidden>
+        <div class="sc-head">
+          <button id="scPrev" class="icon-btn big" type="button" aria-label="Previous song">◀</button>
+          <div class="sc-title">
+            <span id="scCount" class="muted small"></span>
+            <h2 id="scSong">No songs yet</h2>
+          </div>
+          <button id="scNext" class="icon-btn big" type="button" aria-label="Next song">▶</button>
+        </div>
+        <p class="muted small">Tap a singer: once for <b>Lead</b>, again for <b>Harmony</b>, again for not singing. Tap an instrument to make it the lead. Saved straight away and remembered for next time.</p>
+        <h3>Singers</h3>
+        <div id="scSingers" class="tiles"></div>
+        <div class="hearing">
+          <span id="scHearing" class="muted">Listening…</span>
+          <button id="scUseHearing" class="btn btn-small" type="button" disabled>Use what I'm hearing</button>
+        </div>
+        <h3>Lead instrument</h3>
+        <div id="scInstruments" class="tiles"></div>
+      </section>
+
+      <section class="auto-card live-card" id="liveCard">
         <div class="set-head">
           <h2 id="setTitle">No set yet</h2>
           <select id="setPick" aria-label="Choose a set"></select>

@@ -484,3 +484,24 @@ dialog.connect-dialog { width: min(640px, calc(100vw - 32px)); }
 .icon-btn { appearance: none; border: 1px solid var(--line); background: var(--bg); color: var(--muted); border-radius: 8px; min-width: 36px; min-height: 36px; cursor: pointer; font: inherit; }
 .pco-plans { list-style: none; padding: 0; margin: 8px 0; display: grid; gap: 6px; }
 .pco-plans li { display: flex; justify-content: space-between; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 8px; background: var(--strip); }
+
+/* ---------- Set tab: soundcheck view ---------- */
+.seg { display: flex; gap: 4px; padding: 4px; border-radius: 12px; background: var(--strip); }
+.seg-btn { flex: 1; appearance: none; border: 0; background: transparent; color: var(--muted); font: inherit; font-weight: 700; padding: 10px; border-radius: 9px; min-height: 44px; cursor: pointer; }
+.seg-btn.active { background: var(--accent); color: #0b0d10; }
+.sc-head { display: flex; align-items: center; gap: 12px; }
+.sc-title { flex: 1; text-align: center; min-width: 0; }
+.sc-title h2 { margin: 2px 0 0; font-size: 24px; justify-content: center; }
+.sc-card > p { margin-top: 10px; }
+.icon-btn.big { min-width: 56px; min-height: 56px; font-size: 20px; color: var(--text); }
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
+.tile { position: relative; overflow: hidden; appearance: none; text-align: left; cursor: pointer; display: grid; gap: 6px; padding: 14px; min-height: 96px; border-radius: 14px; border: 2px solid var(--line); background: var(--panel); color: var(--text); font: inherit; }
+.tile b { font-size: 18px; position: relative; }
+.tile .role { font-size: 13px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); position: relative; }
+.tile .lvl { position: absolute; left: 0; bottom: 0; height: 5px; background: var(--ok); transition: width 90ms linear; }
+.tile.active-now { box-shadow: 0 0 0 1px rgba(60, 207, 122, 0.5) inset; }
+.tile.r-lead { border-color: var(--accent); background: rgba(90, 169, 255, 0.16); }
+.tile.r-lead .role { color: var(--accent); }
+.tile.r-harmony { border-color: #a855f7; background: rgba(168, 85, 247, 0.14); }
+.tile.r-harmony .role { color: #c084fc; }
+.hearing { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-top: 10px; padding: 10px 12px; border-radius: 10px; background: var(--strip); }

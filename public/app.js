@@ -368,6 +368,7 @@ function render(s) {
   renderMac(s);
   renderPa(s);
   renderSet(s);
+  renderSoundcheck(s);
 
   for (const r of inv.rows) updateChannel(r);
   for (const d of s.dcas) updateDca(d);
@@ -658,6 +659,160 @@ function renderSet(s) {
     box.replaceChildren(...parts);
   }
 }
+// ---------- Set tab: soundcheck view (set roles while hearing each song) ----------
+let setView = 'service';
+try {
+  setView = localStorage.getItem('mixSetView') === 'soundcheck' ? 'soundcheck' : 'service';
+} catch {
+  /* fine */
+}
+function showSetView(v) {
+  setView = v;
+  $('#scCard').hidden = v !== 'soundcheck';
+  $('#liveCard').hidden = v === 'soundcheck';
+  $('#segSoundcheck').classList.toggle('active', v === 'soundcheck');
+  $('#segService').classList.toggle('active', v !== 'soundcheck');
+  try {
+    localStorage.setItem('mixSetView', v);
+  } catch {
+    /* fine */
+  }
+  // Soundcheck starts on the first song, so its mix is heard while roles are set.
+  const L = latest?.setlist;
+  if (v === 'soundcheck' && L?.current?.songs.length && L.currentSong === null) send({ type: 'playSong', index: 0 });
+}
+$('#segSoundcheck').addEventListener('click', () => showSetView('soundcheck'));
+$('#segService').addEventListener('click', () => showSetView('service'));
+showSetView(setView);
+
+// What the vocal mics are doing during this song, for "Use what I'm hearing".
+let hearing = { song: null, since: 0, ch: new Map() }; // channel -> { n, active, sum }
+let hearingSuggestion = null;
+const ACTIVE_DB = -35; // a singer's mic is "singing" above this (gains staged to peak around -18 to -12)
+
+function roleOf(song, pid) {
+  if (song.lead === pid) return 'lead';
+  if (song.harmonies.includes(pid)) return 'harmony';
+  return 'none';
+}
+
+function renderSoundcheck(s) {
+  const L = s.setlist;
+  const set = L?.current;
+  const idx = L?.currentSong ?? null;
+  const song = set && idx !== null ? set.songs[idx] : null;
+  const levelOf = (ch) => s.inventory.rows.find((r) => r.id === ch)?.levelDb ?? -128;
+  const people = Object.fromEntries((L?.people ?? []).map((p) => [p.id, p]));
+  const singers = set ? L.slots.filter((x) => x.instrument === 'vocal' && set.lineup[x.id] && x.left).map((x) => ({ slot: x, person: people[set.lineup[x.id]] })).filter((x) => x.person) : [];
+  const players = set ? L.slots.filter((x) => x.instrument !== 'vocal' && set.lineup[x.id] && x.left).map((x) => ({ slot: x, person: people[set.lineup[x.id]] })).filter((x) => x.person) : [];
+
+  $('#scPrev').disabled = !song || idx === 0;
+  $('#scNext').disabled = !set?.songs.length || (song && idx === set.songs.length - 1);
+  if (!set || !set.songs.length) {
+    $('#scSong').textContent = set ? 'No songs yet' : 'No set yet';
+    $('#scCount').textContent = set ? 'Add songs under Service → Edit this set, or import from Planning Center.' : 'Start or import a set first.';
+    $('#scSingers').replaceChildren();
+    $('#scInstruments').replaceChildren();
+    return;
+  }
+  if (!song) {
+    $('#scSong').textContent = 'Tap ▶ to start with song 1';
+    $('#scCount').textContent = `${set.songs.length} songs`;
+  } else {
+    $('#scSong').textContent = `${song.title}${song.key ? ` (${song.key})` : ''}`;
+    $('#scCount').textContent = `Song ${idx + 1} of ${set.songs.length}`;
+  }
+
+  // Tiles: rebuilt when the song or roles change; levels update every refresh.
+  if (changed('scTiles', [set.id, idx, song?.lead, song?.harmonies, song?.leadInstrument, singers.map((x) => [x.slot.id, x.person.id]), players.map((x) => [x.slot.id, x.person.id])])) {
+    $('#scSingers').replaceChildren(
+      ...singers.map(({ slot, person }) => {
+        const r = song ? roleOf(song, person.id) : 'none';
+        const t = el('button', { class: `tile r-${r}`, type: 'button', 'data-ch': slot.left }, [el('b', { text: person.name }), el('span', { class: 'role', text: r === 'lead' ? 'Lead' : r === 'harmony' ? 'Harmony' : 'Not singing' }), el('span', { class: 'muted small', text: slot.name }), el('div', { class: 'lvl' })]);
+        t.addEventListener('click', () => {
+          if (!song) return;
+          let lead = song.lead;
+          const harm = new Set(song.harmonies);
+          const cur = roleOf(song, person.id);
+          if (cur === 'none') {
+            // Becomes the lead; the old lead moves to harmony.
+            if (lead) harm.add(lead);
+            harm.delete(person.id);
+            lead = person.id;
+          } else if (cur === 'lead') {
+            lead = null;
+            harm.add(person.id);
+          } else harm.delete(person.id);
+          harm.delete(lead);
+          send({ type: 'setSongLeads', index: idx, lead, harmonies: [...harm] });
+        });
+        return t;
+      }),
+    );
+    $('#scInstruments').replaceChildren(
+      ...players.map(({ slot, person }) => {
+        const isLead = song?.leadInstrument === slot.id;
+        const t = el('button', { class: `tile${isLead ? ' r-lead' : ''}`, type: 'button', 'data-ch': slot.left, 'data-ch2': slot.right || '' }, [el('b', { text: slot.name }), el('span', { class: 'role', text: isLead ? 'Lead instrument' : '' }), el('span', { class: 'muted small', text: person.name }), el('div', { class: 'lvl' })]);
+        t.addEventListener('click', () => song && send({ type: 'setSongLeads', index: idx, leadInstrument: isLead ? null : slot.id }));
+        return t;
+      }),
+    );
+  }
+  for (const t of document.querySelectorAll('#scCard .tile')) {
+    const db = Math.max(levelOf(t.dataset.ch), t.dataset.ch2 ? levelOf(t.dataset.ch2) : -128);
+    t.querySelector('.lvl').style.width = `${Math.max(0, Math.min(100, ((db + 60) / 60) * 100))}%`;
+    t.classList.toggle('active-now', db > ACTIVE_DB);
+  }
+
+  // Listen: which singers are active during this song, and how strongly.
+  const key = `${set.id}:${idx}`;
+  if (hearing.song !== key) hearing = { song: key, since: Date.now(), ch: new Map() };
+  if (song) {
+    for (const { slot } of singers) {
+      const db = levelOf(slot.left);
+      const h = hearing.ch.get(slot.left) ?? { n: 0, active: 0, sum: 0 };
+      h.n++;
+      if (db > ACTIVE_DB) {
+        h.active++;
+        h.sum += db + 60;
+      }
+      hearing.ch.set(slot.left, h);
+    }
+  }
+  const secs = (Date.now() - hearing.since) / 1000;
+  const scored = singers
+    .map(({ slot, person }) => {
+      const h = hearing.ch.get(slot.left);
+      const frac = h && h.n ? h.active / h.n : 0;
+      const strength = h && h.active ? h.sum / h.active : 0;
+      return { person, frac, score: frac * strength };
+    })
+    .sort((a, b) => b.score - a.score);
+  hearingSuggestion = null;
+  if (song && secs >= 10 && scored[0]?.frac >= 0.2) {
+    const lead = scored[0].person;
+    const harmonies = scored.slice(1).filter((x) => x.frac >= 0.15).map((x) => x.person);
+    hearingSuggestion = { lead: lead.id, harmonies: harmonies.map((p) => p.id) };
+    $('#scHearing').textContent = `Hearing: ${lead.name} leading${harmonies.length ? `, ${harmonies.map((p) => p.name).join(' and ')} harmonizing` : ', nobody else singing'}.`;
+  } else {
+    $('#scHearing').textContent = song ? (secs < 10 ? 'Listening… (play some of the song)' : 'Not hearing anyone sing yet.') : 'Start a song to listen.';
+  }
+  $('#scUseHearing').disabled = !hearingSuggestion;
+}
+$('#scUseHearing').addEventListener('click', () => {
+  const idx = latest?.setlist?.currentSong;
+  if (!hearingSuggestion || idx === null || idx === undefined) return;
+  send({ type: 'setSongLeads', index: idx, lead: hearingSuggestion.lead, harmonies: hearingSuggestion.harmonies });
+});
+$('#scPrev').addEventListener('click', () => {
+  const idx = latest?.setlist?.currentSong;
+  if (idx) send({ type: 'playSong', index: idx - 1 });
+});
+$('#scNext').addEventListener('click', () => {
+  const idx = latest?.setlist?.currentSong;
+  send({ type: 'playSong', index: idx === null || idx === undefined ? 0 : idx + 1 });
+});
+
 $('#setPick').addEventListener('change', (e) => e.target.value && send({ type: 'openSet', id: e.target.value }));
 $('#nextSongBtn').addEventListener('click', () => send({ type: 'nextSong' }));
 $('#noSongBtn').addEventListener('click', () => send({ type: 'playSong', index: null }));
