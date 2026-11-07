@@ -82,6 +82,7 @@ export class AutoMix extends EventEmitter {
     // Singer mics turned down in the room for the sermon: id -> the fader level to put back.
     // Done with the channel FADER, never the mute: with pre-fader sends the in-ear mixes are untouched.
     this.pulled = new Map();
+    this.focus = new Map(); // song mix: channel id -> dB cut (0 or below), from the current song
     this.keepOpen = new Set(); // singers a person turned back up: left alone until the mode changes
     this.lastSaveAt = 0;
     this.dirty = false;
@@ -120,7 +121,7 @@ export class AutoMix extends EventEmitter {
 
   update(partial) {
     const before = { ...this.settings };
-    for (const k of ['speechAutomix', 'duckMusic', 'muteSingersWhenSpeaking', 'autoModes', 'metersPostFader']) {
+    for (const k of ['speechAutomix', 'duckMusic', 'muteSingersWhenSpeaking', 'autoModes', 'metersPostFader', 'songMix']) {
       if (typeof partial[k] === 'boolean') this.settings[k] = partial[k];
     }
     if (Number.isFinite(partial.duckDb)) this.settings.duckDb = Math.min(15, Math.max(2, partial.duckDb));
@@ -130,6 +131,21 @@ export class AutoMix extends EventEmitter {
     if (before.duckMusic && !this.settings.duckMusic) this.#releaseGroup('music');
     if (before.muteSingersWhenSpeaking && !this.settings.muteSingersWhenSpeaking) this.#restoreSingers();
     return this.settings;
+  }
+
+  /** The current song's mix: { channelId: dB } cuts (0 = stands out). Empty map = no song. */
+  setFocus(cuts = {}) {
+    this.focus = new Map(
+      Object.entries(cuts)
+        .filter(([, db]) => Number.isFinite(db))
+        .map(([id, db]) => [String(id), Math.max(-24, Math.min(0, db))]),
+    );
+  }
+
+  /** Something tells us a mode has started (e.g. a song button). Unlike setMode, doesn't lock it. */
+  hintMode(mode) {
+    if (!MODES[mode] || mode === 'idle' || this.modeLocked || this.settings.autoModes === false) return;
+    this.#enterMode(mode, Date.now());
   }
 
   /** A person picks a mode (or null to go back to automatic). */
@@ -191,9 +207,15 @@ export class AutoMix extends EventEmitter {
     // Speech auto-mix (gain sharing)
     if (this.settings.speechAutomix && groups.speech.length >= 2) this.#gainShare(groups.speech, now);
 
+    // Song mix: during worship, the current song's lead singer and lead instrument stand out
+    // (everyone else sits back a little). Only cuts, never boosts; set by the set/song buttons.
+    const focusOn = this.settings.songMix !== false && this.mode === 'worship';
+    const focus = (id) => (focusOn ? (this.focus.get(id) ?? 0) : 0);
+
     // Ducking under speech
     const duck = this.settings.duckMusic && this.mode === 'talkover' && speechActive && musicActive ? -this.settings.duckDb : 0;
-    for (const id of groups.music) this.ch.get(id).targetDb = duck;
+    for (const id of groups.music) this.ch.get(id).targetDb = Math.max(-24, duck + focus(id));
+    for (const id of groups.vocal) if (!this.pulled.has(id)) this.ch.get(id).targetDb = focus(id);
     // Pre/post-service music comes down under a welcome or closing words, whatever the mode.
     const duckWalkin = this.settings.duckMusic && talking ? -this.settings.duckDb : 0;
     for (const id of groups.walkin) this.ch.get(id).targetDb = duckWalkin;
@@ -221,7 +243,8 @@ export class AutoMix extends EventEmitter {
     }
 
     // Move faders toward their targets
-    for (const id of [...groups.speech, ...groups.music, ...groups.walkin]) this.#apply(id, groups.speech.includes(id));
+    const vocalsToMove = groups.vocal.filter((id) => !this.pulled.has(id));
+    for (const id of [...groups.speech, ...groups.music, ...groups.walkin, ...vocalsToMove]) this.#apply(id, groups.speech.includes(id));
     this.#save(false, now);
   }
 
@@ -467,6 +490,7 @@ export class AutoMix extends EventEmitter {
         duckMusic: this.settings.duckMusic,
         muteSingersWhenSpeaking: this.settings.muteSingersWhenSpeaking,
         autoModes: this.settings.autoModes,
+        songMix: this.settings.songMix !== false,
         duckDb: this.settings.duckDb,
       },
       activity: this.activity ?? {},

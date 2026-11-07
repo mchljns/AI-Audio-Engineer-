@@ -199,3 +199,24 @@ test('walk-in music is turned down under a welcome and comes back after', () => 
   run({ 2: -85 }, 8000);
   assert.ok(offset('aux') > -1, `walk-in back up ${offset('aux')}`);
 });
+
+test('song mix: only during worship, only cuts, and a person still wins', () => {
+  const { run, mix, offset, state } = rig();
+  mix.setFocus({ 3: 0, 4: -4, 7: -3, 6: 0 });
+  run({ 1: -18 }, 8000); // speaking: no song mix
+  assert.equal(offset('4'), 0);
+  run({ 1: -85, 6: -15, 7: -15, 3: -18, 4: -20 }, 5000); // worship
+  assert.equal(mix.mode, 'worship');
+  assert.ok(offset('4') < -3.5, `harmony back ${offset('4')}`);
+  assert.ok(offset('7') < -2.5, `keys back ${offset('7')}`);
+  assert.equal(offset('3'), 0, 'lead untouched');
+  mix.setFocus({});
+  run({}, 4000);
+  assert.ok(offset('4') > -0.5, 'clearing the song brings everyone back');
+  mix.update({ songMix: false });
+  mix.setFocus({ 4: -10 });
+  run({}, 3000);
+  assert.ok(offset('4') > -0.5, 'switch off: no song mix');
+  for (const c of mix.ch.values()) assert.ok(c.offsetDb <= 0);
+  assert.ok(state.strips['4'].on);
+});

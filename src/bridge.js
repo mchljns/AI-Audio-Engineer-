@@ -23,6 +23,8 @@ import { FadeEngine } from './fades.js';
 import { AutoMix } from './automix.js';
 import { MusicController, toSpotifyUri } from './music.js';
 import { Updater } from './updater.js';
+import { Library } from './library.js';
+import { PlanningCenter } from './pco.js';
 import { CONNECTION_MODES, chooseMixer, hardwarePorts, kindLabel, pathTo } from './netpath.js';
 import { ROLES } from './roles.js';
 
@@ -40,6 +42,13 @@ const PIN_LENGTH = 6;
 const PIN_MAX_TRIES = 5;
 const PIN_LOCKOUT_MS = 60 * 1000;
 const UNUSED_SETTLE_MS = 15000;
+
+const LIBRARY_COMMANDS = new Set([
+  'saveSlot', 'deleteSlot', 'savePerson', 'deletePerson',
+  'newSet', 'openSet', 'deleteSet', 'setLineup',
+  'addSong', 'removeSong', 'moveSong', 'setSongLeads', 'playSong', 'nextSong', 'songMixAmounts',
+  'pcoServiceTypes', 'pcoPlans', 'pcoImport',
+]);
 
 // PA knob positions worth writing down, so a bumped knob can be put back next week.
 const PA_FIELDS = [
@@ -131,6 +140,8 @@ export class Bridge {
     this.state = new MixerState();
     this.roleStore = new RoleStore(path.join(config.dataDir, 'roles.json'));
     this.lockStore = new LockStore(path.join(config.dataDir, 'locks.json'));
+    this.library = new Library(path.join(config.dataDir, 'library.json'));
+    this.pco = new PlanningCenter({ file: path.join(config.dataDir, 'pco.json'), ...(config.pcoBaseUrl ? { baseUrl: config.pcoBaseUrl } : {}) });
     this.settingsFile = path.join(config.dataDir, 'settings.json');
     this.settings = { walkinLevels: {}, automix: {}, playlists: [], connection: 'auto', venues: [], venue: null, checklist: { date: '', done: {} } };
     try {
@@ -294,6 +305,7 @@ export class Bridge {
       settings: { ...(this.config.automix ?? {}), ...(this.settings.automix ?? {}) },
       onAlert: (a) => this.alert(a),
     });
+    this.automix.setFocus(this.library.focusForCurrentSong());
     this.automix.on('mode', ({ mode, auto }) => {
       const label = { walkin: 'Before / after', worship: 'Worship', talkover: 'Talking over music', speaking: 'Speaking' }[mode] ?? mode;
       this.alert({ level: 'info', source: 'automix', message: `${auto ? 'Switched' : 'Set'} to ${label}.` });
@@ -412,6 +424,12 @@ export class Bridge {
     if (cmd.type === 'checkItem') return this.#checkItem(cmd);
     // PA knob positions can be noted from any device (a volunteer standing at the speaker).
     if (cmd.type === 'savePa') return this.#savePa(cmd);
+    // People, channels, sets and songs: from any connected device. The token stays Mac-only.
+    if (cmd.type === 'pcoSaveToken' || cmd.type === 'pcoForget') {
+      if (!local) return;
+      return this.#pcoTokenCommand(cmd);
+    }
+    if (LIBRARY_COMMANDS.has(cmd.type)) return this.#libraryCommand(cmd);
     // Never act on a mixer we can't reach: the screen would show changes that didn't happen.
     // Commands that don't need the mixer.
     const offlineOk = new Set(['dismissAlert', 'clearAlerts', 'music', 'addPlaylist', 'removePlaylist']);
@@ -601,6 +619,124 @@ export class Bridge {
       c.done = {};
     }
     return c.done;
+  }
+
+  // ---------- people, channels, sets, songs and Planning Center ----------
+
+  #pcoTokenCommand(cmd) {
+    if (cmd.type === 'pcoForget') {
+      this.pco.forget();
+      this.alert({ level: 'info', source: 'pco', message: 'Planning Center token removed from this Mac.' });
+      return;
+    }
+    try {
+      this.pco.saveToken(cmd.appId, cmd.secret);
+      this.alert({ level: 'ok', source: 'pco', message: 'Planning Center token saved on this Mac. Loading your service types…' });
+      return this.pco.serviceTypes().catch((err) => this.alert({ level: 'warn', source: 'pco', message: err.message }));
+    } catch (err) {
+      this.alert({ level: 'warn', source: 'pco', message: err.message });
+    }
+  }
+
+  async #libraryCommand(cmd) {
+    const lib = this.library;
+    const int = (v) => (Number.isInteger(v) ? v : null);
+    try {
+      switch (cmd.type) {
+        case 'saveSlot':
+          lib.saveSlot(cmd.slot);
+          break;
+        case 'deleteSlot':
+          lib.deleteSlot(String(cmd.id));
+          break;
+        case 'savePerson':
+          lib.savePerson(cmd.person);
+          break;
+        case 'deletePerson':
+          lib.deletePerson(String(cmd.id));
+          break;
+        case 'newSet':
+          lib.newSet({ title: cmd.title, date: cmd.date });
+          break;
+        case 'openSet':
+          lib.openSet(String(cmd.id));
+          break;
+        case 'deleteSet':
+          lib.deleteSet(String(cmd.id));
+          break;
+        case 'setLineup':
+          lib.setLineup(String(cmd.slotId), cmd.personId ? String(cmd.personId) : null);
+          break;
+        case 'addSong':
+          lib.addSong({ title: cmd.title, key: cmd.key });
+          break;
+        case 'removeSong':
+          lib.removeSong(int(cmd.index));
+          break;
+        case 'moveSong':
+          lib.moveSong(int(cmd.index), Number(cmd.dir));
+          break;
+        case 'setSongLeads':
+          lib.setSongLeads(int(cmd.index), { lead: cmd.lead, harmonies: cmd.harmonies, leadInstrument: cmd.leadInstrument });
+          break;
+        case 'playSong':
+          lib.playSong(int(cmd.index));
+          if (lib.data.currentSong !== null) this.automix?.hintMode('worship');
+          break;
+        case 'nextSong':
+          lib.nextSong();
+          if (lib.data.currentSong !== null) this.automix?.hintMode('worship');
+          break;
+        case 'songMixAmounts':
+          lib.setMix(cmd.mix ?? {});
+          break;
+        case 'pcoServiceTypes':
+          await this.pco.serviceTypes();
+          break;
+        case 'pcoPlans':
+          await this.pco.upcomingPlans(String(cmd.serviceTypeId));
+          break;
+        case 'pcoImport': {
+          const plan = await this.pco.plan(String(cmd.serviceTypeId), String(cmd.planId));
+          const { set, unplaced } = lib.importPlan(plan);
+          this.alert({
+            level: unplaced.length ? 'warn' : 'ok',
+            source: 'pco',
+            message: `Imported "${set.title}": ${set.songs.length} songs, ${Object.keys(set.lineup).length} people placed.${unplaced.length ? ` No free position for: ${unplaced.join(', ')}. Add a channel for them or place them by hand.` : ''}`,
+          });
+          break;
+        }
+        default:
+          return;
+      }
+    } catch (err) {
+      if (cmd.type.startsWith('pco')) this.alert({ level: 'warn', source: 'pco', message: err.message });
+      else console.error('Library command failed:', err.message);
+    }
+    // Whatever changed, the song mix follows the current song.
+    this.automix?.setFocus(lib.focusForCurrentSong());
+  }
+
+  /** What the Set tab needs. */
+  #setSnapshot() {
+    const d = this.library.snapshot();
+    const set = this.library.set();
+    const nameOf = (id) => this.library.person(id)?.name ?? null;
+    return {
+      slots: d.slots,
+      people: d.people.map(({ id, name, instruments }) => ({ id, name, instruments })),
+      instruments: d.instruments,
+      mix: d.mix,
+      sets: d.sets.map((s) => ({ id: s.id, title: s.title, date: s.date, fromPco: !!s.pco, songs: s.songs.length })),
+      current: set
+        ? {
+            ...set,
+            songs: set.songs.map((s) => ({ ...s, leadName: nameOf(s.lead), harmonyNames: s.harmonies.map(nameOf).filter(Boolean), leadInstrumentName: this.library.slot(s.leadInstrument)?.name ?? null })),
+          }
+        : null,
+      currentSong: d.currentSong,
+      pco: this.pco.status(),
+    };
   }
 
   /** Where PA settings live: on the chosen venue, or the default set when no venue is chosen. */
@@ -864,6 +1000,7 @@ export class Bridge {
         : undefined,
       checklist: this.#checklist(),
       pa: this.#paSnapshot(),
+      setlist: this.#setSnapshot(),
       addresses: local && this.boundPort ? this.#addressesForIpads().map((ip) => `http://${ip}:${this.boundPort}`) : undefined,
       // The Mac's Bonjour name (e.g. booth-mac.local) doesn't change week to week the way an address can.
       localName: local && this.boundPort ? `http://${macLocalName()}:${this.boundPort}` : undefined,

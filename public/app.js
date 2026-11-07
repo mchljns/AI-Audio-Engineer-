@@ -367,6 +367,7 @@ function render(s) {
   renderMusic(s);
   renderMac(s);
   renderPa(s);
+  renderSet(s);
 
   for (const r of inv.rows) updateChannel(r);
   for (const d of s.dcas) updateDca(d);
@@ -438,7 +439,7 @@ for (const [sel, key] of [['#optSpeech', 'speechAutomix'], ['#optDuck', 'duckMus
 }
 
 // ---------- tabs ----------
-const TABS = { auto: ['#tabAuto', '#autoView'], mixer: ['#tabMixer', '#console'], pa: ['#tabPa', '#paView'] };
+const TABS = { auto: ['#tabAuto', '#autoView'], set: ['#tabSet', '#setView'], mixer: ['#tabMixer', '#console'], pa: ['#tabPa', '#paView'] };
 function showTab(name) {
   if (!TABS[name]) name = 'auto';
   for (const [k, [tab, view]] of Object.entries(TABS)) {
@@ -458,6 +459,245 @@ try {
 } catch {
   showTab('auto');
 }
+
+// ---------- Set tab: song buttons, set editing, people, channels, Planning Center ----------
+const CHANNEL_OPTIONS = ['', ...Array.from({ length: 16 }, (_, i) => String(i + 1)), 'aux'];
+const chLabel = (c) => (c === '' ? '—' : c === 'aux' ? 'Aux 17/18' : `Ch ${c}`);
+const keys = {};
+function changed(name, value) {
+  const k = JSON.stringify(value);
+  if (keys[name] === k) return false;
+  keys[name] = k;
+  return true;
+}
+function selectEl(options, value, onChange, label) {
+  const sel = el('select', label ? { 'aria-label': label } : {});
+  for (const [v, t] of options) sel.append(el('option', { value: v, text: t }));
+  sel.value = value ?? '';
+  sel.addEventListener('change', () => onChange(sel.value));
+  return sel;
+}
+
+function renderSet(s) {
+  const L = s.setlist;
+  if (!L) return;
+  const set = L.current;
+  const people = Object.fromEntries(L.people.map((p) => [p.id, p]));
+  const slotById = Object.fromEntries(L.slots.map((x) => [x.id, x]));
+
+  // Live: song buttons
+  if (changed('live', [set?.id, set?.title, set?.date, set?.songs, L.currentSong, L.sets])) {
+    $('#setTitle').textContent = set ? `${set.title}${set.date ? ` · ${set.date}` : ''}` : 'No set yet';
+    $('#setPick').replaceChildren(...(L.sets.length ? L.sets.map((x) => el('option', { value: x.id, text: `${x.title}${x.date ? ` · ${x.date}` : ''}${x.fromPco ? ' (Planning Center)' : ''}` })) : [el('option', { value: '', text: 'No sets yet' })]));
+    $('#setPick').value = set?.id ?? '';
+    const cur = L.currentSong;
+    $('#songButtons').replaceChildren(
+      ...(set?.songs ?? []).map((song, i) => {
+        const bits = [song.leadName && `Lead: ${song.leadName}`, song.harmonyNames?.length && `Harmony: ${song.harmonyNames.join(', ')}`, song.leadInstrumentName && `Lead inst.: ${song.leadInstrumentName}`].filter(Boolean);
+        const b = el('button', { class: `song-btn${cur === i ? ' now' : ''}`, type: 'button' }, [el('b', { text: `${i + 1}. ${song.title}${song.key ? ` (${song.key})` : ''}` }), el('span', { class: 'sub', text: bits.join(' · ') || 'No leads set: everyone stays as mixed' })]);
+        b.addEventListener('click', () => send({ type: 'playSong', index: i }));
+        return b;
+      }),
+    );
+    if (!set) $('#songNow').textContent = 'Start a set below (by hand or from Planning Center).';
+    else if (!set.songs.length) $('#songNow').textContent = 'No songs yet: add them under "Edit this set".';
+    else $('#songNow').textContent = cur === null ? 'No song playing. Tap a song when it starts.' : `Now: ${set.songs[cur].title}`;
+    $('#nextSongBtn').disabled = !set?.songs.length;
+  }
+
+  // Edit: lineup
+  const vocalPeople = set ? L.slots.filter((x) => x.instrument === 'vocal' && set.lineup[x.id]).map((x) => people[set.lineup[x.id]]).filter(Boolean) : [];
+  const instSlots = set ? L.slots.filter((x) => x.instrument !== 'vocal' && set.lineup[x.id]) : [];
+  if (changed('lineup', [set?.id, set?.lineup, L.slots, L.people])) {
+    $('#lineup').replaceChildren(
+      ...(set
+        ? L.slots.map((slot) => {
+            const who = L.people.filter((p) => p.instruments.some((i) => i.type === slot.instrument));
+            const pid = set.lineup[slot.id] ?? '';
+            const p = people[pid];
+            const inst = p?.instruments.find((i) => i.type === slot.instrument);
+            const chans = slot.left ? `${chLabel(slot.left)}${inst?.stereo && slot.right ? ` + ${slot.right === 'aux' ? 'Aux' : slot.right}` : ''}` : 'no channel set';
+            return el('div', { class: 'lrow' }, [
+              el('label', { text: slot.name }),
+              selectEl([['', '— nobody —'], ...who.map((x) => [x.id, x.name])], pid, (v) => send({ type: 'setLineup', slotId: slot.id, personId: v || null }), `${slot.name} player`),
+              el('span', { class: 'hint', text: `${chans}${inst && L.instruments[slot.instrument]?.stereo !== 'never' ? (inst.stereo ? ' · stereo' : ' · mono') : ''}` }),
+            ]);
+          })
+        : [el('p', { class: 'muted', text: 'Start a set first.' })]),
+    );
+  }
+
+  // Edit: songs
+  if (changed('songsEdit', [set?.id, set?.songs, set?.lineup, L.people])) {
+    $('#songsEdit').replaceChildren(
+      ...(set?.songs ?? []).map((song, i) => {
+        const lead = selectEl([['', 'Lead singer…'], ...vocalPeople.map((p) => [p.id, p.name])], song.lead, (v) => send({ type: 'setSongLeads', index: i, lead: v || null }), 'Lead singer');
+        const chips = el('div', { class: 'chips' }, vocalPeople.filter((p) => p.id !== song.lead).map((p) => {
+          const box = el('input', { type: 'checkbox' });
+          box.checked = song.harmonies.includes(p.id);
+          box.addEventListener('change', () => {
+            const h = new Set(song.harmonies);
+            if (box.checked) h.add(p.id);
+            else h.delete(p.id);
+            send({ type: 'setSongLeads', index: i, harmonies: [...h] });
+          });
+          return el('label', { class: 'chip' }, [box, `${p.name} harmony`]);
+        }));
+        const inst = selectEl([['', 'Lead instrument…'], ...instSlots.map((x) => [x.id, `${x.name} (${people[set.lineup[x.id]]?.name ?? ''})`])], song.leadInstrument, (v) => send({ type: 'setSongLeads', index: i, leadInstrument: v || null }), 'Lead instrument');
+        const up = el('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Move up', text: '↑' });
+        const down = el('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Move down', text: '↓' });
+        const rm = el('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Remove song', text: '✕' });
+        up.addEventListener('click', () => send({ type: 'moveSong', index: i, dir: -1 }));
+        down.addEventListener('click', () => send({ type: 'moveSong', index: i, dir: 1 }));
+        rm.addEventListener('click', () => send({ type: 'removeSong', index: i }));
+        return el('div', { class: 'grow' }, [el('span', { class: 't', text: `${i + 1}. ${song.title}${song.key ? ` (${song.key})` : ''}` }), lead, chips, inst, up, down, rm]);
+      }),
+    );
+  }
+
+  // People
+  if (changed('people', [L.people, L.instruments])) {
+    $('#peopleBox').replaceChildren(
+      ...L.people.map((p) => {
+        const name = el('input', { value: p.name, maxlength: '40', 'aria-label': 'Name' });
+        const save = (instruments = p.instruments) => send({ type: 'savePerson', person: { id: p.id, name: name.value, instruments } });
+        name.addEventListener('change', () => save());
+        const chips = el('div', { class: 'chips' }, Object.entries(L.instruments).map(([type, def]) => {
+          const has = p.instruments.find((i) => i.type === type);
+          const box = el('input', { type: 'checkbox' });
+          box.checked = !!has;
+          box.addEventListener('change', () => save(box.checked ? [...p.instruments, { type, stereo: def.stereo === 'always' }] : p.instruments.filter((i) => i.type !== type)));
+          const parts = [box, def.label];
+          if (has && def.stereo === 'choice') {
+            const st = selectEl([['mono', 'mono'], ['stereo', 'stereo']], has.stereo ? 'stereo' : 'mono', (v) => save(p.instruments.map((i) => (i.type === type ? { ...i, stereo: v === 'stereo' } : i))), `${def.label} mono or stereo`);
+            parts.push(st);
+          }
+          return el('label', { class: 'chip' }, parts);
+        }));
+        const rm = el('button', { class: 'icon-btn', type: 'button', 'aria-label': `Remove ${p.name}`, text: '✕' });
+        rm.addEventListener('click', () => send({ type: 'deletePerson', id: p.id }));
+        return el('div', { class: 'prow' }, [name, chips, rm]);
+      }),
+    );
+  }
+
+  // Channels per position
+  if (changed('slots', [L.slots, L.instruments])) {
+    $('#slotsBox').replaceChildren(
+      ...L.slots.map((slot) => {
+        const name = el('input', { value: slot.name, maxlength: '24', 'aria-label': 'Position name' });
+        const save = (patch = {}) => send({ type: 'saveSlot', slot: { ...slot, name: name.value, ...patch } });
+        name.addEventListener('change', () => save());
+        const inst = selectEl(Object.entries(L.instruments).map(([k, d]) => [k, d.label]), slot.instrument, (v) => save({ instrument: v }), 'Instrument');
+        const left = selectEl(CHANNEL_OPTIONS.map((c) => [c, chLabel(c)]), slot.left, (v) => save({ left: v }), 'Channel');
+        const parts = [name, inst, left];
+        if (L.instruments[slot.instrument]?.stereo !== 'never') {
+          parts.push(el('span', { class: 'muted small', text: 'right:' }), selectEl(CHANNEL_OPTIONS.map((c) => [c, chLabel(c)]), slot.right, (v) => save({ right: v }), 'Right channel'));
+        }
+        const rm = el('button', { class: 'icon-btn', type: 'button', 'aria-label': `Remove ${slot.name}`, text: '✕' });
+        rm.addEventListener('click', () => send({ type: 'deleteSlot', id: slot.id }));
+        parts.push(rm);
+        return el('div', { class: 'srow' }, parts);
+      }),
+    );
+  }
+
+  // Song mix amounts
+  if (changed('mix', [L.mix, s.automix?.settings?.songMix])) {
+    const opts = [0, -2, -3, -4, -6, -8, -10, -12, -15].map((d) => [String(d), d === 0 ? '0 dB (no change)' : `${d} dB`]);
+    const row = (label, k) => el('div', { class: 'lrow' }, [el('label', { text: label }), selectEl(opts, String(L.mix[k]), (v) => send({ type: 'songMixAmounts', mix: { [k]: Number(v) } }), label)]);
+    const on = el('input', { type: 'checkbox' });
+    on.checked = s.automix?.settings?.songMix !== false;
+    on.addEventListener('change', () => send({ type: 'automix', settings: { songMix: on.checked } }));
+    $('#mixBox').replaceChildren(
+      el('label', { class: 'switch' }, [on, el('span', {}, [el('b', { text: 'Use the song mix during worship' }), el('br'), el('small', { text: 'Off: song buttons just mark where you are; the mix stays as set.' })])]),
+      el('div', { class: 'lineup' }, [row('Harmony singers', 'harmonyDb'), row('Singers not on the song', 'otherVocalDb'), row('Instruments that aren\'t the lead', 'otherInstrumentDb')]),
+    );
+  }
+
+  // Planning Center
+  const P = L.pco;
+  if (changed('pco', [P, !!s.mac])) {
+    const box = $('#pcoBox');
+    const parts = [];
+    if (s.mac) {
+      parts.push(el('p', { class: 'muted small', text: P.configured ? 'Token saved on this Mac.' : 'A Planning Center admin creates a Personal Access Token at api.planningcenteronline.com (Personal Access Tokens) and enters its app ID and secret here. It stays on this Mac; Mix Assistant only reads plans and never changes Planning Center.' }));
+      const form = el('form', { class: 'inline-form' }, [el('input', { id: 'pcoApp', placeholder: 'App ID', autocomplete: 'off' }), el('input', { id: 'pcoSecret', placeholder: 'Secret', type: 'password', autocomplete: 'off' }), el('button', { class: 'btn', type: 'submit', text: P.configured ? 'Replace token' : 'Save token' })]);
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        send({ type: 'pcoSaveToken', appId: $('#pcoApp').value, secret: $('#pcoSecret').value });
+      });
+      parts.push(form);
+      if (P.configured) {
+        const forget = el('button', { class: 'btn btn-ghost btn-small', type: 'button', text: 'Remove token' });
+        forget.addEventListener('click', () => send({ type: 'pcoForget' }));
+        parts.push(forget);
+      }
+    } else if (!P.configured) {
+      parts.push(el('p', { class: 'muted', text: 'Not set up yet. The token is added on the booth Mac (Set tab → Planning Center).' }));
+    }
+    if (P.configured) {
+      const load = el('button', { class: 'btn btn-ghost', type: 'button', text: P.busy ? 'Loading…' : 'Load service types' });
+      load.disabled = P.busy;
+      load.addEventListener('click', () => send({ type: 'pcoServiceTypes' }));
+      const st = selectEl([['', P.serviceTypes.length ? 'Choose a service type…' : 'Load service types first'], ...P.serviceTypes.map((x) => [x.id, x.name])], P.plansFor ?? '', (v) => v && send({ type: 'pcoPlans', serviceTypeId: v }), 'Service type');
+      parts.push(el('h3', { text: 'Import an upcoming plan' }), el('div', { class: 'inline-form' }, [load, st]));
+      if (P.plans.length && P.plansFor) {
+        parts.push(
+          el('ul', { class: 'pco-plans' }, P.plans.map((pl) => {
+            const b = el('button', { class: 'btn btn-small', type: 'button', text: 'Import' });
+            b.disabled = P.busy;
+            b.addEventListener('click', () => send({ type: 'pcoImport', serviceTypeId: P.plansFor, planId: pl.id }));
+            return el('li', {}, [el('span', { text: `${pl.dates || pl.sortDate} · ${pl.title}` }), b]);
+          })),
+        );
+      }
+      parts.push(el('p', { class: 'muted small', text: "Needs the Mac on the internet: import during the week or before joining the mixer's Wi-Fi. The imported set is kept for Sunday." }));
+    }
+    if (P.error) parts.push(el('p', { class: 'music-warn', text: P.error }));
+    box.replaceChildren(...parts);
+  }
+}
+$('#setPick').addEventListener('change', (e) => e.target.value && send({ type: 'openSet', id: e.target.value }));
+$('#nextSongBtn').addEventListener('click', () => send({ type: 'nextSong' }));
+$('#noSongBtn').addEventListener('click', () => send({ type: 'playSong', index: null }));
+$('#addSongForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  if (!$('#addSongTitle').value.trim()) return;
+  send({ type: 'addSong', title: $('#addSongTitle').value, key: $('#addSongKey').value });
+  $('#addSongTitle').value = '';
+  $('#addSongKey').value = '';
+});
+$('#newSetForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  send({ type: 'newSet', title: $('#newSetTitle').value || 'Sunday' });
+  $('#newSetTitle').value = '';
+  $('#editSetFold').open = true;
+});
+let confirmDeleteSet = false;
+$('#deleteSetBtn').addEventListener('click', () => {
+  const id = latest?.setlist?.current?.id;
+  if (!id) return;
+  if (!confirmDeleteSet) {
+    confirmDeleteSet = true;
+    $('#deleteSetBtn').textContent = 'Tap again to delete this set';
+    setTimeout(() => {
+      confirmDeleteSet = false;
+      $('#deleteSetBtn').textContent = 'Delete this set';
+    }, 4000);
+    return;
+  }
+  confirmDeleteSet = false;
+  $('#deleteSetBtn').textContent = 'Delete this set';
+  send({ type: 'deleteSet', id });
+});
+$('#addPersonForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  if (!$('#addPersonName').value.trim()) return;
+  send({ type: 'savePerson', person: { name: $('#addPersonName').value, instruments: [] } });
+  $('#addPersonName').value = '';
+});
+$('#addSlotBtn').addEventListener('click', () => send({ type: 'saveSlot', slot: { name: 'New position', instrument: 'other', left: '', right: '' } }));
 
 // ---------- PA setup ----------
 // Gain check: each channel's loudest moment over the last few seconds, against the target window.

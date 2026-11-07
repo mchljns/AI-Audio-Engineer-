@@ -19,6 +19,7 @@
       <div class="spacer"></div>
       <nav class="tabs" role="tablist">
         <button id="tabAuto" class="tab active" role="tab" aria-selected="true">Auto</button>
+        <button id="tabSet" class="tab" role="tab" aria-selected="false">Set</button>
         <button id="tabMixer" class="tab" role="tab" aria-selected="false">Mixer</button>
         <button id="tabPa" class="tab" role="tab" aria-selected="false">PA setup</button>
       </nav>
@@ -161,6 +162,74 @@
         <label class="switch"><input type="checkbox" id="optSingers" /><span><b>Turn singer mics down in the room during the sermon</b><br /><small>Cuts their hiss and feedback risk. In-ear mixes aren't touched. Back up as soon as music starts or someone talks into one.</small></span></label>
         <label class="switch"><input type="checkbox" id="optModes" /><span><b>Change modes automatically</b><br /><small>Off: you pick the mode with the buttons above.</small></span></label>
       </section>
+    </main>
+
+    <main class="pa setv" id="setView" hidden>
+      <section class="auto-card live-card">
+        <div class="set-head">
+          <h2 id="setTitle">No set yet</h2>
+          <select id="setPick" aria-label="Choose a set"></select>
+        </div>
+        <p id="songNow" class="muted"></p>
+        <div id="songButtons" class="song-buttons"></div>
+        <div class="row">
+          <button id="nextSongBtn" class="btn btn-big" type="button">Next song ▶</button>
+          <button id="noSongBtn" class="btn btn-big btn-ghost" type="button">No song</button>
+        </div>
+        <p class="muted small">During worship, the song you tap gets its own mix: the lead singer and lead instrument stand out, harmonies sit a little back, and singers not on that song come down. House faders only; in-ears are never touched. Any fader you move still wins.</p>
+      </section>
+
+      <details class="auto-card fold" id="editSetFold">
+        <summary><h2>Edit this set</h2></summary>
+        <div class="fold-body">
+          <h3>Who's on which position</h3>
+          <div id="lineup" class="lineup"></div>
+          <h3>Songs</h3>
+          <div id="songsEdit" class="songs-edit"></div>
+          <form id="addSongForm" class="inline-form">
+            <input id="addSongTitle" placeholder="Song title" maxlength="120" aria-label="Song title" />
+            <input id="addSongKey" placeholder="Key" maxlength="8" aria-label="Key" class="narrow" />
+            <button class="btn" type="submit">Add song</button>
+          </form>
+          <h3>Sets</h3>
+          <form id="newSetForm" class="inline-form">
+            <input id="newSetTitle" placeholder="New set, e.g. Sunday Nov 9" maxlength="80" aria-label="New set title" />
+            <button class="btn btn-ghost" type="submit">Start a new set</button>
+          </form>
+          <button id="deleteSetBtn" class="btn btn-ghost btn-small" type="button">Delete this set</button>
+        </div>
+      </details>
+
+      <details class="auto-card fold">
+        <summary><h2>Planning Center</h2></summary>
+        <div class="fold-body" id="pcoBox"></div>
+      </details>
+
+      <details class="auto-card fold">
+        <summary><h2>People</h2></summary>
+        <div class="fold-body">
+          <p class="muted small">Who plays or sings what. Acoustic guitar can be mono or stereo per person; keys and electric are always stereo. People from Planning Center are added here automatically.</p>
+          <div id="peopleBox" class="people"></div>
+          <form id="addPersonForm" class="inline-form">
+            <input id="addPersonName" placeholder="Name" maxlength="40" aria-label="Name" />
+            <button class="btn" type="submit">Add person</button>
+          </form>
+        </div>
+      </details>
+
+      <details class="auto-card fold">
+        <summary><h2>Channels for each position</h2></summary>
+        <div class="fold-body">
+          <p class="muted small">The XR18 channel each stage position always uses. Stereo positions use two channels; an acoustic that's mono for a given player uses only the first.</p>
+          <div id="slotsBox" class="slots"></div>
+          <button id="addSlotBtn" class="btn btn-ghost btn-small" type="button">Add a position</button>
+        </div>
+      </details>
+
+      <details class="auto-card fold">
+        <summary><h2>Song mix amounts</h2></summary>
+        <div class="fold-body" id="mixBox"></div>
+      </details>
     </main>
 
     <main class="pa" id="paView" hidden>

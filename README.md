@@ -74,6 +74,14 @@ It takes about two minutes, needs the internet while installing, and needs no ad
 
 **Updates, practice mode and troubleshooting reports** are buttons in the app's **This Mac** card (shown only on the Mac itself). Running the installer again also updates. Settings are always kept. It installs the **stable** version: the last one tested on the real mixer.
 
+### The Set tab: people, Planning Center and a song button per song
+
+- **Channels for each position:** each stage position (Vox 1–4, Keys, Acoustic, Electric, or any you add) has its XR18 channel numbers. Keys and electric are always stereo pairs; acoustic has a second channel that's only used when that person's acoustic is stereo.
+- **People:** who plays or sings what, including mono or stereo acoustic per person. People from Planning Center are added automatically and matched by their Planning Center ID next time.
+- **Planning Center:** a Planning Center admin creates a Personal Access Token; enter its app ID and secret on the booth Mac (it stays there, and Mix Assistant only reads). Choose a service type and import an upcoming plan: songs come in order with their keys, and people are placed on positions by their Planning Center position (Vocals, Keys, Acoustic Guitar, Electric Guitar…). Needs internet, so import during the week; the set is kept for Sunday.
+- **Set wizard:** confirm who's on which position, then for each song pick the **lead singer**, **harmonies** and **lead instrument**. These are remembered per song and filled in automatically the next time it's in a set (when those people are on).
+- **Song buttons:** the engineer taps each song as it starts (or **Next song**). During worship, the lead singer and lead instrument stand out: harmonies sit 4 dB back, singers not on that song 10 dB, other instruments 3 dB (all adjustable under **Song mix amounts**, or switched off). Tapping a song also tells the auto-mix worship has started. House faders only; in-ears and click never touched; any fader you move wins; **No song** puts everyone back.
+
 ### PA setup (gain staging the PRX ONE and Passport)
 
 The **PA setup** tab walks through it in six steps, on any device:
