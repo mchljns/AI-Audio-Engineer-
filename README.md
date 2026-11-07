@@ -10,6 +10,7 @@ It works alongside the Behringer X Air app, which stays available as a backup.
 
 The app is built for people who aren't sound engineers.
 
+- **A welcome on each device, the first time it opens Mix Assistant.** On the booth Mac (about 5 minutes, for the tech lead): find the mixer, name the place you meet, which channel each stage position uses, connect the iPads with the QR code, then Planning Center and ProPresenter (both optional). On an iPad (about a minute): keep it on the Home Screen, who uses this iPad (a volunteer, or the tech lead for Tech mode), and four things to know (Get ready, Live, the status light, Hands off). Every step can be skipped; ⚙︎ → *Show the welcome again* runs it any time.
 - **Get ready** (the first tab) walks through Sunday morning in order, with a progress bar: set up the gear (a short checklist, with the speaker marks from last time), this week's songs and people, who is on which channel (with *Find* by listening), levels one person at a time (*Listen*: they sing or play their loudest for 7 seconds), who sings lead on each song, and an optional "anything sound wrong?" step. Every iPad sees the same progress; a new week starts fresh.
 - **Live** has what's needed during the service: the song buttons (or *Follow ProPresenter*), the parts of the service, what Mix Assistant is doing in plain words, and the pre/post-service music.
 - **Songs & people** is for changes: the channels and roles cards, editing the set, Planning Center, people.

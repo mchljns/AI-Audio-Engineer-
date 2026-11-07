@@ -57,6 +57,7 @@ A running list of what could go wrong, what handles it, and how it's checked. Re
 
 | # | Assumption | Status |
 |---|---|---|
+| M28 | A new device is confusing the first time | Welcome on first open, different for the booth Mac (setup) and an iPad (Home Screen, volunteer or tech lead, a short tour); skippable steps, "Finish later", remembered per device, rerun from ⚙︎ | Browser: both versions walked end to end, booth Mac answers saved (venue, positions, Tech mode) |
 | M26 | A non-technical volunteer gets lost or panics | Get ready walks the morning in order with a progress bar; Volunteer mode hides engineering settings (Tech mode behind ⚙︎); one status light in words; ✋ Hands off restores everything in one tap and persists; results in plain words; Before / After in Tone | Browser walkthrough (all 7 steps), tests (hands off, steps, before/after). Real test: hand a new volunteer the iPad and watch |
 | M27 | One part of the screen fails and the whole screen freezes | Each part of the screen draws on its own; a failure is logged and the rest keeps updating. Shared cards are parked before redraws so they can't be lost (found and fixed in testing) | Browser walkthrough |
 | P15 | Analyzer /meters/4: 100 bands assumed log-spaced 20 Hz–20 kHz, 1/256 dB like the other meters; what it measures (main mix?) depends on X Air's RTA setting | Midweek: play a 1 kHz tone, check which band peaks; ring out a mic gently with the catcher on |  Midweek |

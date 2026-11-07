@@ -38,6 +38,32 @@
       <span><b>Hands off.</b> Mix Assistant has put every fader and effect back where people set them and isn't changing anything. Mix in the X Air app as usual.</span>
       <button id="handsResume" class="btn" type="button">Turn Mix Assistant back on</button>
     </div>
+    <dialog id="welcomeDlg" class="welcome-dlg" aria-labelledby="wzTitle">
+      <div class="wz-top">
+        <div id="wzDots" class="wz-dots" aria-hidden="true"></div>
+        <button id="wzClose" class="btn btn-ghost btn-small" type="button">Finish later</button>
+      </div>
+      <div id="wzBody" class="wz-body"></div>
+      <div class="wz-foot">
+        <button id="wzBack" class="btn btn-ghost" type="button">Back</button>
+        <span class="spacer"></span>
+        <button id="wzSkip" class="btn btn-ghost" type="button">Skip this</button>
+        <button id="wzNext" class="btn" type="button">Next</button>
+      </div>
+    </dialog>
+
+    <dialog id="menuDlg" class="light-dlg" aria-labelledby="menuTitle">
+      <div class="tone-head">
+        <h2 id="menuTitle">Settings</h2>
+        <button class="icon-btn" type="button" id="menuClose" aria-label="Close">✕</button>
+      </div>
+      <label class="switch"><input type="checkbox" id="menuTech" /><span><b>Tech mode</b><br /><small>Shows the engineering settings: effects setup, the mixer console, speaker setup, ProPresenter, channel positions, network and updates. For the tech lead.</small></span></label>
+      <div class="row">
+        <button id="menuWelcome" class="btn btn-ghost" type="button">Show the welcome again</button>
+      </div>
+      <p id="menuVersion" class="muted small"></p>
+    </dialog>
+
     <dialog id="lightDlg" class="light-dlg" aria-labelledby="lightDlgTitle">
       <div class="tone-head">
         <h2 id="lightDlgTitle">What's going on</h2>

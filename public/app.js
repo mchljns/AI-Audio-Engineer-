@@ -369,7 +369,7 @@ function render(s) {
     $('#walkinState').textContent = 'No music channel found. Name the Spotify channel "Spotify" or "Pre/Post" in the X Air app.';
   }
   // Each part draws on its own: a problem in one can never freeze the rest of the screen.
-  for (const part of [renderMusic, renderMac, renderPa, renderSet, renderChannels, renderTone, renderEffects, renderSoundcheck, renderPro, renderLight, renderReady]) {
+  for (const part of [renderMusic, renderMac, renderPa, renderSet, renderChannels, renderTone, renderEffects, renderSoundcheck, renderPro, renderLight, renderReady, renderWelcome]) {
     try {
       part(s);
     } catch (err) {
@@ -1759,9 +1759,17 @@ function setTech(on) {
   keys.mixNow = null;
   keys.readySteps = null;
 }
+// ⚙︎ opens a small menu: Tech mode, and the welcome again.
 $('#techBtn').addEventListener('click', () => {
-  if (tech) return setTech(false);
-  if (confirm('Tech mode shows the engineering settings (effects setup, mixer console, network, updates). It is meant for the tech lead.\n\nSwitch to Tech mode?')) setTech(true);
+  $('#menuTech').checked = tech;
+  $('#menuVersion').textContent = latest ? `Mix Assistant ${latest.status?.version ?? ''}` : '';
+  $('#menuDlg').showModal();
+});
+$('#menuClose').addEventListener('click', () => $('#menuDlg').close());
+$('#menuTech').addEventListener('change', (e) => setTech(e.target.checked));
+$('#menuWelcome').addEventListener('click', () => {
+  $('#menuDlg').close();
+  openWelcome(true);
 });
 setTech(tech);
 
@@ -2155,6 +2163,226 @@ function openFold(title) {
     f.open = true;
     f.scrollIntoView({ behavior: 'smooth' });
   }
+}
+
+// ---------- first-time welcome, for each device ----------
+// The booth Mac gets the tech lead's setup; an iPad gets a one-minute start. Remembered per device;
+// ⚙︎ → "Show the welcome again" runs it any time.
+const WELCOME_KEY = 'mixWelcomeDone';
+let wz = null; // { kind: 'mac' | 'ipad', step, steps: [...] }
+let wzAsked = false;
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+function welcomeSteps(kind) {
+  if (kind === 'mac') return ['hello', 'mixer', 'venue', 'positions', 'ipads', 'pco', 'pro', 'done'];
+  return ['hello', ...(standalone || !isIOS ? [] : ['home']), 'who', 'tour', 'done'];
+}
+function openWelcome(force = false) {
+  if (!latest) return;
+  const kind = latest.mac ? 'mac' : 'ipad';
+  wz = { kind, step: 0, steps: welcomeSteps(kind) };
+  wzAsked = true;
+  if (kind === 'ipad') $('#homeTip').hidden = true; // the welcome covers it
+  keys.wz = null;
+  $('#welcomeDlg').showModal();
+  renderWelcome(latest);
+  void force;
+}
+function finishWelcome() {
+  try {
+    localStorage.setItem(WELCOME_KEY, '1');
+  } catch {
+    /* fine */
+  }
+  $('#welcomeDlg').close();
+  wz = null;
+}
+$('#wzClose').addEventListener('click', finishWelcome);
+$('#wzBack').addEventListener('click', () => wzGo(-1));
+$('#wzSkip').addEventListener('click', () => wzGo(1));
+$('#wzNext').addEventListener('click', () => wzNext());
+$('#welcomeDlg').addEventListener('cancel', (e) => {
+  e.preventDefault(); // Escape: same as "Finish later"
+  finishWelcome();
+});
+function wzGo(d) {
+  if (!wz) return;
+  wz.step = Math.max(0, Math.min(wz.steps.length - 1, wz.step + d));
+  keys.wz = null;
+  renderWelcome(latest);
+}
+/** "Next" saves what this step asked for, then moves on. */
+function wzNext() {
+  if (!wz) return;
+  const id = wz.steps[wz.step];
+  if (id === 'venue') {
+    const name = $('#wzVenue')?.value.trim();
+    if (name) send({ type: 'saveVenue', name, notes: $('#wzVenueNotes')?.value ?? '', connection: latest?.mac?.connection?.mode ?? 'auto' });
+  }
+  if (id === 'pco') {
+    const a = $('#wzPcoApp')?.value.trim();
+    const sec = $('#wzPcoSecret')?.value.trim();
+    if (a && sec) send({ type: 'pcoSaveToken', appId: a, secret: sec });
+  }
+  if (id === 'pro') {
+    const h = $('#wzProHost')?.value.trim();
+    const pt = $('#wzProPort')?.value.trim();
+    if (h && pt) send({ type: 'proPresenter', host: h, port: pt, follow: true });
+  }
+  if (id === 'done') {
+    if (wz.kind === 'mac' && $('#wzTechOn')?.checked) setTech(true);
+    const go = wz.kind === 'ipad' ? 'ready' : null;
+    finishWelcome();
+    if (go) showTab(go);
+    return;
+  }
+  wzGo(1);
+}
+
+function renderWelcome(s) {
+  // First visit on this device: open once the app knows whether it's the booth Mac or an iPad.
+  if (!wzAsked && s) {
+    wzAsked = true;
+    let done = false;
+    try {
+      done = localStorage.getItem(WELCOME_KEY) === '1';
+    } catch {
+      /* fine */
+    }
+    if (!done) openWelcome();
+    return;
+  }
+  if (!wz || !$('#welcomeDlg').open) return;
+  const id = wz.steps[wz.step];
+  $('#wzDots').replaceChildren(...wz.steps.map((x, i) => el('span', { class: i < wz.step ? 'done' : i === wz.step ? 'now' : '' })));
+  $('#wzBack').hidden = wz.step === 0;
+  $('#wzSkip').hidden = !['venue', 'positions', 'ipads', 'pco', 'pro', 'home'].includes(id);
+  $('#wzNext').textContent = id === 'done' ? (wz.kind === 'ipad' ? 'Start getting ready' : 'Finish') : id === 'hello' ? "Let's go" : 'Next';
+  // Rebuild when the step or what it shows changes, but never while someone is typing in it.
+  const typing = document.activeElement && $('#wzBody').contains(document.activeElement) && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);
+  const live = [id, s.status.connected, s.status.searching, s.status.mixer?.name, s.checklist?.auto?.find((a) => a.id === 'auto-ipads')?.detail, s.mac?.venues?.length, s.mac?.connection?.mode, s.setlist?.pco?.configured, s.setlist?.pro?.host, s.setlist?.pro?.connected, s.setlist?.slots, tech];
+  if (typing || !changed('wz', live)) return;
+  $('#wzBody').replaceChildren(...wzStep(id, s));
+}
+
+function wzStatus(ok, text) {
+  return el('div', { class: 'wz-status' }, [el('span', { class: `light ${ok === true ? 'green' : ok === false ? 'red' : 'yellow'}` }), el('span', { text })]);
+}
+
+function wzStep(id, s) {
+  const mac = wz.kind === 'mac';
+  const st = s.status;
+  if (id === 'hello') {
+    return mac
+      ? [el('div', { class: 'wz-hero', text: '🎚️' }), el('h2', { text: 'Welcome to Mix Assistant' }), el('p', { text: 'This Mac is the booth Mac: it talks to the XR18 and runs Mix Assistant for everyone. Let’s set it up. It takes about five minutes, and you can skip anything and come back later from ⚙︎.' }), el('p', { class: 'muted', text: 'You’ll need: the XR18 on, and the iPads nearby. Planning Center and ProPresenter details are optional.' })]
+      : [el('div', { class: 'wz-hero', text: '👋' }), el('h2', { text: 'Welcome to Mix Assistant' }), el('p', { text: 'Mix Assistant mixes the service for you: it follows the songs, the people talking and the sermon. This iPad is how you get ready on Sunday morning and keep an eye on things during the service.' }), wzStatus(st.connected, st.connected ? `Connected to the booth Mac and the mixer (${st.mixer?.name ?? 'XR18'}).` : 'Connected to the booth Mac. It’s still looking for the mixer.')];
+  }
+  if (id === 'mixer') {
+    const out = [el('h2', { text: 'Find the mixer' }), wzStatus(st.connected ? true : st.searching ? null : false, st.connected ? `Found it: ${st.mixer?.name ?? 'XR18'}${st.path?.label ? ` over ${st.path.label}` : ''}.` : st.searching ? 'Looking for the XR18…' : 'Not connected to the mixer yet.')];
+    if (!st.connected) out.push(el('ol', { class: 'wz-steps' }, [el('li', { text: 'Turn the XR18 on and wait about 30 seconds.' }), el('li', { text: 'Join this Mac to the XR18’s Wi-Fi, or plug in the network cable from the XR18.' }), el('li', { text: 'This page updates by itself when it finds it.' })]));
+    const c = s.mac?.connection;
+    if (c?.modes) {
+      const sel = selectEl(Object.entries(c.modes).map(([k, label]) => [k, k === 'auto' ? `${label} (recommended)` : label]), c.mode, (v) => send({ type: 'setConnection', mode: v }), 'Reach the mixer over');
+      sel.disabled = !!c.fixed;
+      out.push(el('div', { class: 'wz-form' }, [el('b', { text: 'Reach the mixer over' }), sel, el('p', { class: 'muted small', text: 'Automatic is right for almost everyone: it uses whichever works and keeps the Mac’s internet for Spotify.' })]));
+    }
+    return out;
+  }
+  if (id === 'venue') {
+    const v = s.mac?.venue !== null && s.mac?.venue !== undefined ? s.mac.venues[s.mac.venue] : null;
+    return [
+      el('h2', { text: 'Where do you meet?' }),
+      el('p', { text: 'Name this place so its setup notes and speaker settings come back each week. You can add more places later.' }),
+      el('div', { class: 'wz-form' }, [el('input', { id: 'wzVenue', placeholder: 'e.g. Lincoln Elementary gym', maxlength: '40', value: v?.name ?? '' }), el('textarea', { id: 'wzVenueNotes', rows: '3', maxlength: '1000', placeholder: 'Notes for the setup checklist, e.g. power strip behind stage left; Wi-Fi: school guest' }, [])]),
+      ...(v?.notes ? [el('p', { class: 'muted small', text: `Saved notes: ${v.notes}` })] : []),
+    ];
+  }
+  if (id === 'positions') {
+    const L = s.setlist;
+    const stereo = (x) => L.instruments?.[x.instrument]?.stereo !== 'never';
+    const rows = (L?.slots ?? []).map((x) => {
+      const left = selectEl(CHANNEL_OPTIONS.map((c) => [c, c ? chLabel(c) : 'Not used']), x.left, (v) => send({ type: 'saveSlot', slot: { ...x, left: v } }), `${x.name} channel`);
+      const right = stereo(x) ? selectEl(CHANNEL_OPTIONS.map((c) => [c, c ? `+ ${chLabel(c)}` : 'Mono']), x.right, (v) => send({ type: 'saveSlot', slot: { ...x, right: v } }), `${x.name} second channel`) : el('span');
+      return el('div', {}, [el('b', { text: x.name }), left, right]);
+    });
+    return [el('h2', { text: 'Which channel is each stage position?' }), el('p', { text: 'The XR18 channel each position usually plugs into. Stereo instruments (keys, electric) use two. Week-to-week changes are made on Sunday morning, so this is just the usual layout.' }), el('div', { class: 'wz-pos' }, rows)];
+  }
+  if (id === 'ipads') {
+    const n = s.checklist?.auto?.find((a) => a.id === 'auto-ipads');
+    const show = el('button', { class: 'btn btn-big', type: 'button', text: '📱 Show the code' });
+    show.addEventListener('click', openConnect);
+    return [
+      el('h2', { text: 'Connect the iPads' }),
+      el('ol', { class: 'wz-steps' }, [el('li', { text: 'Tap “Show the code” and point the iPad’s Camera at it.' }), el('li', { text: 'Open the link. On the iPad, Mix Assistant asks to be added to the Home Screen: do that once.' }), el('li', { text: 'From then on, the Mix Assistant icon on the iPad just works: no code, no typing.' })]),
+      el('div', { class: 'row' }, [show]),
+      wzStatus(n?.ok ? true : null, n?.ok ? `${n.detail}. Connect as many as you like.` : 'No iPads connected yet.'),
+    ];
+  }
+  if (id === 'pco') {
+    const P = s.setlist?.pco;
+    return [
+      el('h2', { text: 'Planning Center (optional)' }),
+      el('p', { text: 'Bring in each week’s songs and team so nobody types them. A Planning Center admin makes a Personal Access Token once:' }),
+      el('ol', { class: 'wz-steps' }, [el('li', { text: 'Go to api.planningcenteronline.com and sign in.' }), el('li', { text: 'Personal Access Tokens → New. Name it “Mix Assistant”.' }), el('li', { text: 'Copy the Application ID and Secret here. They stay on this Mac.' })]),
+      P?.configured ? wzStatus(true, 'Planning Center is connected.') : el('div', { class: 'wz-form' }, [el('input', { id: 'wzPcoApp', placeholder: 'Application ID', autocomplete: 'off' }), el('input', { id: 'wzPcoSecret', placeholder: 'Secret', type: 'password', autocomplete: 'off' })]),
+      ...(P?.error ? [el('p', { class: 'music-warn', text: P.error })] : []),
+    ];
+  }
+  if (id === 'pro') {
+    const P = s.setlist?.pro;
+    return [
+      el('h2', { text: 'ProPresenter (optional)' }),
+      el('p', { text: 'When the lyrics operator puts up a song, Mix Assistant moves to that song by itself. It only reads which song is up.' }),
+      el('ol', { class: 'wz-steps' }, [el('li', { text: 'On the ProPresenter computer: ProPresenter → Settings → Network → turn on Enable Network.' }), el('li', { text: 'Type the IP address and port it shows here.' })]),
+      el('div', { class: 'wz-form' }, [el('input', { id: 'wzProHost', placeholder: 'IP address, e.g. 192.168.1.20', inputmode: 'decimal', value: P?.host ?? '' }), el('input', { id: 'wzProPort', placeholder: 'Port', inputmode: 'numeric', value: P?.port ?? '' })]),
+      ...(P?.host ? [wzStatus(P.connected ? true : P.error ? false : null, P.connected ? 'Connected to ProPresenter.' : P.error ?? 'Connecting…')] : []),
+    ];
+  }
+  if (id === 'home') {
+    return [
+      el('div', { class: 'wz-hero', text: '📲' }),
+      el('h2', { text: 'Keep it on the Home Screen' }),
+      el('ol', { class: 'wz-steps' }, [el('li', { text: 'Tap Share (the square with the arrow) at the top of Safari.' }), el('li', { text: 'Tap “Add to Home Screen”, then Add.' }), el('li', { text: 'From now on, open Mix Assistant from its icon. It signs in by itself.' })]),
+    ];
+  }
+  if (id === 'who') {
+    const pick = (on) => {
+      setTech(on);
+      keys.wz = null;
+      renderWelcome(latest);
+    };
+    const v = el('button', { type: 'button', class: tech ? '' : 'on' }, [el('b', { text: '🙋 A volunteer' }), el('span', { class: 'muted', text: 'Getting ready on Sunday and keeping an eye on the service. Just what’s needed.' })]);
+    v.addEventListener('click', () => pick(false));
+    const t = el('button', { type: 'button', class: tech ? 'on' : '' }, [el('b', { text: '🛠 The tech lead' }), el('span', { class: 'muted', text: 'Also the engineering settings: effects, the mixer console, speakers, channels.' })]);
+    t.addEventListener('click', () => pick(true));
+    return [el('h2', { text: 'Who uses this iPad?' }), el('div', { class: 'wz-choice' }, [v, t]), el('p', { class: 'muted small', text: 'You can switch any time with ⚙︎ at the top right.' })];
+  }
+  if (id === 'tour') {
+    return [
+      el('h2', { text: 'Four things to know' }),
+      el('div', { class: 'wz-tour' }, [
+        el('div', {}, [el('b', { text: '✅ Get ready' }), el('span', { text: 'Every Sunday morning, step by step: gear, channels, levels, who sings lead.' })]),
+        el('div', {}, [el('b', { text: '🎵 Live' }), el('span', { text: 'During the service: the songs, what Mix Assistant is doing, and the music before and after.' })]),
+        el('div', {}, [el('b', { text: '🟢 The light at the top' }), el('span', { text: 'Green: all good. Yellow: have a look. Red: act now. Tap it to see why.' })]),
+        el('div', {}, [el('b', { text: '✋ Hands off' }), el('span', { text: 'If anything ever feels wrong, tap it: everything goes back to how people set it, and you mix as usual.' })]),
+      ]),
+    ];
+  }
+  if (id === 'done') {
+    if (mac) {
+      const box = el('input', { type: 'checkbox', id: 'wzTechOn' });
+      box.checked = true;
+      return [
+        el('div', { class: 'wz-hero', text: '🎉' }),
+        el('h2', { text: 'This Mac is set up' }),
+        el('p', { text: 'Mix Assistant now runs in the background whenever this Mac is on.' }),
+        el('ul', { class: 'wz-steps' }, [el('li', { text: 'Before the first Sunday: in Tech mode → Get ready, the one-time list shows what’s left (effects setup, midweek mixer check).' }), el('li', { text: 'Every Sunday: volunteers use Get ready on the iPad.' })]),
+        el('label', { class: 'switch' }, [box, el('span', { text: 'Use Tech mode on this Mac (recommended for the tech lead’s computer)' })]),
+      ];
+    }
+    return [el('div', { class: 'wz-hero', text: '🎉' }), el('h2', { text: 'You’re all set' }), el('p', { text: 'Next: Get ready walks you through Sunday morning. If you’re not sure about anything, tap the light at the top.' })];
+  }
+  return [];
 }
 
 connect();
