@@ -8,7 +8,7 @@
 import dgram from 'node:dgram';
 import { pathToFileURL } from 'node:url';
 import { encodeMessage, decodeMessage } from '../osc.js';
-import { OSC_PORT, STRIP_IDS, DCA_COUNT, AUX_BUSES, paths, fxSendBuses, encodeMeterBlob } from '../xair/addresses.js';
+import { OSC_PORT, STRIP_IDS, DCA_COUNT, AUX_BUSES, paths, fxSendBuses, encodeMeterBlob, CHANNEL_COUNT, mixerProfile } from '../xair/addresses.js';
 import { dbToFloat } from '../xair/faderLaw.js';
 
 const SUB_TTL_MS = 10000;
@@ -53,11 +53,11 @@ function initialState() {
     for (const b of AUX_BUSES) st.set(paths.send(id, b), { type: 'f', value: isLocked && b <= 2 ? dbToFloat(-5) : 0 });
   }
   // Channel processing (low cut, EQ, compressor, gate) for ch 1–16, as a fresh XR18 has it.
-  for (let i = 1; i <= 16; i++) {
+  for (let i = 1; i <= CHANNEL_COUNT; i++) {
     const c = `/ch/${String(i).padStart(2, '0')}`;
     const f = (k, v) => st.set(`${c}/${k}`, { type: 'f', value: v });
     const n = (k, v) => st.set(`${c}/${k}`, { type: 'i', value: v });
-    st.set(`/headamp/${String(i).padStart(2, '0')}/gain`, { type: 'f', value: (20 + 12) / 72 }); // +20 dB
+    st.set(`${mixerProfile().headampBase(i)}/gain`, { type: 'f', value: (20 + 12) / 72 }); // +20 dB
     n('preamp/hpon', 0);
     f('preamp/hpf', 0.5);
     n('eq/on', 1);
@@ -76,7 +76,7 @@ function initialState() {
     for (const [k, v] of [['thr', 0.3], ['range', 0.3], ['attack', 0], ['hold', 0.5], ['release', 0.5]]) f(`gate/${k}`, v);
   }
   // FX returns 1–4 (reverb on FX1, delay on FX2, as most churches set it).
-  for (let n = 1; n <= 4; n++) st.set(`/rtn/${n}/mix/fader`, { type: 'f', value: n <= 2 ? dbToFloat(-5) : 0 });
+  for (let n = 1; n <= 4; n++) st.set(mixerProfile().fxReturnFader(n), { type: 'f', value: n <= 2 ? dbToFloat(-5) : 0 });
   // Effects 1–4: algorithm (Hall on FX1, as a fresh mixer) and its 12 parameters.
   for (let n = 1; n <= 4; n++) {
     st.set(`/fx/${n}/type`, { type: 'i', value: n === 2 ? 10 : 0 });
@@ -160,7 +160,7 @@ export class XR18Simulator {
         const values = [];
         // A ringing mic climbs ~1.2 dB per frame, up to near full scale.
         const ringDb = this.ring ? Math.min(-6, -40 + ((Date.now() - this.ring.since) / 50) * 1.2) : null;
-        for (let i = 1; i <= 16; i++) {
+        for (let i = 1; i <= CHANNEL_COUNT; i++) {
           if (this.ring && String(i) === String(this.ring.ch)) values.push(Math.max(meterLevel(String(i), t, this.scenario), ringDb));
           else values.push(this.forced.has(String(i)) ? this.forced.get(String(i)) + (Math.random() - 0.5) * 3 : meterLevel(String(i), t, this.scenario));
         }
@@ -170,6 +170,8 @@ export class XR18Simulator {
         if (this.ring) rta[Math.round((99 * Math.log(this.ring.hz / 20)) / Math.log(1000))] = ringDb;
         this.#broadcast(this.rtaSubs, encodeMessage('/meters/4', [encodeMeterBlob(rta)]));
         const aux = meterLevel('aux', t, this.scenario);
+        const [auxL] = mixerProfile().auxStrip.meters;
+        while (values.length < auxL) values.push(-128);
         values.push(aux, aux);
         while (values.length < 40) values.push(-128);
         this.#broadcast(this.meterSubs, encodeMessage('/meters/1', [encodeMeterBlob(values)]));
@@ -216,7 +218,7 @@ export class XR18Simulator {
     const reply = (b) => this.socket.send(b, rinfo.port, rinfo.address);
 
     if (msg.address === '/xinfo') {
-      reply(encodeMessage('/xinfo', ['127.0.0.1', 'XR18-SIM', 'XR18', '1.22']));
+      reply(encodeMessage('/xinfo', ['127.0.0.1', `${mixerProfile().short}-SIM`, mixerProfile().short, '1.22']));
       return;
     }
     if (msg.address === '/xremote') {

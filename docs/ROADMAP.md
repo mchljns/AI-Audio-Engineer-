@@ -74,10 +74,16 @@ Most of Mix Assistant carries over: the X32 speaks a close relative of the XR18'
 5. **A livestream or lobby mix on a matrix output:** a new kind of mixing, so ask before building it. In-ears stay off-limits.
 
 **Engineering steps:**
-1. Split the XR18 details out of `src/xair/addresses.js` into a mixer profile, then add an X32 profile: OSC port 10023, 32 channels, 8 aux ins, 16 buses, 6 matrices, 8 DCAs, 8 FX slots, X32 meter and headamp addresses.
-2. Make the write guard profile-aware: block all 16 buses and in-ear sends, matrices unless the livestream mix is turned on, scenes, and phantom power.
-3. Add an X32 simulator so every feature runs in tests before it touches a real desk.
-4. Hardware checklist on a real X32 before the first Sunday: meters, preamp addressing, FX parameters, automixer.
+1. ~~Mixer profiles and a **Mixer model** setting~~ (built in 0.19; XR18 stays the default). `src/xair/profiles.js` holds the XR18 and X32 profiles: port 10023, 32 channels, 8 DCAs, 16 buses (1–12 in-ear, 13–16 feeding FX1–4), aux in 7/8 for playback, `mix/st` for the main assign, two-digit bus numbers, `/fxrtn/` returns, three-digit `/headamp/` indexes. The app still uses FX1–4 and 4 of the 8 DCAs on the X32 for now.
+2. ~~Profile-aware write guard~~ (0.19): blocks all buses, in-ear sends (1–12) from every source, matrices, scenes, setup and phantom.
+3. ~~Simulator follows the chosen model~~ (0.19), with tests for both models.
+4. **Hardware check on a real X32 before the first Sunday** (each item marked CHECK in `src/xair/profiles.js`):
+   - Connects on port 10023 and reads channel names; fader moves land on the right channel.
+   - Meters: `/meters/1` channel order, and aux in 7/8 at positions 39–40.
+   - Main assign (`mix/st`), bus names (`/bus/01`…), FX returns (`/fxrtn/01` for FX1).
+   - FX1–4 sources set to buses 13–16 on the console, and the effect sends work.
+   - Preamp gain for local inputs and any stage box follows the routing (`/headamp/000` = channel 1 is assumed).
+   - Analyzer address for the feedback catcher (off on the X32 until mapped).
 5. Build the new features above.
 
 **Open questions:** stage box or analog snake? Livestream or lobby mix wanted? Use the built-in automixer for speaking?

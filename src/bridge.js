@@ -14,7 +14,8 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { WebSocketServer } from 'ws';
 import { XAirClient, discoverMixers } from './xair/client.js';
-import { paths, STRIP_IDS, DCA_COUNT } from './xair/addresses.js';
+import { paths, STRIP_IDS, DCA_COUNT, OSC_PORT, useMixerModel, mixerProfile } from './xair/addresses.js';
+import { PROFILES } from './xair/profiles.js';
 import { dbToFloat, floatToDb } from './xair/faderLaw.js';
 import { MixerState } from './mixerState.js';
 import { RoleStore, buildInventory, resolveRole } from './inventory.js';
@@ -96,7 +97,8 @@ export function loadConfig() {
   return {
     mixerHost: process.env.MIXER_HOST || file.mixerHost || 'auto',
     mixerName: file.mixerName || null, // pick this mixer if several answer
-    mixerPort: Number(process.env.MIXER_PORT || file.mixerPort || 10024),
+    mixerPort: Number(process.env.MIXER_PORT || file.mixerPort) || null, // null = the mixer model's port
+    mixerModel: file.mixerModel ? String(file.mixerModel).toLowerCase() : null, // overrides the in-app setting
     httpPort: Number(process.env.PORT || file.httpPort || 8080),
     walkinFadeSeconds: Number(file.walkinFadeSeconds || 8),
     dataDir: process.env.DATA_DIR || file.dataDir || path.join(ROOT, 'data'),
@@ -146,6 +148,14 @@ const isFiniteNum = (v) => typeof v === 'number' && Number.isFinite(v);
 export class Bridge {
   constructor(config) {
     this.config = config;
+    // Mixer model first: it decides the channel count and every address used below.
+    let savedModel = null;
+    try {
+      savedModel = JSON.parse(fs.readFileSync(path.join(config.dataDir, 'settings.json'), 'utf8')).mixerModel ?? null;
+    } catch {
+      /* first run */
+    }
+    useMixerModel(config.mixerModel ?? savedModel ?? 'xr18');
     this.state = new MixerState();
     this.roleStore = new RoleStore(path.join(config.dataDir, 'roles.json'));
     this.lockStore = new LockStore(path.join(config.dataDir, 'locks.json'));
@@ -213,6 +223,7 @@ export class Bridge {
 
   stop() {
     this.stopped = true;
+    clearTimeout(this.restartTimer);
     this.timers.forEach(clearInterval);
     this.pro?.stop();
     this.fades?.stopAll();
@@ -233,7 +244,7 @@ export class Bridge {
   async #discoverOnce() {
     let blocked = 0;
     const found = await discoverMixers({
-      port: this.config.mixerPort,
+      port: this.config.mixerPort ?? OSC_PORT,
       onSendError: (err) => BLOCKED_CODES.has(err.code) && blocked++,
     });
     if (blocked && !found.length) this.#networkBlocked();
@@ -303,7 +314,7 @@ export class Bridge {
     if (!host) return;
     this.status.host = host;
 
-    this.client = new XAirClient({ host, port: this.config.mixerPort });
+    this.client = new XAirClient({ host, port: this.config.mixerPort ?? OSC_PORT });
     this.client.allowedAuxBuses = Array.isArray(this.config.protectedBuses) ? this.config.protectedBuses : [];
     this.client.on('blocked', (address) => {
       console.error(`Blocked a write to ${address}: the app never changes in-ear mixes, snapshots, phantom or mixer setup.`);
@@ -468,8 +479,9 @@ export class Bridge {
   handleCommand(cmd, { local = true } = {}) {
     if (!cmd || typeof cmd !== 'object' || typeof cmd.type !== 'string') return;
     // Things only the booth Mac's own screen can do (not iPads).
-    if (['checkUpdate', 'installUpdate', 'practice', 'setConnection', 'saveVenue', 'deleteVenue', 'selectVenue'].includes(cmd.type)) {
+    if (['checkUpdate', 'installUpdate', 'practice', 'setConnection', 'saveVenue', 'deleteVenue', 'selectVenue', 'setMixerModel'].includes(cmd.type)) {
       if (!local) return;
+      if (cmd.type === 'setMixerModel') return this.#setMixerModel(cmd.model);
       if (cmd.type === 'checkUpdate') return this.updater.check();
       if (cmd.type === 'installUpdate') return this.updater.install();
       if (cmd.type === 'practice') return cmd.on ? this.#startPractice() : this.#stopPractice();
@@ -636,6 +648,25 @@ export class Bridge {
   }
 
   // ---------- connection preference, venues and the setup checklist ----------
+
+  /** Switch mixer model (XR18 / X32). Saved, then Mix Assistant restarts to use it. Booth Mac only. */
+  #setMixerModel(model) {
+    const id = String(model ?? '').toLowerCase();
+    if (!PROFILES[id]) return;
+    if (this.config.mixerModel) {
+      this.alert({ level: 'warn', source: 'connection', message: `The mixer model is set to ${PROFILES[this.config.mixerModel]?.short ?? this.config.mixerModel} in config.json, so this setting can't change it.` });
+      return;
+    }
+    if (id === mixerProfile().id) return;
+    this.settings.mixerModel = id;
+    this.#saveSettings();
+    this.alert({ level: 'warn', source: 'connection', message: `Mixer set to ${PROFILES[id].short}. Mix Assistant is restarting to connect to it…` });
+    const restart = this.config.updateExit ?? (() => {
+      this.stop();
+      process.exit(0); // launchd starts it again
+    });
+    this.restartTimer = setTimeout(restart, 1500);
+  }
 
   #venueCommand(cmd) {
     const clean = (v, n) => String(v ?? '').trim().slice(0, n);
@@ -1583,6 +1614,14 @@ export class Bridge {
       automix: this.automix ? { ...this.automix.status(), now: [...(this.fbNote && Date.now() < this.fbNote.until ? [this.fbNote.text] : []), ...this.automix.describe(), ...(this.bass?.present ? ['Bass playing: keys and acoustic low end thinned'] : []), ...(this.effects?.describe(this.library.songContext().names) ?? [])].sort((x, y) => Number(/^Song mix on/.test(x)) - Number(/^Song mix on/.test(y))) } : null,
       effects: this.effects ? { ...this.effects.status(), ask: this.fxAsk ?? null, note: this.fxNote ?? null, tweaks: Object.entries(REVERB_TWEAKS).map(([id, t]) => ({ id, label: t.label })) } : null,
       handsOff: !!this.settings.handsOff,
+      mixerModel: (() => {
+        const p = mixerProfile();
+        return {
+          id: p.id, short: p.short, label: p.label, tested: p.tested, channels: p.channelCount, auxLabel: p.auxStrip.label,
+          feedbackCatcher: !!p.rtaAddress, fixed: !!this.config.mixerModel,
+          models: Object.values(PROFILES).map((m) => ({ id: m.id, label: m.label })),
+        };
+      })(),
       options: { nameChannels: this.settings.nameChannels !== false, catchFeedback: this.settings.catchFeedback !== false },
       tempo: this.tempo?.result ? { ...this.tempo.result, label: TEMPO_SOURCES[this.tempo.result.source] } : null,
       dcas: Object.values(this.state.dcas),

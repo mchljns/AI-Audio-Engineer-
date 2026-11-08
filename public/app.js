@@ -308,7 +308,7 @@ function render(s) {
   $('#offlineBar').hidden = st.connected || st.searching;
   if (st.searching) {
     $('#offlineBar').hidden = false;
-    $('#offlineBar').textContent = 'Looking for the mixer. Make sure the XR18 is on and this Mac is on the same network.';
+    $('#offlineBar').textContent = `Looking for the mixer. Make sure the ${MIXER()} is on and this Mac is on the same network.`;
   } else $('#offlineBar').textContent = "The mixer isn't connected. Controls are paused until it's back.";
   try {
     if (s.automix) renderAuto(s.automix);
@@ -325,7 +325,7 @@ function render(s) {
   const renamed = g.locked.filter((l) => l.renamed);
   if (!g.locked.length) setPill($('#lock'), 'warn', 'No click/guide channel found');
   else if (!g.allSafe) setPill($('#lock'), 'danger', 'Click/guide reaching house — fixing');
-  else if (renamed.length) setPill($('#lock'), 'danger', `${renamed.map((l) => (l.id === 'aux' ? 'Aux 17/18' : `Ch ${l.id}`)).join(', ')} renamed: still locked, please check`);
+  else if (renamed.length) setPill($('#lock'), 'danger', `${renamed.map((l) => (l.id === 'aux' ? AUX_LABEL() : `Ch ${l.id}`)).join(', ')} renamed: still locked, please check`);
   else if (g.unsure?.length) setPill($('#lock'), 'warn', `Locked, but aux ${[...new Set(g.unsure.map((u) => u.bus))].join(', ')} needs a name`);
   else setPill($('#lock'), 'ok', `${g.locked.map((l) => l.name).join(' & ')} locked to monitors`);
   $('#lock').title = g.protectedBuses?.length
@@ -507,16 +507,19 @@ try {
 }
 
 // ---------- Set tab: song buttons, set editing, people, channels, Planning Center ----------
-const CHANNEL_OPTIONS = ['', ...Array.from({ length: 16 }, (_, i) => String(i + 1)), 'aux'];
-const chLabel = (c) => (c === '' ? '—' : c === 'aux' ? 'Aux 17/18' : `Ch ${c}`);
+const CH_COUNT = () => latest?.mixerModel?.channels ?? 16;
+const AUX_LABEL = () => latest?.mixerModel?.auxLabel ?? 'Aux 17/18';
+const MIXER = () => latest?.mixerModel?.short ?? 'XR18';
+const channelOptions = () => ['', ...Array.from({ length: CH_COUNT() }, (_, i) => String(i + 1)), 'aux'];
+const chLabel = (c) => (c === '' ? '—' : c === 'aux' ? AUX_LABEL() : `Ch ${c}`);
 /** A position with this set's channels (people's channels change week to week). */
 const slotThisWeek = (set, slot) => (set?.channels?.[slot.id] ? { ...slot, ...set.channels[slot.id], moved: true } : slot);
 const pairLabel = (l, r) => (l ? `${chLabel(l)}${r ? `/${r === 'aux' ? 'Aux' : r}` : ''}` : 'No ch');
 /** Pick this week's channel for a position. Stereo positions move as a pair (next channel up). */
 function weekChannelSelect(set, slot) {
   const stereo = !!slot.right;
-  const right = (l) => (stereo && l !== 'aux' && Number(l) < 16 ? String(Number(l) + 1) : '');
-  const opts = [['', pairLabel(slot.left, slot.right)], ...CHANNEL_OPTIONS.filter((c) => c && (!stereo || c !== '16')).map((c) => [c, stereo ? pairLabel(c, right(c)) : chLabel(c)])];
+  const right = (l) => (stereo && l !== 'aux' && Number(l) < CH_COUNT() ? String(Number(l) + 1) : '');
+  const opts = [['', pairLabel(slot.left, slot.right)], ...channelOptions().filter((c) => c && (!stereo || c !== String(CH_COUNT()))).map((c) => [c, stereo ? pairLabel(c, right(c)) : chLabel(c)])];
   const cur = set?.channels?.[slot.id]?.left ?? '';
   const sel = selectEl(opts, cur, (v) => send({ type: 'setSetChannel', slotId: slot.id, left: v || null, right: v ? right(v) : '' }), `${slot.name} channel this week`);
   sel.classList.add('ch-pick');
@@ -649,10 +652,10 @@ function renderSet(s) {
         const save = (patch = {}) => send({ type: 'saveSlot', slot: { ...slot, name: name.value, ...patch } });
         name.addEventListener('change', () => save());
         const inst = selectEl(Object.entries(L.instruments).map(([k, d]) => [k, d.label]), slot.instrument, (v) => save({ instrument: v }), 'Instrument');
-        const left = selectEl(CHANNEL_OPTIONS.map((c) => [c, chLabel(c)]), slot.left, (v) => save({ left: v }), 'Channel');
+        const left = selectEl(channelOptions().map((c) => [c, chLabel(c)]), slot.left, (v) => save({ left: v }), 'Channel');
         const parts = [name, inst, left];
         if (L.instruments[slot.instrument]?.stereo !== 'never') {
-          parts.push(el('span', { class: 'muted small', text: 'right:' }), selectEl(CHANNEL_OPTIONS.map((c) => [c, chLabel(c)]), slot.right, (v) => save({ right: v }), 'Right channel'));
+          parts.push(el('span', { class: 'muted small', text: 'right:' }), selectEl(channelOptions().map((c) => [c, chLabel(c)]), slot.right, (v) => save({ right: v }), 'Right channel'));
         }
         const rm = el('button', { class: 'icon-btn', type: 'button', 'aria-label': `Remove ${slot.name}`, text: '✕' });
         rm.addEventListener('click', () => send({ type: 'deleteSlot', id: slot.id }));
@@ -1023,7 +1026,7 @@ function finishFind(s, levels) {
     const n = Number(left);
     const nb = [String(n - 1), String(n + 1)].find((c) => cands.includes(c));
     if (nb) [left, right] = Number(nb) < n ? [nb, left] : [left, nb];
-    else right = n < 16 ? String(n + 1) : '';
+    else right = n < CH_COUNT() ? String(n + 1) : '';
   }
   findNotes[f.slotId] = `Found: ${pairLabel(left, right)}`;
   send({ type: 'setSetChannel', slotId: f.slotId, left, right });
@@ -1629,6 +1632,38 @@ function renderConnection(s) {
   }
 }
 $('#connPref').addEventListener('change', (e) => send({ type: 'setConnection', mode: e.target.value }));
+let confirmModel = '';
+function renderMixerModel(s) {
+  const mm = s.mixerModel;
+  if (!mm) return;
+  const sel = $('#mixerModel');
+  if (!sel.options.length) for (const m of mm.models) sel.append(el('option', { value: m.id, text: m.label }));
+  if (document.activeElement !== sel && !confirmModel) sel.value = mm.id;
+  sel.disabled = mm.fixed;
+  $('#mixerModelConfirm').hidden = !confirmModel;
+  $('#mixerModelNote').textContent = confirmModel
+    ? `Switch to the ${confirmModel.toUpperCase()}? Mix Assistant restarts (about 10 seconds) and looks for that mixer. Your people, songs and saved tones are kept.`
+    : mm.fixed
+      ? `Set to ${mm.short} in config.json.`
+      : mm.tested
+        ? `Using the ${mm.short}: ${mm.channels} channels. Only change this if you've changed mixers.`
+        : `Using the ${mm.short}: ${mm.channels} channels. Not tested on a real ${mm.short} yet: check the list in docs/ROADMAP.md before a service. The feedback catcher is off on this mixer for now.`;
+}
+$('#mixerModel').addEventListener('change', (e) => {
+  const v = e.target.value;
+  confirmModel = v === latest?.mixerModel?.id ? '' : v;
+  if (latest) renderMixerModel(latest);
+});
+$('#mixerModelYes').addEventListener('click', () => {
+  if (confirmModel) send({ type: 'setMixerModel', model: confirmModel });
+  confirmModel = '';
+  $('#mixerModelConfirm').hidden = true;
+  $('#mixerModelNote').textContent = 'Restarting…';
+});
+$('#mixerModelNo').addEventListener('click', () => {
+  confirmModel = '';
+  if (latest) renderMixerModel(latest);
+});
 $('#venueSel').addEventListener('change', (e) => send({ type: 'selectVenue', index: e.target.value === '' ? null : Number(e.target.value) }));
 $('#venueForm').addEventListener('submit', (e) => {
   e.preventDefault();
@@ -1649,6 +1684,7 @@ function renderMac(s) {
   $('#macCard').hidden = !m;
   if (!m) return;
   renderConnection(s);
+  renderMixerModel(s);
   const u = m.update ?? {};
   $('#macVersion').textContent = `Mix Assistant ${u.current ?? ''}`;
   $('#updCheck').disabled = !!u.checking || !!u.updating;
@@ -1843,7 +1879,7 @@ let lightItems = [];
 function renderLight(s) {
   const st = s.status;
   const items = []; // [level, text, action?]
-  if (!st.connected) items.push(['red', st.searching ? 'Looking for the mixer. Check the XR18 is on.' : "The mixer isn't connected.", null]);
+  if (!st.connected) items.push(['red', st.searching ? `Looking for the mixer. Check the ${MIXER()} is on.` : "The mixer isn't connected.", null]);
   const g = s.clickGuard;
   if (st.connected && g && !g.allSafe) items.push(['red', 'The click or guide was reaching the room. Mix Assistant is fixing it.', null]);
   if (s.handsOff) items.push(['yellow', 'Hands off: Mix Assistant is paused and changing nothing.', null]);
@@ -2286,12 +2322,12 @@ function wzStep(id, s) {
   const st = s.status;
   if (id === 'hello') {
     return mac
-      ? [el('div', { class: 'wz-hero' }, [ic('sliders')]), el('h2', { text: 'Welcome to Mix Assistant' }), el('p', { text: 'This Mac is the booth Mac: it talks to the XR18 and runs Mix Assistant for everyone. Let’s set it up. It takes about five minutes, and you can skip anything and come back later from ⚙︎.' }), el('p', { class: 'muted', text: 'You’ll need: the XR18 on, and the iPads nearby. Planning Center and ProPresenter details are optional.' })]
-      : [el('div', { class: 'wz-hero' }, [ic('audio')]), el('h2', { text: 'Welcome to Mix Assistant' }), el('p', { text: 'Mix Assistant mixes the service for you: it follows the songs, the people talking and the sermon. This iPad is how you get ready on Sunday morning and keep an eye on things during the service.' }), wzStatus(st.connected, st.connected ? `Connected to the booth Mac and the mixer (${st.mixer?.name ?? 'XR18'}).` : 'Connected to the booth Mac. It’s still looking for the mixer.')];
+      ? [el('div', { class: 'wz-hero' }, [ic('sliders')]), el('h2', { text: 'Welcome to Mix Assistant' }), el('p', { text: `This Mac is the booth Mac: it talks to the ${MIXER()} and runs Mix Assistant for everyone. Let’s set it up. It takes about five minutes, and you can skip anything and come back later from ⚙︎.` }), el('p', { class: 'muted', text: `You’ll need: the ${MIXER()} on, and the iPads nearby. Planning Center and ProPresenter details are optional.` })]
+      : [el('div', { class: 'wz-hero' }, [ic('audio')]), el('h2', { text: 'Welcome to Mix Assistant' }), el('p', { text: 'Mix Assistant mixes the service for you: it follows the songs, the people talking and the sermon. This iPad is how you get ready on Sunday morning and keep an eye on things during the service.' }), wzStatus(st.connected, st.connected ? `Connected to the booth Mac and the mixer (${st.mixer?.name ?? MIXER()}).` : 'Connected to the booth Mac. It’s still looking for the mixer.')];
   }
   if (id === 'mixer') {
-    const out = [el('h2', { text: 'Find the mixer' }), wzStatus(st.connected ? true : st.searching ? null : false, st.connected ? `Found it: ${st.mixer?.name ?? 'XR18'}${st.path?.label ? ` over ${st.path.label}` : ''}.` : st.searching ? 'Looking for the XR18…' : 'Not connected to the mixer yet.')];
-    if (!st.connected) out.push(el('ol', { class: 'wz-steps' }, [el('li', { text: 'Turn the XR18 on and wait about 30 seconds.' }), el('li', { text: 'Join this Mac to the XR18’s Wi-Fi, or plug in the network cable from the XR18.' }), el('li', { text: 'This page updates by itself when it finds it.' })]));
+    const out = [el('h2', { text: 'Find the mixer' }), wzStatus(st.connected ? true : st.searching ? null : false, st.connected ? `Found it: ${st.mixer?.name ?? MIXER()}${st.path?.label ? ` over ${st.path.label}` : ''}.` : st.searching ? `Looking for the ${MIXER()}…` : 'Not connected to the mixer yet.')];
+    if (!st.connected) out.push(el('ol', { class: 'wz-steps' }, [el('li', { text: `Turn the ${MIXER()} on and wait about 30 seconds.` }), el('li', { text: MIXER() === 'XR18' ? 'Join this Mac to the XR18’s Wi-Fi, or plug in the network cable from the XR18.' : `Join this Mac to the same network as the ${MIXER()} (its router’s Wi-Fi), or plug in its network cable.` }), el('li', { text: 'This page updates by itself when it finds it.' })]));
     const c = s.mac?.connection;
     if (c?.modes) {
       const sel = selectEl(Object.entries(c.modes).map(([k, label]) => [k, k === 'auto' ? `${label} (recommended)` : label]), c.mode, (v) => send({ type: 'setConnection', mode: v }), 'Reach the mixer over');
@@ -2313,11 +2349,11 @@ function wzStep(id, s) {
     const L = s.setlist;
     const stereo = (x) => L.instruments?.[x.instrument]?.stereo !== 'never';
     const rows = (L?.slots ?? []).map((x) => {
-      const left = selectEl(CHANNEL_OPTIONS.map((c) => [c, c ? chLabel(c) : 'Not used']), x.left, (v) => send({ type: 'saveSlot', slot: { ...x, left: v } }), `${x.name} channel`);
-      const right = stereo(x) ? selectEl(CHANNEL_OPTIONS.map((c) => [c, c ? `+ ${chLabel(c)}` : 'Mono']), x.right, (v) => send({ type: 'saveSlot', slot: { ...x, right: v } }), `${x.name} second channel`) : el('span');
+      const left = selectEl(channelOptions().map((c) => [c, c ? chLabel(c) : 'Not used']), x.left, (v) => send({ type: 'saveSlot', slot: { ...x, left: v } }), `${x.name} channel`);
+      const right = stereo(x) ? selectEl(channelOptions().map((c) => [c, c ? `+ ${chLabel(c)}` : 'Mono']), x.right, (v) => send({ type: 'saveSlot', slot: { ...x, right: v } }), `${x.name} second channel`) : el('span');
       return el('div', {}, [el('b', { text: x.name }), left, right]);
     });
-    return [el('h2', { text: 'Which channel is each stage position?' }), el('p', { text: 'The XR18 channel each position usually plugs into. Stereo instruments (keys, electric) use two. Week-to-week changes are made on Sunday morning, so this is just the usual layout.' }), el('div', { class: 'wz-pos' }, rows)];
+    return [el('h2', { text: 'Which channel is each stage position?' }), el('p', { text: `The ${MIXER()} channel each position usually plugs into. Stereo instruments (keys, electric) use two. Week-to-week changes are made on Sunday morning, so this is just the usual layout.` }), el('div', { class: 'wz-pos' }, rows)];
   }
   if (id === 'ipads') {
     const n = s.checklist?.auto?.find((a) => a.id === 'auto-ipads');

@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events';
-import { STRIP_IDS, DCA_COUNT, AUX_BUSES, parseAddress, decodeMeterBlob, metersToStrips } from './xair/addresses.js';
+import { STRIP_IDS, DCA_COUNT, AUX_BUSES, parseAddress, decodeMeterBlob, metersToStrips, mixerProfile } from './xair/addresses.js';
 import { floatToDb } from './xair/faderLaw.js';
 
 const SIGNAL_THRESHOLD_DB = -50; // above this the channel counts as "has signal"
@@ -40,7 +40,7 @@ export class MixerState extends EventEmitter {
 
   /** Apply one OSC message. Returns true if it changed tracked state. */
   apply(msg, now = Date.now()) {
-    if (msg.address === '/meters/4') {
+    if (msg.address === mixerProfile().rtaAddress) {
       // The 100-band analyzer (RTA): dB per band, low to high.
       const blob = msg.args[0]?.value;
       if (Buffer.isBuffer(blob)) this.emit('rta', decodeMeterBlob(blob), now);

@@ -20,11 +20,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { dbToFloat, floatToDb } from './xair/faderLaw.js';
-import { paths, STRIP_IDS, FX_SEND_FIRST } from './xair/addresses.js';
+import { paths, STRIP_IDS, fxSendBuses, mixerProfile } from './xair/addresses.js';
 import { resolveRole } from './inventory.js';
 
-export const fxReturnFader = (n) => `/rtn/${n}/mix/fader`;
-export const fxSendBus = (fx) => FX_SEND_FIRST + fx - 1; // FX1 → mix send 07
+export const fxReturnFader = (n) => mixerProfile().fxReturnFader(n);
+export const fxSendBus = (fx) => fxSendBuses[fx - 1]; // XR18: FX1 → mix send 07; X32: the bus feeding FX1
 const HUMAN_TOLERANCE = 0.02;
 
 export const EFFECT_DEFAULTS = {
@@ -215,7 +215,9 @@ export class Effects {
   }
 
   #onMessage(msg) {
-    const m = msg.address?.match(/^\/rtn\/([1-4])\/mix\/fader$/);
+    const pr = mixerProfile();
+    const mm = msg.address?.match(pr.fxReturnPattern);
+    const m = mm ? [mm[0], pr.fxReturnFromMatch(mm)] : null;
     if (!m || !msg.args?.length) return;
     const n = Number(m[1]);
     const v = Number(msg.args[0].value);

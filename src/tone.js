@@ -16,6 +16,8 @@
 // EQ and compression act on the channel before its sends, so they also change the in-ear sound
 // of that channel. Aux send levels are never touched.
 
+import { mixerProfile } from './xair/addresses.js';
+
 const pad2 = (n) => String(n).padStart(2, '0');
 const lin = (min, max) => ({ toRaw: (v) => (v - min) / (max - min), fromRaw: (r) => min + (max - min) * r });
 const log = (min, max) => ({ toRaw: (v) => Math.log(v / min) / Math.log(max / min), fromRaw: (r) => min * Math.exp(Math.log(max / min) * r) });
@@ -61,7 +63,7 @@ const PARAMS = [
   ['gate.release', 'gate/release', log(5, 4000), 'f'],
 ];
 
-export const toneAddress = (ch, suffix) => (suffix === 'headamp' ? `/headamp/${pad2(ch)}/gain` : `/ch/${pad2(ch)}/${suffix}`);
+export const toneAddress = (ch, suffix) => (suffix === 'headamp' ? `${mixerProfile().headampBase(ch)}/gain` : `/ch/${pad2(ch)}/${suffix}`);
 /** Every address that makes up a channel's tone (for reading it from the mixer). */
 export const tonePaths = (ch) => PARAMS.map(([, suffix]) => toneAddress(ch, suffix));
 /** Only real input channels have this processing (not the aux return). */
@@ -349,10 +351,10 @@ export class ToneDesk {
 
   #onMessage(msg) {
     if (!msg.args?.length) return;
-    const g = msg.address?.match(/^\/headamp\/(\d\d)\/gain$/);
+    const g = msg.address?.match(/^\/headamp\/(\d{2,3})\/gain$/);
     const m = g ? null : msg.address?.match(/^\/ch\/(\d\d)\/(preamp\/hp(?:on|f)|eq\/(?:on|[1-4]\/(?:type|f|g|q))|dyn\/\w+|gate\/\w+)$/);
     if (!g && !m) return;
-    const ch = String(Number((g ?? m)[1]));
+    const ch = String(g ? mixerProfile().channelFromHeadamp(g[1]) : Number(m[1]));
     if (!this.raw.has(ch)) this.raw.set(ch, {});
     this.raw.get(ch)[g ? 'headamp' : m[2]] = Number(msg.args[0].value);
   }

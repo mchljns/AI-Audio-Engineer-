@@ -1,20 +1,52 @@
-// XR18 OSC address map (X Air series, firmware 1.x).
-// Source: community-documented X Air OSC protocol. Verify against real hardware.
+// Mixer OSC address map. The XR18 (X Air) is the default; an X32 profile is prepared for an
+// upgrade (src/xair/profiles.js). The model is chosen once at startup with useMixerModel().
+// Source: community-documented X Air / X32 OSC protocols. Verify against real hardware.
 
-export const OSC_PORT = 10024;
-export const CHANNEL_COUNT = 16;
-export const AUX_BUS_COUNT = 6; // mix sends 01..06 = aux buses (monitors)
-export const FX_SEND_FIRST = 7; // mix sends 07..10 = FX1..FX4 sends
-export const FX_SEND_COUNT = 4;
-export const DCA_COUNT = 4;
+import { profileFor } from './profiles.js';
 
-/** All input strips the app manages: ch1..ch16 plus the stereo aux input (17/18). */
-export const STRIP_IDS = [...Array.from({ length: CHANNEL_COUNT }, (_, i) => String(i + 1)), 'aux'];
+let profile = profileFor('xr18');
+
+// Live bindings: modules read these at call time, so they follow the chosen model. Arrays are
+// updated in place so references held elsewhere stay current.
+export let MIXER_MODEL = profile.id;
+export let OSC_PORT = profile.port;
+export let CHANNEL_COUNT = profile.channelCount;
+export let AUX_BUS_COUNT = profile.monitorBuses.length; // in-ear mixes
+export let FX_SEND_FIRST = profile.fxSendBuses[0]; // the mix send feeding FX1
+export let FX_SEND_COUNT = profile.fxSendBuses.length;
+export let DCA_COUNT = profile.dcaCount;
+
+/** All input strips the app manages: every channel plus the stereo aux (playback) input. */
+export const STRIP_IDS = [];
+/** In-ear (monitor) buses: never changed by the app. */
+export const AUX_BUSES = [];
+/** Mix sends that feed FX1..FX4. */
+export const fxSendBuses = [];
+
+/** The active mixer profile (read-only). */
+export const mixerProfile = () => profile;
+
+/** Choose the mixer model ('xr18' or 'x32'). Call before creating the mixer state or client. */
+export function useMixerModel(model) {
+  profile = profileFor(model);
+  MIXER_MODEL = profile.id;
+  OSC_PORT = profile.port;
+  CHANNEL_COUNT = profile.channelCount;
+  AUX_BUS_COUNT = profile.monitorBuses.length;
+  FX_SEND_FIRST = profile.fxSendBuses[0];
+  FX_SEND_COUNT = profile.fxSendBuses.length;
+  DCA_COUNT = profile.dcaCount;
+  STRIP_IDS.splice(0, STRIP_IDS.length, ...Array.from({ length: CHANNEL_COUNT }, (_, i) => String(i + 1)), 'aux');
+  AUX_BUSES.splice(0, AUX_BUSES.length, ...profile.monitorBuses);
+  fxSendBuses.splice(0, fxSendBuses.length, ...profile.fxSendBuses);
+  return profile;
+}
+useMixerModel('xr18');
 
 const pad2 = (n) => String(n).padStart(2, '0');
 
 export function stripBase(id) {
-  return id === 'aux' ? '/rtn/aux' : `/ch/${pad2(id)}`;
+  return id === 'aux' ? profile.auxStrip.base : `/ch/${pad2(id)}`;
 }
 
 export const paths = {
@@ -23,20 +55,15 @@ export const paths = {
   on: (id) => `${stripBase(id)}/mix/on`, // 1 = unmuted, 0 = muted
   fader: (id) => `${stripBase(id)}/mix/fader`,
   pan: (id) => `${stripBase(id)}/mix/pan`, // 0..1, 0.5 = centre
-  lr: (id) => `${stripBase(id)}/mix/lr`, // 1 = assigned to main L/R
+  lr: (id) => `${stripBase(id)}/mix/${profile.lrField}`, // 1 = assigned to main L/R (X32: mix/st)
   send: (id, bus) => `${stripBase(id)}/mix/${pad2(bus)}/level`,
   dcaGroups: (id) => `${stripBase(id)}/grp/dca`, // bitmask
   muteGroups: (id) => `${stripBase(id)}/grp/mute`, // bitmask
   dcaFader: (n) => `/dca/${n}/fader`,
   dcaOn: (n) => `/dca/${n}/on`,
   dcaName: (n) => `/dca/${n}/config/name`,
-  busName: (n) => `/bus/${n}/config/name`,
+  busName: (n) => `${profile.busPath(n)}/config/name`,
 };
-
-/** Aux buses 1..6 (monitor mixes, livestream feed, etc.). */
-export const AUX_BUSES = Array.from({ length: AUX_BUS_COUNT }, (_, i) => i + 1);
-
-export const fxSendBuses = Array.from({ length: FX_SEND_COUNT }, (_, i) => FX_SEND_FIRST + i);
 
 /** Every address to query for a strip during a full sync. */
 export function stripQueryPaths(id) {
@@ -59,15 +86,18 @@ export function stripQueryPaths(id) {
  * Returns null for anything the app doesn't track.
  */
 export function parseAddress(address) {
-  let m = address.match(/^\/(?:ch\/(\d\d)|rtn\/(aux))\/(.+)$/);
+  const auxBase = profile.auxStrip.base;
+  let m = address.match(/^\/ch\/(\d\d)\/(.+)$/);
+  if (m && Number(m[1]) > CHANNEL_COUNT) return null;
+  if (!m && address.startsWith(`${auxBase}/`)) m = [address, null, address.slice(auxBase.length + 1)];
   if (m) {
     const id = m[1] ? String(Number(m[1])) : 'aux';
-    const rest = m[3];
+    const rest = m[2];
     if (rest === 'config/name') return { id, field: 'name' };
     if (rest === 'config/color') return { id, field: 'color' };
     if (rest === 'mix/on') return { id, field: 'on' };
     if (rest === 'mix/fader') return { id, field: 'fader' };
-    if (rest === 'mix/lr') return { id, field: 'lr' };
+    if (rest === `mix/${profile.lrField}`) return { id, field: 'lr' };
     if (rest === 'mix/pan') return { id, field: 'pan' };
     if (rest === 'grp/dca') return { id, field: 'dcaGroups' };
     if (rest === 'grp/mute') return { id, field: 'muteGroups' };
@@ -75,8 +105,8 @@ export function parseAddress(address) {
     if (s) return { id, field: 'send', bus: Number(s[1]) };
     return null;
   }
-  m = address.match(/^\/bus\/(\d)\/config\/name$/);
-  if (m) return { bus: Number(m[1]), field: 'name' };
+  m = address.match(/^\/bus\/(\d\d?)\/config\/name$/);
+  if (m && address === paths.busName(Number(m[1]))) return { bus: Number(m[1]), field: 'name' };
   m = address.match(/^\/dca\/(\d)\/(fader|on|config\/name)$/);
   if (m) return { dca: Number(m[1]), field: m[2] === 'config/name' ? 'name' : m[2] };
   return null;
@@ -109,6 +139,7 @@ export function encodeMeterBlob(dbValues) {
 export function metersToStrips(values) {
   const out = {};
   for (let i = 0; i < CHANNEL_COUNT && i < values.length; i++) out[String(i + 1)] = values[i];
-  if (values.length > 17) out.aux = Math.max(values[16], values[17]);
+  const [l, r] = profile.auxStrip.meters;
+  if (values.length > r) out.aux = Math.max(values[l], values[r]);
   return out;
 }

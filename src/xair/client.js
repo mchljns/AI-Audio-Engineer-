@@ -4,7 +4,7 @@ import net from 'node:net';
 import dns from 'node:dns/promises';
 import { EventEmitter } from 'node:events';
 import { encodeMessage, decodeMessage } from '../osc.js';
-import { OSC_PORT, STRIP_IDS, DCA_COUNT, AUX_BUSES, paths, stripQueryPaths } from './addresses.js';
+import { OSC_PORT, STRIP_IDS, DCA_COUNT, AUX_BUSES, paths, stripQueryPaths, mixerProfile } from './addresses.js';
 
 const KEEPALIVE_MS = 8000; // /xremote and /meters subscriptions expire after ~10 s
 const HEARTBEAT_MS = 2000;
@@ -16,17 +16,19 @@ const TIMEOUT_MS = 6000;
  */
 /**
  * Writes the app must never make (reads are always fine):
- *   - anything on an aux bus (/bus/…): the in-ear mixes' levels, EQ, dynamics, setup
- *   - a channel's, aux-in's or FX return's send to aux buses 1–6 (the in-ear mixes), except a
- *     bus explicitly listed as protected in config.json, which the click guard keeps clear
+ *   - anything on a bus (/bus/…): the in-ear mixes' levels, EQ, dynamics, setup
+ *   - a channel's, aux-in's or FX return's send to an in-ear bus (XR18: 1–6, X32: 1–12), except
+ *     a bus explicitly listed as protected in config.json, which the click guard keeps clear
  *   - loading or saving mixer snapshots, mixer configuration, phantom power
+ *   - on an X32: matrix outputs (/mtx/…), and sends from the FX returns to any bus
  */
 export function blockedWrite(address, allowedAuxBuses = []) {
   if (/^\/bus\//.test(address)) return true;
-  const send = address.match(/^\/(?:ch\/\d\d|rtn\/(?:aux|[1-4]))\/mix\/0([1-6])(?:\/|$)/);
-  if (send) return !(allowedAuxBuses ?? []).map(Number).includes(Number(send[1]));
+  if (/^\/mtx\//.test(address)) return true;
+  const send = address.match(/^\/(?:ch\/\d\d|rtn\/(?:aux|[1-4])|auxin\/\d\d|fxrtn\/\d\d)\/mix\/(\d\d)(?:\/|$)/);
+  if (send && AUX_BUSES.includes(Number(send[1]))) return !(allowedAuxBuses ?? []).map(Number).includes(Number(send[1]));
   if (/^\/-?snap/.test(address) || /^\/-?config\//.test(address) || /^\/-?action\//.test(address)) return true;
-  if (/^\/headamp\/\d\d\/phantom$/.test(address)) return true;
+  if (/^\/headamp\/\d{2,3}\/phantom$/.test(address)) return true;
   return false;
 }
 
@@ -125,7 +127,8 @@ export class XAirClient extends EventEmitter {
   #keepalive() {
     this.send('/xremote'); // push parameter changes made from any other app
     this.send('/meters', [{ type: 's', value: '/meters/1' }]); // stream input meters
-    this.send('/meters', [{ type: 's', value: '/meters/4' }]); // stream the 100-band analyzer (feedback catcher)
+    const rta = mixerProfile().rtaAddress;
+    if (rta) this.send('/meters', [{ type: 's', value: rta }]); // stream the 100-band analyzer (feedback catcher)
   }
 
   #heartbeat() {

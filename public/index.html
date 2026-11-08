@@ -214,6 +214,15 @@
           <select id="connPref"></select>
           <p id="connStatus" class="muted small"></p>
         </div>
+        <div class="field" data-tech>
+          <label for="mixerModel">Mixer model</label>
+          <select id="mixerModel"></select>
+          <p id="mixerModelNote" class="muted small"></p>
+          <div id="mixerModelConfirm" class="row" hidden>
+            <button id="mixerModelYes" class="btn" type="button">Switch and restart</button>
+            <button id="mixerModelNo" class="btn btn-ghost" type="button">Cancel</button>
+          </div>
+        </div>
         <details class="venue-edit">
           <summary id="venueEditSummary">Save this setup as a venue</summary>
           <form id="venueForm" class="pl-form">
