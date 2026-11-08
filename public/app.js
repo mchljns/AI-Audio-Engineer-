@@ -118,6 +118,18 @@ function setPill(el, kind, text) {
   el.className = `pill pill-${kind}`;
   el.textContent = text;
 }
+/** A line icon from the sprite in index.html. */
+function ic(name) {
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('class', 'ic');
+  svg.setAttribute('aria-hidden', 'true');
+  const use = document.createElementNS(NS, 'use');
+  use.setAttribute('href', `#i-${name}`);
+  svg.append(use);
+  return svg;
+}
+
 function el(tag, attrs = {}, children = []) {
   const n = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs)) {
@@ -239,7 +251,7 @@ function updateChannel(r) {
   p.dot.title = STATUS[r.status][1];
 
   if (r.locked) {
-    p.lr.textContent = '🔒 MON';
+    p.lr.textContent = 'MON';
     p.lr.className = 'key lock';
     p.lr.title = 'Monitors only: kept out of the main speakers and effects';
   } else {
@@ -313,9 +325,9 @@ function render(s) {
   const renamed = g.locked.filter((l) => l.renamed);
   if (!g.locked.length) setPill($('#lock'), 'warn', 'No click/guide channel found');
   else if (!g.allSafe) setPill($('#lock'), 'danger', 'Click/guide reaching house — fixing');
-  else if (renamed.length) setPill($('#lock'), 'danger', `🔒 ${renamed.map((l) => (l.id === 'aux' ? 'Aux 17/18' : `Ch ${l.id}`)).join(', ')} renamed: still locked, please check`);
-  else if (g.unsure?.length) setPill($('#lock'), 'warn', `🔒 Locked, but aux ${[...new Set(g.unsure.map((u) => u.bus))].join(', ')} needs a name`);
-  else setPill($('#lock'), 'ok', `🔒 ${g.locked.map((l) => l.name).join(' & ')} locked to monitors`);
+  else if (renamed.length) setPill($('#lock'), 'danger', `${renamed.map((l) => (l.id === 'aux' ? 'Aux 17/18' : `Ch ${l.id}`)).join(', ')} renamed: still locked, please check`);
+  else if (g.unsure?.length) setPill($('#lock'), 'warn', `Locked, but aux ${[...new Set(g.unsure.map((u) => u.bus))].join(', ')} needs a name`);
+  else setPill($('#lock'), 'ok', `${g.locked.map((l) => l.name).join(' & ')} locked to monitors`);
   $('#lock').title = g.protectedBuses?.length
     ? `Also kept off: ${g.protectedBuses.map((b) => b.name).join(', ')}`
     : 'Kept off the main speakers and effects';
@@ -323,7 +335,7 @@ function render(s) {
   // On the booth Mac itself, offer the QR code that connects an iPad.
   $('#share').hidden = !s.addresses?.length;
   if (s.addresses?.length) {
-    $('#share').textContent = '📱 Connect an iPad';
+    $('#share').replaceChildren(ic('tablet'), ' Connect an iPad');
     renderConnect(s);
   }
 
@@ -335,18 +347,18 @@ function render(s) {
   const issues = [];
   for (const r of inv.rows) {
     if (r.status === 'silent' && !r.locked && r.role !== 'track' && r.role !== 'walkin')
-      issues.push(['warn', `⚠️ ${r.label} "${r.name}": named but no signal. Check battery, cable or receiver.`]);
-    if (r.status === 'unlabeled-signal') issues.push(['warn', `❓ ${r.label}: signal on an unnamed channel. Tap its name strip to set what it is.`]);
+      issues.push(['warn', `${r.label} "${r.name}": named but no signal. Check battery, cable or receiver.`]);
+    if (r.status === 'unlabeled-signal') issues.push(['warn', `${r.label}: signal on an unnamed channel. Tap its name strip to set what it is.`]);
     if (r.offCenter)
       issues.push(['info', `↔️ ${r.label} "${r.name}" is panned ${r.pan < 0.5 ? 'left' : 'right'}. Both speakers play the same mix, so panning does nothing useful here and makes it about 3 dB quieter. Centre it in the X Air app.`]);
     if (r.role === 'unknown' && r.roleSource !== 'confirmed')
-      issues.push(['info', `❔ ${r.label} "${r.name}": couldn't tell what this is from its name. Tap its name strip.`]);
+      issues.push(['info', `${r.label} "${r.name}": couldn't tell what this is from its name. Tap its name strip.`]);
   }
   const setupLeft = renderChecklist(s.checklist);
   const parts = [setupLeft ? `Setup: ${setupLeft} left` : '', issues.length ? `${issues.length} to check` : ''].filter(Boolean);
   $('#issueCount').textContent = parts.length ? parts.join(' · ') : '✓ All good';
   $('#issueCount').style.color = parts.length ? 'var(--warn)' : 'var(--ok)';
-  if (!issues.length) issues.push(['ok', '✅ Nothing needs attention.']);
+  if (!issues.length) issues.push(['ok', 'Nothing needs attention.']);
   $('#issues').replaceChildren(...issues.map(([k, t]) => el('li', { class: `lvl-${k}` }, [el('span', { class: 'msg', text: t })])));
 
   $('#alerts').replaceChildren(
@@ -801,7 +813,7 @@ function renderSoundcheck(s) {
     };
     const meter = (slot) => el('div', { class: 'meter', 'data-ch': slot.left, 'data-ch2': slot.right || '' }, [el('div', { class: 'lvl' })]);
     const label = (text, slot) => {
-      const tone = el('button', { class: 'tone-btn', type: 'button', text: '🎚 Tone' });
+      const tone = el('button', { class: 'tone-btn', type: 'button' }, [ic('sliders'), 'Tone']);
       tone.addEventListener('click', () => openTone(slot.id));
       const saved = s.setlist.tone?.[slot.id]?.saved;
       return el('div', { class: 'sc-label' }, [el('span', { text }), el('span', { class: `ch-tag${slot.moved ? ' moved' : ''}`, text: pairLabel(slot.left, slot.right) + (saved ? ' · saved tone' : '') }), tone]);
@@ -1179,7 +1191,7 @@ const FX_HELP = [
   ['Splashy or hissy: bright and sizzly', "Lower the High cut / Damping to about 5–6 kHz. Bright reverb makes S's and cymbals splash."],
   ['Like a cave: far too long', 'Decay down to 1.2–1.5 s, and pick Plate or a Room rather than a big Hall.'],
   ['Dry and harsh: no space at all', 'Check the singers\' reverb is "Normal" in their Tone, then use "Can\'t hear the reverb". If the reverb itself is very short, Decay up to 1.6–1.8 s.'],
-  ['Only one singer sounds wrong', 'Open their 🎚 Tone and pick Dry, A little or More. Save it to them so it comes back next week.'],
+  ['Only one singer sounds wrong', 'Open their Tone and pick Dry, A little or More. Save it to them so it comes back next week.'],
   ['Feedback or ringing when it is up', 'Use "Too much reverb", and lower the High cut to 5 kHz. Reverb on a loud wedge or an omni mic can ring.'],
 ];
 function renderEffects(s) {
@@ -1691,7 +1703,7 @@ function renderMusic(s) {
   const warn = m?.error || (m && m.internet === false ? `The Mac has no internet, so ${m.label} can only play downloaded playlists.` : '');
   $('#musicWarn').hidden = !warn;
   $('#musicWarn').textContent = warn || '';
-  $('#mPlay').textContent = m?.playing ? '⏸' : '▶';
+  $('#mPlay').replaceChildren(ic(m?.playing ? 'pause' : 'play'));
   const key = JSON.stringify(pls);
   if (key !== plKey) {
     plKey = key;
@@ -1749,7 +1761,7 @@ function setTech(on) {
   tech = on;
   document.body.classList.toggle('tech', on);
   $('#techBtn').classList.toggle('on', on);
-  $('#techBtn').textContent = on ? '⚙︎ Tech mode' : '⚙︎';
+  $('#techBtn').replaceChildren(ic('gear'), ...(on ? ['Tech mode'] : []));
   try {
     localStorage.setItem('mixTech', on ? '1' : '0');
   } catch {
@@ -2099,7 +2111,7 @@ function readyBody(id, s) {
     body.append(el('p', { class: 'muted', text: 'Only if something sounds wrong. Open the person, tap what you hear, and use Before / After to check it helped. Save it so it comes back next week.' }));
     const list = el('ul', { class: 'ready-gain' });
     for (const p of set ? weekPositions(s) : []) {
-      const b = el('button', { class: 'btn btn-ghost', type: 'button', text: '🎚 Open' });
+      const b = el('button', { class: 'btn btn-ghost', type: 'button' }, [ic('sliders'), ' Open']);
       b.addEventListener('click', () => openTone(p.base.id));
       const T = L.tone?.[p.base.id];
       list.append(el('li', {}, [el('div', {}, [el('b', { text: p.person.name }), el('span', { class: 'muted', text: ` · ${p.base.instrument === 'vocal' ? 'voice' : p.base.name.toLowerCase()}` })]), el('span', { class: 'muted small', text: T?.saved ? 'their saved sound' : '' }), b]));
@@ -2123,7 +2135,7 @@ function readyBody(id, s) {
     const live = el('button', { class: 'btn btn-big btn-ghost', type: 'button', text: 'Go to Live' });
     live.addEventListener('click', () => showTab('auto'));
     body.append(el('div', { class: 'row' }, [fade, live]));
-    body.append(el('p', { class: 'muted small', text: 'If anything ever goes wrong, tap ✋ Hands off at the top: everything goes back to how people set it.' }));
+    body.append(el('p', { class: 'muted small', text: 'If anything ever goes wrong, tap Hands off at the top: everything goes back to how people set it.' }));
   }
   return body;
 }
@@ -2274,8 +2286,8 @@ function wzStep(id, s) {
   const st = s.status;
   if (id === 'hello') {
     return mac
-      ? [el('div', { class: 'wz-hero', text: '🎚️' }), el('h2', { text: 'Welcome to Mix Assistant' }), el('p', { text: 'This Mac is the booth Mac: it talks to the XR18 and runs Mix Assistant for everyone. Let’s set it up. It takes about five minutes, and you can skip anything and come back later from ⚙︎.' }), el('p', { class: 'muted', text: 'You’ll need: the XR18 on, and the iPads nearby. Planning Center and ProPresenter details are optional.' })]
-      : [el('div', { class: 'wz-hero', text: '👋' }), el('h2', { text: 'Welcome to Mix Assistant' }), el('p', { text: 'Mix Assistant mixes the service for you: it follows the songs, the people talking and the sermon. This iPad is how you get ready on Sunday morning and keep an eye on things during the service.' }), wzStatus(st.connected, st.connected ? `Connected to the booth Mac and the mixer (${st.mixer?.name ?? 'XR18'}).` : 'Connected to the booth Mac. It’s still looking for the mixer.')];
+      ? [el('div', { class: 'wz-hero' }, [ic('sliders')]), el('h2', { text: 'Welcome to Mix Assistant' }), el('p', { text: 'This Mac is the booth Mac: it talks to the XR18 and runs Mix Assistant for everyone. Let’s set it up. It takes about five minutes, and you can skip anything and come back later from ⚙︎.' }), el('p', { class: 'muted', text: 'You’ll need: the XR18 on, and the iPads nearby. Planning Center and ProPresenter details are optional.' })]
+      : [el('div', { class: 'wz-hero' }, [ic('audio')]), el('h2', { text: 'Welcome to Mix Assistant' }), el('p', { text: 'Mix Assistant mixes the service for you: it follows the songs, the people talking and the sermon. This iPad is how you get ready on Sunday morning and keep an eye on things during the service.' }), wzStatus(st.connected, st.connected ? `Connected to the booth Mac and the mixer (${st.mixer?.name ?? 'XR18'}).` : 'Connected to the booth Mac. It’s still looking for the mixer.')];
   }
   if (id === 'mixer') {
     const out = [el('h2', { text: 'Find the mixer' }), wzStatus(st.connected ? true : st.searching ? null : false, st.connected ? `Found it: ${st.mixer?.name ?? 'XR18'}${st.path?.label ? ` over ${st.path.label}` : ''}.` : st.searching ? 'Looking for the XR18…' : 'Not connected to the mixer yet.')];
@@ -2309,7 +2321,7 @@ function wzStep(id, s) {
   }
   if (id === 'ipads') {
     const n = s.checklist?.auto?.find((a) => a.id === 'auto-ipads');
-    const show = el('button', { class: 'btn btn-big', type: 'button', text: '📱 Show the code' });
+    const show = el('button', { class: 'btn btn-big', type: 'button' }, [ic('tablet'), ' Show the code']);
     show.addEventListener('click', openConnect);
     return [
       el('h2', { text: 'Connect the iPads' }),
@@ -2340,7 +2352,7 @@ function wzStep(id, s) {
   }
   if (id === 'home') {
     return [
-      el('div', { class: 'wz-hero', text: '📲' }),
+      el('div', { class: 'wz-hero' }, [ic('share')]),
       el('h2', { text: 'Keep it on the Home Screen' }),
       el('ol', { class: 'wz-steps' }, [el('li', { text: 'Tap Share (the square with the arrow) at the top of Safari.' }), el('li', { text: 'Tap “Add to Home Screen”, then Add.' }), el('li', { text: 'From now on, open Mix Assistant from its icon. It signs in by itself.' })]),
     ];
@@ -2351,9 +2363,9 @@ function wzStep(id, s) {
       keys.wz = null;
       renderWelcome(latest);
     };
-    const v = el('button', { type: 'button', class: tech ? '' : 'on' }, [el('b', { text: '🙋 A volunteer' }), el('span', { class: 'muted', text: 'Getting ready on Sunday and keeping an eye on the service. Just what’s needed.' })]);
+    const v = el('button', { type: 'button', class: tech ? '' : 'on' }, [el('b', {}, [ic('user'), 'A volunteer']), el('span', { class: 'muted', text: 'Getting ready on Sunday and keeping an eye on the service. Just what’s needed.' })]);
     v.addEventListener('click', () => pick(false));
-    const t = el('button', { type: 'button', class: tech ? 'on' : '' }, [el('b', { text: '🛠 The tech lead' }), el('span', { class: 'muted', text: 'Also the engineering settings: effects, the mixer console, speakers, channels.' })]);
+    const t = el('button', { type: 'button', class: tech ? 'on' : '' }, [el('b', {}, [ic('wrench'), 'The tech lead']), el('span', { class: 'muted', text: 'Also the engineering settings: effects, the mixer console, speakers, channels.' })]);
     t.addEventListener('click', () => pick(true));
     return [el('h2', { text: 'Who uses this iPad?' }), el('div', { class: 'wz-choice' }, [v, t]), el('p', { class: 'muted small', text: 'You can switch any time with ⚙︎ at the top right.' })];
   }
@@ -2361,10 +2373,10 @@ function wzStep(id, s) {
     return [
       el('h2', { text: 'Four things to know' }),
       el('div', { class: 'wz-tour' }, [
-        el('div', {}, [el('b', { text: '✅ Get ready' }), el('span', { text: 'Every Sunday morning, step by step: gear, channels, levels, who sings lead.' })]),
-        el('div', {}, [el('b', { text: '🎵 Live' }), el('span', { text: 'During the service: the songs, what Mix Assistant is doing, and the music before and after.' })]),
-        el('div', {}, [el('b', { text: '🟢 The light at the top' }), el('span', { text: 'Green: all good. Yellow: have a look. Red: act now. Tap it to see why.' })]),
-        el('div', {}, [el('b', { text: '✋ Hands off' }), el('span', { text: 'If anything ever feels wrong, tap it: everything goes back to how people set it, and you mix as usual.' })]),
+        el('div', {}, [el('b', {}, [ic('list'), 'Get ready']), el('span', { text: 'Every Sunday morning, step by step: gear, channels, levels, who sings lead.' })]),
+        el('div', {}, [el('b', {}, [ic('live'), 'Live']), el('span', { text: 'During the service: the songs, what Mix Assistant is doing, and the music before and after.' })]),
+        el('div', {}, [el('b', {}, [el('span', { class: 'light green' }), 'The light at the top']), el('span', { text: 'Green: all good. Yellow: have a look. Red: act now. Tap it to see why.' })]),
+        el('div', {}, [el('b', {}, [ic('hand'), 'Hands off']), el('span', { text: 'If anything ever feels wrong, tap it: everything goes back to how people set it, and you mix as usual.' })]),
       ]),
     ];
   }
@@ -2373,14 +2385,14 @@ function wzStep(id, s) {
       const box = el('input', { type: 'checkbox', id: 'wzTechOn' });
       box.checked = true;
       return [
-        el('div', { class: 'wz-hero', text: '🎉' }),
+        el('div', { class: 'wz-hero' }, [ic('done')]),
         el('h2', { text: 'This Mac is set up' }),
         el('p', { text: 'Mix Assistant now runs in the background whenever this Mac is on.' }),
         el('ul', { class: 'wz-steps' }, [el('li', { text: 'Before the first Sunday: in Tech mode → Get ready, the one-time list shows what’s left (effects setup, midweek mixer check).' }), el('li', { text: 'Every Sunday: volunteers use Get ready on the iPad.' })]),
         el('label', { class: 'switch' }, [box, el('span', { text: 'Use Tech mode on this Mac (recommended for the tech lead’s computer)' })]),
       ];
     }
-    return [el('div', { class: 'wz-hero', text: '🎉' }), el('h2', { text: 'You’re all set' }), el('p', { text: 'Next: Get ready walks you through Sunday morning. If you’re not sure about anything, tap the light at the top.' })];
+    return [el('div', { class: 'wz-hero' }, [ic('done')]), el('h2', { text: 'You’re all set' }), el('p', { text: 'Next: Get ready walks you through Sunday morning. If you’re not sure about anything, tap the light at the top.' })];
   }
   return [];
 }

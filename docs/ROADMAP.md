@@ -11,6 +11,7 @@ Built for this system: XR18 → PRX ONE (both mains, summed) → pass-thru → P
 - **0.4 Pre/post-service music player:** Spotify (or Apple Music) on the Mac controlled from the iPad: Fade music in (play + fade up), Fade music out (fade out + pause), transport, saved playlists, offline warning. Network guide for iPads on the mixer's Wi-Fi. (0.4.1: "walk-in" renamed to pre/post-service music.)
 - **0.5 No Terminal:** download page and Mix Assistant Installer app; a Mix Assistant app on the Desktop; in-app updates, practice mode and troubleshooting report on the booth Mac's This Mac card.
 - **0.5.1 QR connect:** scan once per iPad; the home-screen icon signs in every week.
+- **0.18 Console look:** hardware-console visual design (hairline panels, lit keys, LED meters, role colour blocks, bundled Barlow type, line icons instead of emoji).
 - **0.17 First-time welcome on each device:** booth Mac setup wizard and iPad quick start; ⚙︎ settings menu.
 - **0.16 Volunteer-ready:** Get ready guided morning, Volunteer and Tech modes, status light, Hands off, plain-word results, Before / After in Tone, larger text and buttons.
 - **0.15 From the research review:** harmony size compensation, delay note by tempo, reverb timed to the song, talking singers dry, hiss expander, pop guard, a write guard for the in-ears, song sections from ProPresenter, bass weeks, and a feedback catcher using the mixer's analyzer.

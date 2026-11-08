@@ -6,6 +6,10 @@ It works alongside the Behringer X Air app, which stays available as a backup.
 
 ## The auto-mix
 
+## Look and feel
+
+Mix Assistant looks like the console gear it drives, not a generic web app: a near-black booth-friendly canvas with panels divided by hairlines, keys that light up when they're on, segmented LED meters (green, then amber, then red), a colour block per person showing their role on the song (gold lead, cyan harmony, copper lead instrument), and labels set like the printing on hardware. The typeface is Barlow / Barlow Condensed (SIL Open Font License), bundled with the app so it works with no internet. Icons are simple line icons, no emoji.
+
 ## For volunteers
 
 The app is built for people who aren't sound engineers.

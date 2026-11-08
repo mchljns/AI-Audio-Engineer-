@@ -11,6 +11,26 @@
     <title>Mix Assistant</title>
   </head>
   <body>
+    <!-- Line icons (Lucide-style, ISC). Used through <use href="#i-…">. -->
+    <svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
+      <symbol id="i-gear" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></symbol>
+      <symbol id="i-hand" viewBox="0 0 24 24"><path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2"/><path d="M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></symbol>
+      <symbol id="i-tablet" viewBox="0 0 24 24"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M12 18h.01"/></symbol>
+      <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 21v-7"/><path d="M4 10V3"/><path d="M12 21v-9"/><path d="M12 8V3"/><path d="M20 21v-5"/><path d="M20 12V3"/><path d="M2 14h4"/><path d="M10 8h4"/><path d="M18 16h4"/></symbol>
+      <symbol id="i-music" viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></symbol>
+      <symbol id="i-back" viewBox="0 0 24 24"><path d="M19 20 9 12l10-8z"/><path d="M5 19V5"/></symbol>
+      <symbol id="i-play" viewBox="0 0 24 24"><path d="M6 3l14 9-14 9z"/></symbol>
+      <symbol id="i-pause" viewBox="0 0 24 24"><rect x="14" y="4" width="4" height="16" rx="1"/><rect x="6" y="4" width="4" height="16" rx="1"/></symbol>
+      <symbol id="i-next" viewBox="0 0 24 24"><path d="M5 4l10 8-10 8z"/><path d="M19 5v14"/></symbol>
+      <symbol id="i-user" viewBox="0 0 24 24"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></symbol>
+      <symbol id="i-wrench" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></symbol>
+      <symbol id="i-list" viewBox="0 0 24 24"><path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/><path d="M13 6h8"/><path d="M13 12h8"/><path d="M13 18h8"/></symbol>
+      <symbol id="i-live" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2"/><path d="M4.93 19.07a10 10 0 0 1 0-14.14"/><path d="M7.76 16.24a6 6 0 0 1 0-8.49"/><path d="M16.24 7.76a6 6 0 0 1 0 8.49"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></symbol>
+      <symbol id="i-share" viewBox="0 0 24 24"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="m16 6-4-4-4 4"/><path d="M12 2v13"/></symbol>
+      <symbol id="i-done" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></symbol>
+      <symbol id="i-audio" viewBox="0 0 24 24"><path d="M2 10v3"/><path d="M6 6v11"/><path d="M10 3v18"/><path d="M14 8v7"/><path d="M18 5v13"/><path d="M22 10v3"/></symbol>
+      <symbol id="i-dot" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/></symbol>
+    </svg>
     <header class="topbar">
       <div class="brand">Mix Assistant</div>
       <div id="conn" class="pill pill-warn" data-tech>Connecting…</div>
@@ -24,7 +44,7 @@
         <button id="tabMixer" class="tab" role="tab" aria-selected="false" data-tech>Mixer</button>
         <button id="tabPa" class="tab" role="tab" aria-selected="false" data-tech>PA setup</button>
       </nav>
-      <button id="techBtn" class="tech-btn" type="button" title="Tech mode: engineering settings for the tech lead">⚙︎</button>
+      <button id="techBtn" class="tech-btn" type="button" title="Settings and Tech mode" aria-label="Settings"><svg class="ic"><use href="#i-gear"/></svg></button>
     </header>
     <div class="status-bar" id="statusBar">
       <button id="lightBtn" class="light-btn" type="button" aria-label="What's going on">
@@ -32,7 +52,7 @@
         <span id="lightText">Starting…</span>
         <span id="lightMore" class="light-more"></span>
       </button>
-      <button id="handsOffBtn" class="hands-btn" type="button">✋ Hands off</button>
+      <button id="handsOffBtn" class="hands-btn" type="button"><svg class="ic"><use href="#i-hand"/></svg>Hands off</button>
     </div>
     <div id="handsBanner" class="hands-banner" hidden>
       <span><b>Hands off.</b> Mix Assistant has put every fader and effect back where people set them and isn't changing anything. Mix in the X Air app as usual.</span>
@@ -48,7 +68,7 @@
         <button id="wzBack" class="btn btn-ghost" type="button">Back</button>
         <span class="spacer"></span>
         <button id="wzSkip" class="btn btn-ghost" type="button">Skip this</button>
-        <button id="wzNext" class="btn" type="button">Next</button>
+        <button id="wzNext" class="btn" type="button" autofocus>Next</button>
       </div>
     </dialog>
 
@@ -149,7 +169,7 @@
       <section class="auto-card walkin-card">
         <h2>Pre/post-service music</h2>
         <div class="now-playing">
-          <div class="np-icon" aria-hidden="true">♪</div>
+          <div class="np-icon" aria-hidden="true"><svg class="ic"><use href="#i-music"/></svg></div>
           <div class="np-text">
             <b id="npTrack">Nothing playing</b>
             <span id="npArtist" class="muted"></span>
@@ -164,9 +184,9 @@
           <button id="walkinEnd" class="btn btn-big btn-ghost">Fade music out</button>
         </div>
         <div class="transport" role="group" aria-label="Player">
-          <button id="mPrev" class="btn btn-ghost" aria-label="Previous track">⏮</button>
-          <button id="mPlay" class="btn btn-ghost" aria-label="Play or pause">⏯</button>
-          <button id="mNext" class="btn btn-ghost" aria-label="Next track">⏭</button>
+          <button id="mPrev" class="btn btn-ghost" aria-label="Previous track"><svg class="ic"><use href="#i-back"/></svg></button>
+          <button id="mPlay" class="btn btn-ghost" aria-label="Play or pause"><svg class="ic"><use href="#i-play"/></svg></button>
+          <button id="mNext" class="btn btn-ghost" aria-label="Next track"><svg class="ic"><use href="#i-next"/></svg></button>
         </div>
         <details class="pl-add">
           <summary>Add a playlist</summary>
@@ -450,7 +470,7 @@
             <button class="btn btn-small" type="button" id="fxLess">Too much reverb</button>
             <button class="btn btn-small" type="button" id="fxMore">Can't hear the reverb</button>
           </div>
-          <p class="muted small">For one singer only, use their 🎚 Tone.</p>
+          <p class="muted small">For one singer only, use their Tone.</p>
 
           <h3>Reverb sounds wrong? Pick what you hear</h3>
           <div id="fxTweaks" class="tone-fixes" hidden></div>
