@@ -55,6 +55,33 @@ Needs a small native macOS helper to read the XR18's USB audio, plus microphone 
 ### 6. Plain-English assistant
 "The pastor sounds muffled", "the keys are too loud in the room" → a proposed change with undo. Useful once profiles exist; lowest priority.
 
+## If we upgrade to an X32 Rack (planned, not started)
+
+Most of Mix Assistant carries over: the X32 speaks a close relative of the XR18's OSC, with the same EQ types, compressor and gate modes, and nearly all mixer-specific details live in `src/xair/addresses.js`. Items marked *check* must be confirmed on a real X32 before they're trusted.
+
+**Carries over unchanged:** sets and songs, people and roles, Get ready, Hands off, vocal riding and singer pulls, harmony compensation, ProPresenter sections, soundcheck tone buttons saved per person, feedback catcher, tempo, timed reverb, automatic delay, and the protections (in-ears never touched, no pastor reverb, click lock).
+
+**What the Rack changes:**
+- **No motor faders and no Wi-Fi.** Takeover is the same as today: tap Hands off, mix in X32-Mix (iPad) or X32-Edit (Mac).
+- **Needs a Wi-Fi router in the rack** (new hardware). The mixer, Mac and iPads join the router's own password-protected network; a router that can take internet from the school Wi-Fi gives every device internet on one private network.
+- **16 preamps on the Rack itself, 32 channels with a stage box** (S16/S32 over AES50). Soundcheck gain must follow the input routing to find the right preamp (*check* the X32 headamp addressing for local vs AES50 inputs).
+
+**New features the X32 makes possible:**
+1. **More channels:** 32 instead of 16 for singers and stereo instruments.
+2. **Group riding with 8 DCAs:** e.g. ride "all vocals" or "band" as a group.
+3. **The X32's built-in automixer for speaking** (panels, announcements, prayer), with Mix Assistant keeping its own riding for worship (*check*: limited to channels 1–8 or 25–32).
+4. **8 effects instead of 4:** a dedicated vocal plate, a separate tempo delay, and a de-esser on lead vocals. Still no pastor reverb.
+5. **A livestream or lobby mix on a matrix output:** a new kind of mixing, so ask before building it. In-ears stay off-limits.
+
+**Engineering steps:**
+1. Split the XR18 details out of `src/xair/addresses.js` into a mixer profile, then add an X32 profile: OSC port 10023, 32 channels, 8 aux ins, 16 buses, 6 matrices, 8 DCAs, 8 FX slots, X32 meter and headamp addresses.
+2. Make the write guard profile-aware: block all 16 buses and in-ear sends, matrices unless the livestream mix is turned on, scenes, and phantom power.
+3. Add an X32 simulator so every feature runs in tests before it touches a real desk.
+4. Hardware checklist on a real X32 before the first Sunday: meters, preamp addressing, FX parameters, automixer.
+5. Build the new features above.
+
+**Open questions:** stage box or analog snake? Livestream or lobby mix wanted? Use the built-in automixer for speaking?
+
 ## Dropped or deferred
 
 - **Anything that changes the in-ear mixes (aux sends):** out of scope. The band mixes their own ears.
