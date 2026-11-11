@@ -400,8 +400,8 @@ $('#muteUnused').addEventListener('click', () => {
   const ready = latest?.unusedReady;
   const list = latest?.unused ?? [];
   if (!ready) $('#unusedText').textContent = 'Still checking which channels are in use. Give it about 15 seconds after the mixer connects.';
-  else if (!list.length) $('#unusedText').textContent = 'Every channel without a name is already muted.';
-  else $('#unusedText').textContent = `These have no name and no sound: ${list.map((u) => u.label).join(', ')}. Muting them cuts their hiss.`;
+  else if (!list.length) $('#unusedText').textContent = 'Every channel without a name is already turned down.';
+  else $('#unusedText').textContent = `These have no name and no sound: ${list.map((u) => u.label).join(', ')}. Turning their faders down cuts their hiss in the room; the in-ear mixes don't change.`;
   $('#unusedConfirm').hidden = !ready || !list.length;
   $('#unusedDialog').dataset.ids = JSON.stringify(list.map((u) => u.id));
   $('#unusedDialog').showModal();

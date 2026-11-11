@@ -471,7 +471,8 @@ export class Bridge {
 
   #unusedRows() {
     const inv = buildInventory(this.state, this.roleStore, Date.now(), this.#lockedIds(), { monoPA: this.config.monoPA });
-    return inv.rows.filter((r) => r.status === 'unused' && r.on && !r.locked);
+    // Already turned down (fader at zero) or muted by a person: nothing to do.
+    return inv.rows.filter((r) => r.status === 'unused' && r.on && !r.locked && this.state.strips[r.id]?.fader > 0);
   }
 
   // ---------- commands from the web app ----------
@@ -590,16 +591,18 @@ export class Bridge {
         }
         const wanted = new Set(Array.isArray(cmd.ids) ? cmd.ids.map(String) : []);
         const targets = this.#unusedRows().filter((r) => wanted.has(r.id));
+        // Fader down, never the mute: a mute would also cut the channel from the in-ear mixes.
         for (const r of targets) {
-          this.state.strips[r.id].on = false;
-          this.client.setInt(paths.on(r.id), 0);
+          this.state.strips[r.id].fader = 0;
+          this.state.strips[r.id].faderDb = -Infinity;
+          this.client.setFloat(paths.fader(r.id), 0);
         }
         this.alert({
           level: 'ok',
           source: 'inventory',
           message: targets.length
-            ? `Muted ${targets.length} unused channel${targets.length > 1 ? 's' : ''}: ${targets.map((r) => r.label).join(', ')}.`
-            : 'No open unused channels to mute.',
+            ? `Turned down ${targets.length} unused channel${targets.length > 1 ? 's' : ''} in the room: ${targets.map((r) => r.label).join(', ')}. In-ear mixes unchanged.`
+            : 'No unused channels to turn down.',
         });
         return;
       }
@@ -1518,15 +1521,16 @@ export class Bridge {
         // Remember the level a person set, not a level the auto-mix had ducked it to.
         const level = this.automix?.homeDb(id) ?? s.faderDb;
         if (s.on && level > -60) this.settings.walkinLevels[id] = level;
-        this.fades.fade(id, -Infinity, ms, { muteAtEnd: true });
+        // Fader to zero, never the mute: a mute would also cut the music from the in-ear mixes.
+        this.fades.fade(id, -Infinity, ms);
       } else {
         const target = this.settings.walkinLevels[id] ?? -10;
         if (!s.on) {
-          // Start from silence so unmuting doesn't blast at the old fader level.
-          s.fader = 0;
-          this.client.setFloat(paths.fader(id), 0);
+          // Muted by a person: leave the mute to them (it affects the in-ears too).
+          this.alert({ level: 'warn', source: 'walkin', id, message: `${s.name || this.#label(id)} is muted on the mixer, so the music can't fade in. Unmute it in the X Air app first.` });
+          continue;
         }
-        this.fades.fade(id, target, ms, { unmuteFirst: true });
+        this.fades.fade(id, target, ms);
       }
     }
     this.#saveSettings();
@@ -1585,7 +1589,7 @@ export class Bridge {
     this.#walkin('out');
     this.pauseTimer = setTimeout(() => {
       // Only pause if nobody brought walk-in back up meanwhile.
-      const stillOff = this.#walkinStrips().every((id) => !this.state.strips[id].on);
+      const stillOff = this.#walkinStrips().every((id) => !this.state.strips[id].on || this.state.strips[id].fader === 0);
       if (stillOff) this.music.command('pause');
     }, this.config.walkinFadeSeconds * 1000 + 500);
   }

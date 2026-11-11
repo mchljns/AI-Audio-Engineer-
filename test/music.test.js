@@ -77,17 +77,27 @@ test('walk-in: one tap starts the playlist and fades up; one tap fades out and p
   bridge.handleCommand({ type: 'addPlaylist', name: 'Sunday walk-in', link: 'https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M' });
   assert.deepEqual(bridge.snapshot().playlists, [{ name: 'Sunday walk-in' }]);
 
-  // Start from silence.
-  bridge.handleCommand({ type: 'setOn', id: 'aux', on: false });
+  // Start from silence (fader down; the app never mutes, so the in-ears are never affected).
+  bridge.handleCommand({ type: 'setFader', id: 'aux', value: 0 });
   await wait(100);
   bridge.handleCommand({ type: 'walkinStart', playlist: 0 });
-  assert.ok(await until(() => fake.st.playing && sim.get(paths.on('aux')) === 1), 'playing and channel on');
+  assert.ok(await until(() => fake.st.playing && sim.get(paths.fader('aux')) > 0), 'playing and fading up');
   assert.ok(fake.calls.some((c) => c.includes('play track "spotify:playlist:37i9dQZF1DXcBWIGoYBM5M"')));
   assert.ok(await until(() => !bridge.fades.isFading('aux')), 'fade-up finished');
 
   bridge.handleCommand({ type: 'walkinEnd' });
-  assert.ok(await until(() => sim.get(paths.on('aux')) === 0), 'faded out and muted');
+  assert.ok(await until(() => sim.get(paths.fader('aux')) === 0), 'faded out');
+  assert.equal(sim.get(paths.on('aux')), 1, 'never muted');
   assert.ok(await until(() => fake.st.playing === false, 3000), 'player paused after the fade');
+
+  // A channel a person muted stays muted: the app says so instead of unmuting it.
+  bridge.handleCommand({ type: 'setOn', id: 'aux', on: false });
+  await wait(100);
+  bridge.handleCommand({ type: 'walkin', action: 'in', seconds: 0.3 });
+  await wait(600);
+  assert.equal(sim.get(paths.on('aux')), 0, 'left muted');
+  assert.equal(sim.get(paths.fader('aux')), 0, 'no fade on a muted channel');
+  assert.ok(bridge.alerts.some((x) => /muted on the mixer/.test(x.message)), 'explains why');
 });
 
 test('player buttons work even while the mixer is offline', async (t) => {

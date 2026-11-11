@@ -81,26 +81,33 @@ test('bridge against simulator', async (t) => {
     assert.equal(bridge.snapshot().inventory.rows.find((r) => r.id === '12').role, 'room');
   });
 
-  await t.test('mute unused mutes only blank, silent, unlocked channels', async () => {
+  await t.test('turn down unused: fader down (never mute) on blank, silent, unlocked channels', async () => {
     bridge.handleCommand({ type: 'muteUnused', ids: ['13'] });
     await wait(100);
     assert.equal(sim.get(paths.on('13')), 1, 'refused until channels have settled');
+    // A blank channel left with its fader up (hiss in the room). One already at zero needs nothing.
+    sim.externalChange(paths.fader('13'), { type: 'f', value: dbToFloat(-5) });
+    await until(() => bridge.state.strips['13'].fader > 0);
     // Pretend meters have been flowing long enough.
     bridge.state.metersSince = Date.now() - 20000;
     const snap = bridge.snapshot();
     assert.ok(snap.unusedReady);
     assert.deepEqual(snap.unused.map((u) => u.id), ['13']);
     bridge.handleCommand({ type: 'muteUnused', ids: ['13', '4', '12', '15'] });
-    assert.ok(await until(() => sim.get(paths.on('13')) === 0));
+    assert.ok(await until(() => sim.get(paths.fader('13')) === 0), 'fader down');
+    assert.equal(sim.get(paths.on('13')), 1, 'never muted: the in-ears keep it');
     assert.equal(sim.get(paths.on('4')), 1, 'named-but-silent Vox 2 left alone');
     assert.equal(sim.get(paths.on('12')), 1, 'channel with signal left alone');
+    assert.ok(await until(() => !bridge.snapshot().unused.some((u) => u.id === '13')), 'no longer listed once down');
   });
 
-  await t.test('walk-in fades out and mutes, then comes back to its level', async () => {
+  await t.test('walk-in fades out on the fader only (never mutes), then comes back to its level', async () => {
     bridge.handleCommand({ type: 'setFader', id: 'aux', db: -8 });
     await wait(100);
     bridge.handleCommand({ type: 'walkin', action: 'out', seconds: 0.5 });
-    assert.ok(await until(() => sim.get(paths.on('aux')) === 0 && sim.get(paths.fader('aux')) === 0), 'faded and muted');
+    assert.ok(await until(() => sim.get(paths.fader('aux')) === 0), 'faded out');
+    await wait(200);
+    assert.equal(sim.get(paths.on('aux')), 1, 'not muted, so the in-ears keep the music');
     bridge.handleCommand({ type: 'walkin', action: 'in', seconds: 0.5 });
     assert.ok(await until(() => sim.get(paths.on('aux')) === 1 && Math.abs(sim.get(paths.fader('aux')) - dbToFloat(-8)) < 0.01), 'restored');
   });
